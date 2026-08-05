@@ -1,0 +1,11 @@
+{
+  "name": "@seul/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./css": "./src/index.css",
+    "./primitives": "./src/primitives.css",
+    "./semantic": "./src/semantic.css",
+    "./business": "./src/business.css"
+  }
+}

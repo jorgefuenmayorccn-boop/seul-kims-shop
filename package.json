@@ -1,0 +1,27 @@
+{
+  "name": "seul-kims-os",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "test": "turbo test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
+    "db:push": "pnpm --filter @seul/db db:push",
+    "db:generate": "pnpm --filter @seul/db db:generate",
+    "db:studio": "pnpm --filter @seul/db db:studio"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.0.0",
+    "turbo": "^2.10.8",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "packageManager": "pnpm@9.15.0"
+}

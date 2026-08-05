@@ -1,0 +1,29 @@
+{
+  "name": "@seul/ui",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./pos/*": "./src/pos/*",
+    "./shop/*": "./src/shop/*",
+    "./b2b/*": "./src/b2b/*",
+    "./chat/*": "./src/chat/*"
+  },
+  "dependencies": {
+    "@seul/tokens": "workspace:*",
+    "@seul/tailwind-config": "workspace:*",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.0",
+    "lucide-react": "^0.400.0",
+    "tailwind-merge": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "react": "^18.0.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.6.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  }
+}

@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+.next/
+dist/
+.turbo/
+out/
+
+# Environment
+.env
+.env.local
+.env.*.local
+.dev.vars
+
+# Cloudflare
+.wrangler/
+wrangler.toml.local
+
+# Editor
+.DS_Store
+*.tsbuildinfo
+
+# Storybook
+storybook-static/
+
+# PDFs / uploads locales
+*.pdf
+/tmp/

@@ -1,0 +1,69 @@
+/* ============================================================
+   SEUL KING OS — Design Tokens: Business Layer
+   Domain-specific tokens. These encode Seoul Kims rules.
+   ============================================================ */
+
+@import './semantic.css';
+
+:root {
+  /* ── BAES (Subsidio JUNAEB) ── */
+  --color-baes-eligible:     #00c853;
+  --color-baes-not-eligible: var(--ink-300);
+  --color-baes-applied-bg:   #e8f5e9;
+  --color-baes-applied-text: #1b5e20;
+
+  /* ── Cadena de Frío ── */
+  --color-cold-frozen:        #0288d1;
+  --color-cold-refrigerated:  #4fc3f7;
+  --color-cold-ambient:       transparent;
+  --color-cold-frozen-bg:     #e1f5fe;
+  --color-cold-refrigerated-bg: #f0f9ff;
+
+  /* ── Vencimiento de Productos ── */
+  --color-expiry-fresh:   #00c853;  /* >30 días */
+  --color-expiry-warning: #ffd600;  /* 15–30 días */
+  --color-expiry-urgent:  #d7263d;  /* <15 días */
+  --color-expiry-expired: #1a1a1a;  /* vencido — alerta legal */
+
+  /* ── Boleta Electrónica SII / DTE ── */
+  --color-dte-pending: #ffd600;
+  --color-dte-issued:  #00c853;
+  --color-dte-failed:  #d7263d;
+
+  /* ── Sellos "Alto En" (Ley 20.606) ── */
+  --color-alto-en-bg:   #1a1a1a;
+  --color-alto-en-text: #ffffff;
+
+  /* ── Tiers B2B Seoul ── */
+  --color-tier-hoobae: var(--ink-500);    /* 후배 — nuevo */
+  --color-tier-sunbae: var(--gochu-500);  /* 선배 — recurrente */
+  --color-tier-hyung:  var(--red-500);    /* 형 — top */
+
+  /* ── Canales de Pedido ── */
+  --color-channel-pos:      var(--ink-900);
+  --color-channel-web:      var(--red-500);
+  --color-channel-rappi:    #ff441f;
+  --color-channel-metro:    #009ee0;      /* Merval */
+  --color-channel-b2b:      var(--gochu-500);
+  --color-channel-whatsapp: #25d366;
+
+  /* ── Estados de Comanda ── */
+  --color-comanda-nueva:       var(--orange-500);
+  --color-comanda-preparando:  var(--amber-500);
+  --color-comanda-lista:       var(--green-500);
+  --color-comanda-entregada:   var(--ink-300);
+  --color-comanda-cancelada:   var(--red-error);
+
+  /* ── POS ── */
+  --pos-hit-area-min:    48px;
+  --pos-category-width:  200px;
+  --pos-cart-width:      30%;
+  --pos-grid-cols-10in:  3;
+  --pos-grid-cols-12in:  4;
+
+  /* ── PDF Térmica 80mm ── */
+  --pdf-width-pt:        226.77pt;
+  --pdf-printable-pt:    204.09pt;
+  --pdf-chars-per-line:  42;
+  --pdf-font-size-pt:    8pt;
+}

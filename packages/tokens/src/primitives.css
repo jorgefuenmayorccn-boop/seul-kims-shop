@@ -1,0 +1,85 @@
+/* ============================================================
+   SEUL KING OS — Design Tokens: Primitive Layer
+   Source of truth. Never use these directly in components.
+   Use semantic tokens from semantic.css instead.
+   ============================================================ */
+
+:root {
+  /* ── Color Palette ── */
+  --red-100: #fbe5e8;
+  --red-200: #f5b8bf;
+  --red-500: #d7263d;   /* Rojo Seoul — primary brand */
+  --red-600: #b01d30;
+  --red-700: #8c1526;
+
+  --cream-50:  #fdfbf8;
+  --cream-100: #fbf8f3;
+  --cream-500: #f5efe6;  /* Hanji — fondo cálido */
+
+  --gochu-100: #fcf1d9;
+  --gochu-500: #f4b942;  /* Mostaza gochujang — acento promo/B2B */
+  --gochu-600: #d49a28;
+
+  --ink-900: #1a1a1a;
+  --ink-800: #2e2e2e;
+  --ink-700: #3a3a3a;
+  --ink-500: #6b6b6b;
+  --ink-300: #b0b0b0;
+  --ink-100: #e8e8e8;
+
+  --white: #ffffff;
+
+  --green-500: #00c853;
+  --green-100: #e8f5e9;
+  --amber-500: #ffd600;
+  --amber-100: #fff8e1;
+  --orange-500: #ff9100;
+  --red-error: #ba1a1a;
+  --red-error-container: #ffdad6;
+
+  /* ── Spacing Scale ── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ── Border Radius ── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* ── Typography ── */
+  --font-headline: 'Pretendard', system-ui, sans-serif;
+  --font-body:     'Inter', system-ui, sans-serif;
+  --font-mono:     'JetBrains Mono', 'Courier New', monospace;
+
+  --text-xs:   11px;
+  --text-sm:   13px;
+  --text-base: 15px;
+  --text-lg:   17px;
+  --text-xl:   20px;
+  --text-2xl:  24px;
+  --text-3xl:  32px;
+  --text-4xl:  40px;
+
+  /* ── Shadows ── */
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.08);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.10);
+  --shadow-lg:  0 8px 24px rgba(0,0,0,0.12);
+  --shadow-pos: 0 2px 8px rgba(215,38,61,0.15);
+
+  /* ── Transitions ── */
+  --duration-fast:   120ms;
+  --duration-normal: 220ms;
+  --duration-slow:   380ms;
+  --ease-standard:   cubic-bezier(0.2, 0, 0, 1);
+}
