@@ -15,6 +15,12 @@ export { StatusPill } from './status-pill'
 // Empty states
 export { EmptyState } from './empty-state'
 
+// Dashboard & inventario (Fase 1)
+export { KPICard } from './kpi-card'
+export { AlertBanner } from './alert-banner'
+export { TrafficLight, TrafficLightStack } from './traffic-light'
+export { SkeletonKPICard, SkeletonRow, SkeletonDashboard } from './skeleton'
+
 // CTAs
 export { WhatsAppCTA } from './whatsapp-cta'
 

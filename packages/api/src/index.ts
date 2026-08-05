@@ -28,16 +28,21 @@ app.use('/api/*', cors({
   credentials: true,
 }))
 
+import { productsRouter } from './routes/products'
+import { inventoryRouter } from './routes/inventory'
+import { dashboardRouter } from './routes/dashboard'
+
 app.get('/', c => c.json({ service: 'SEUL KING OS API', version: '1.0.0' }))
 
-// Routes (se agregan por fase)
-// import { productsRouter } from './routes/products'
+// Fase 1
+app.route('/api/products', productsRouter)
+app.route('/api/inventory', inventoryRouter)
+app.route('/api/dashboard', dashboardRouter)
+
+// Fase 2 (pendiente)
 // import { ordersRouter } from './routes/orders'
-// import { inventoryRouter } from './routes/inventory'
 // import { dteRouter } from './routes/dte'
-// app.route('/api/products', productsRouter)
 // app.route('/api/orders', ordersRouter)
-// app.route('/api/inventory', inventoryRouter)
 // app.route('/api/dte', dteRouter)
 
 export default app
