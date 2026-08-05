@@ -24,6 +24,12 @@ export { SkeletonKPICard, SkeletonRow, SkeletonDashboard } from './skeleton'
 // CTAs
 export { WhatsAppCTA } from './whatsapp-cta'
 
-// Channel-specific — imported via subpath
-// import { POSNumpad } from '@seul/ui/pos/numpad'
+// POS — importar via subpath:
+// import { ProductTile }    from '@seul/ui/pos/product-tile'
+// import { POSNumpad }      from '@seul/ui/pos/numpad'
+// import { CartLine }       from '@seul/ui/pos/cart-line'
+// import { BAESValidator }  from '@seul/ui/pos/baes-validator'
+// import { ColdChainAlert } from '@seul/ui/pos/cold-chain-alert'
+
+// Shop B2C — importar via subpath (Fase 3):
 // import { ProductCard } from '@seul/ui/shop/product-card'

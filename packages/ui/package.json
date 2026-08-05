@@ -4,10 +4,14 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./pos/*": "./src/pos/*",
-    "./shop/*": "./src/shop/*",
-    "./b2b/*": "./src/b2b/*",
-    "./chat/*": "./src/chat/*"
+    "./pos/product-tile":    "./src/pos/product-tile.tsx",
+    "./pos/numpad":          "./src/pos/numpad.tsx",
+    "./pos/cart-line":       "./src/pos/cart-line.tsx",
+    "./pos/baes-validator":  "./src/pos/baes-validator.tsx",
+    "./pos/cold-chain-alert":"./src/pos/cold-chain-alert.tsx",
+    "./shop/*": "./src/shop/*.tsx",
+    "./b2b/*":  "./src/b2b/*.tsx",
+    "./chat/*": "./src/chat/*.tsx"
   },
   "dependencies": {
     "@seul/tokens": "workspace:*",
