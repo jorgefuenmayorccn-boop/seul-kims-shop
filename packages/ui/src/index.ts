@@ -30,6 +30,11 @@ export { WhatsAppCTA } from './whatsapp-cta'
 // import { CartLine }       from '@seul/ui/pos/cart-line'
 // import { BAESValidator }  from '@seul/ui/pos/baes-validator'
 // import { ColdChainAlert } from '@seul/ui/pos/cold-chain-alert'
+export { ColdChainAlert } from './pos/cold-chain-alert'   // también usado en repartidor
 
-// Shop B2C — importar via subpath (Fase 3):
-// import { ProductCard } from '@seul/ui/shop/product-card'
+// Shop B2C — importar via subpath:
+// import { ProductCard }    from '@seul/ui/shop/product-card'
+// import { DeliveryPicker } from '@seul/ui/shop/delivery-picker'
+// import { HeroSlider }     from '@seul/ui/shop/hero-slider'
+// import { CategoryBubble } from '@seul/ui/shop/category-bubble'
+// import { CheckoutTimer }  from '@seul/ui/shop/checkout-timer'

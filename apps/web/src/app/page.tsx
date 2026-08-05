@@ -1,7 +1,3 @@
-// B2C Home — Fase 3
-// Por ahora redirige al cerebro durante el desarrollo
-import { redirect } from 'next/navigation'
-
-export default function Home() {
-  redirect('/cerebro/dashboard')
-}
+// Raíz — la tienda B2C vive en (shop)/page.tsx
+// Next.js App Router: el grupo (shop) maneja la ruta /
+export { default } from './(shop)/page'

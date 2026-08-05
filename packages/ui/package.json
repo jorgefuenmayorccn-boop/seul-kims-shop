@@ -9,7 +9,11 @@
     "./pos/cart-line":       "./src/pos/cart-line.tsx",
     "./pos/baes-validator":  "./src/pos/baes-validator.tsx",
     "./pos/cold-chain-alert":"./src/pos/cold-chain-alert.tsx",
-    "./shop/*": "./src/shop/*.tsx",
+    "./shop/product-card":   "./src/shop/product-card.tsx",
+    "./shop/delivery-picker":"./src/shop/delivery-picker.tsx",
+    "./shop/hero-slider":    "./src/shop/hero-slider.tsx",
+    "./shop/category-bubble":"./src/shop/category-bubble.tsx",
+    "./shop/checkout-timer": "./src/shop/checkout-timer.tsx",
     "./b2b/*":  "./src/b2b/*.tsx",
     "./chat/*": "./src/chat/*.tsx"
   },
