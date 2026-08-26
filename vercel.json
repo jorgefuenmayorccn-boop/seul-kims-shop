@@ -1,6 +1,7 @@
 {
-  "buildCommand": "pnpm build",
+  "buildCommand": "pnpm --filter @seul/web build",
+  "outputDirectory": "apps/web/.next",
   "installCommand": "pnpm install",
   "framework": "nextjs",
-  "nodeVersion": "24.x"
+  "nodeVersion": "20.x"
 }
