@@ -1,0 +1,45 @@
+/* ============================================================
+   SEUL KING OS — Hangul Design Tokens
+   Tipografía editorial coreana: Noto Sans KR 900
+   Inspiración: Studio fnt, Musinsa, Olive Young flagship
+   ============================================================ */
+
+:root {
+  /* ── Fuentes Coreanas ── */
+  --font-korean:   'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+  --font-display:  'Noto Sans KR', system-ui, sans-serif;
+
+  /* ── Escala tipográfica Hangul editorial ── */
+  --hangul-hero:    clamp(180px, 22vw, 320px);   /* 맛 — carácter héroe */
+  --hangul-xl:      clamp(80px, 10vw, 140px);    /* 감사합니다 footer */
+  --hangul-lg:      clamp(40px, 6vw, 72px);      /* 어서오세요 banner */
+  --hangul-md:      clamp(24px, 3vw, 36px);      /* subtítulos sección */
+  --hangul-sm:      18px;                         /* labels categorías */
+
+  /* ── Semántica Celadón ── */
+  --color-celadon:        var(--celadon-500);
+  --color-celadon-light:  var(--celadon-100);
+  --color-celadon-dark:   var(--celadon-700);
+
+  /* ── Semántica Baek / Heuk (blanco/negro editorial) ── */
+  --color-baek:           var(--baek-100);
+  --color-baek-pure:      var(--baek-50);
+  --color-heuk:           var(--heuk-950);
+  --color-heuk-soft:      var(--heuk-800);
+
+  /* ── Acento rojo Seoul sobre heuk ── */
+  --color-seoul-red:      var(--red-500);
+  --color-seoul-red-glow: rgba(215, 38, 61, 0.18);
+
+  /* ── Superficies editorial ── */
+  --surface-editorial:    var(--baek-50);
+  --surface-heuk:         var(--heuk-950);
+  --surface-celadon:      var(--celadon-100);
+
+  /* ── Mix-blend editorial ── */
+  --blend-mark: difference;  /* Hangul superpuesto sobre foto */
+
+  /* ── Bordes finos ── */
+  --border-editorial: 1px solid rgba(10, 10, 10, 0.12);
+  --border-heuk:      1px solid var(--heuk-950);
+}

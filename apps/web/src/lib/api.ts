@@ -1,64 +1,60 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
+// API pública — tienda B2C y B2B
+// No contiene rutas administrativas (El Cerebro está en apps/cerebro)
+
+const API_URL    = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
+const TIMEOUT_MS = 6_000
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
-  })
-  if (!res.ok) {
-    throw new Error(`API ${path} → ${res.status}`)
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      ...init,
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json', ...init?.headers },
+    })
+    if (!res.ok) throw new Error(`API ${path} → ${res.status}`)
+    return res.json() as Promise<T>
+  } finally {
+    clearTimeout(timer)
   }
-  return res.json() as Promise<T>
 }
 
-// Dashboard
-export async function getDashboardStats() {
-  return apiFetch<{
-    ventasHoy: number
-    ventasAyer: number
-    deltaVentas: number | null
-    ticketPromedio: number
-    pedidosActivos: number
-    pedidosWebSinDespachar: number
-    b2bPendientes: number
-    vencenEstaSemana: number
-    stockCritico: number
-    top5Productos: Array<{ productId: string; name: string; units: number; revenue: number }>
-    generatedAt: string
-  }>('/api/dashboard/stats')
-}
-
-export async function getDashboardAlerts() {
-  return apiFetch<{
-    vencidos: Array<{ productId: string; name: string; quantity: number; expiresAt: string }>
-    urgentes: Array<{ productId: string; name: string; quantity: number; expiresAt: string }>
-    dtesFallidos: Array<{ id: string; number: number }>
-    hasAlerts: boolean
-  }>('/api/dashboard/alerts')
-}
-
-// Inventory
-export async function getInventory(params?: Record<string, string>) {
+// Catálogo público
+export async function getPublicProducts(params?: Record<string, string>) {
   const qs = params ? '?' + new URLSearchParams(params).toString() : ''
-  return apiFetch<{
-    items: Array<{
-      id: string
-      productId: string
-      productName: string
-      sku: string
-      brand?: string | null
-      lot?: string | null
-      quantity: number
-      expiresAt?: string | null
-      location: string
-      coldChain: 'ambient' | 'refrigerated' | 'frozen'
-      isBaesEligible: boolean
-      categoryName?: string | null
-      expiryStatus: 'fresh' | 'warning' | 'urgent' | 'expired' | null
-    }>
-    total: number
-  }>(`/api/inventory${qs}`)
+  try {
+    return await apiFetch<{ products: Array<{ id: string; sku: string; name: string; nameKo?: string | null; slug: string; brand?: string | null; priceRetail: string | number; imageUrl?: string | null; categoryName?: string | null; stockTotal: number; isBaesEligible: boolean; coldChain: string }>; total: number }>(`/api/products${qs}`)
+  } catch { return { products: [], total: 0 } }
+}
+
+// Upsert guest customer para checkout anónimo
+export async function upsertGuestCustomer(data: {
+  name: string; email: string; phone?: string
+}): Promise<{ customerId: string; isNew: boolean }> {
+  return apiFetch('/api/customers/guest', { method: 'POST', body: JSON.stringify(data) })
+}
+
+// Sesión del cliente (B2C)
+export async function getCustomerSession(): Promise<{
+  ok: boolean
+  customer: { id: string; name: string; email: string } | null
+}> {
+  try {
+    return await apiFetch('/api/customer/me', { credentials: 'include' } as RequestInit)
+  } catch { return { ok: false, customer: null } }
+}
+
+// Pedido web
+export async function createWebOrder(payload: {
+  channel: 'web'
+  deliveryMode: 'rappi' | 'metro' | 'pickup' | 'shipping'
+  metroStation?: string; metroSlot?: string; deliveryAddress?: string
+  customerId?: string
+  notes?: string
+  items: Array<{ productId: string; quantity: number; unitPrice: number; isBaes: boolean }>
+}) {
+  return apiFetch<{ ok: boolean; orderId: string; number: number; pdfToken: string; total: number }>(
+    '/api/orders/public', { method: 'POST', body: JSON.stringify(payload) }
+  )
 }

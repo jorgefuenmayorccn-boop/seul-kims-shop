@@ -1,3 +1,7 @@
-export { generateBoletaPDF, renderBoletaText } from './boleta-80mm'
+export { generateBoletaBuffer, generateBoletaPDF, renderBoletaText } from './boleta-80mm'
 export type { BoletaData, BoletaItem } from './boleta-80mm'
+export { buildNotaDeVenta } from './nota-de-venta'
+export type { NotaDeVentaData } from './nota-de-venta'
 export { THERMAL_80MM, STORE_INFO } from './constants'
+export { renderTicketLines } from './ticket-renderer'
+export type { TicketPayload, TicketItem, TicketPayment, TicketReceiver, TicketDocType, TicketStoreInfo, PrintMode, PrintStatus, PrintResult } from './ticket-payload'

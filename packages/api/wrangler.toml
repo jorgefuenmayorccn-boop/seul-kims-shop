@@ -4,37 +4,63 @@ compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-ENVIRONMENT = "development"
-APP_URL = "http://localhost:3000"
+ENVIRONMENT     = "development"
+APP_URL         = "http://localhost:3000"
+PUBLIC_API_URL  = "http://localhost:8787"
 
-# KV Namespaces
+# KV — simulado localmente en dev (wrangler crea .wrangler/state/)
 [[kv_namespaces]]
 binding = "SESSIONS"
-id = "REPLACE_WITH_KV_ID"
+id      = "local-sessions-dev"
 
 [[kv_namespaces]]
 binding = "CARTS"
-id = "REPLACE_WITH_CARTS_KV_ID"
+id      = "local-carts-dev"
 
-# R2 Buckets
+# R2 — simulado localmente
 [[r2_buckets]]
-binding = "PDF_BUCKET"
-bucket_name = "seul-kims-pdfs"
+binding     = "PDF_BUCKET"
+bucket_name = "seul-kims-pdfs-dev"
 
-# Queues (cola DTE)
+# Durable Objects — OrderHub singleton para eventos realtime (SSE → POS)
+[[durable_objects.bindings]]
+name       = "ORDER_HUB"
+class_name = "OrderHub"
+
+[[migrations]]
+tag         = "v1"
+new_classes = ["OrderHub"]
+
+# Queue — simulado localmente
 [[queues.producers]]
 binding = "DTE_QUEUE"
-queue = "seul-kims-dte"
+queue   = "seul-kims-dte"
 
 [[queues.consumers]]
-queue = "seul-kims-dte"
-max_batch_size = 10
+queue             = "seul-kims-dte"
+max_batch_size    = 10
 max_batch_timeout = 30
+max_retries       = 3
 
-# Secrets (set via wrangler secret put):
-# DATABASE_URL
-# DTE_API_KEY
-# DTE_RUT_EMPRESA
-# UPSTASH_REDIS_URL
-# UPSTASH_REDIS_TOKEN
-# SENTRY_DSN
+# Queue — correos transaccionales (independiente del DTE)
+[[queues.producers]]
+binding = "EMAIL_QUEUE"
+queue   = "seul-kims-email"
+
+[[queues.consumers]]
+queue             = "seul-kims-email"
+max_batch_size    = 10
+max_batch_timeout = 30
+max_retries       = 2
+
+# =============================================================
+# SECRETS — en dev se leen de .dev.vars automáticamente
+# En producción: wrangler secret put <NOMBRE>
+# =============================================================
+# DATABASE_URL          — Neon PostgreSQL connection string
+# DTE_API_KEY           — Token proveedor DTE (Bsale/Toku/Haulmer)
+# DTE_RUT_EMPRESA       — RUT empresa Seoul Kims
+# UPSTASH_REDIS_URL     — Redis URL (Upstash)
+# UPSTASH_REDIS_TOKEN   — Redis token
+# SENTRY_DSN            — Sentry DSN
+# ANTHROPIC_API_KEY     — Claude API key

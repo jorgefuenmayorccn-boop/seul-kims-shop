@@ -1,5 +1,6 @@
 'use client'
 import Link from 'next/link'
+import Image from 'next/image'
 import { ShoppingCart, MessageCircle } from 'lucide-react'
 import { BadgeChain } from '../badge-chain'
 import { BadgeBAES } from '../badge-baes'
@@ -32,17 +33,17 @@ const SEUL_WA = '56936451991'
 
 export function ProductCard({ product, variant = 'grid', onAddToCart }: ProductCardProps) {
   const outOfStock = product.stockTotal <= 0
-  const waText = `¡Hola! Quiero comprar ${product.name} 🥢`
+  const waText = `¡Hola! Quiero comprar ${product.name}`
   const waHref = `https://wa.me/${SEUL_WA}?text=${encodeURIComponent(waText)}`
 
   if (variant === 'list') {
     return (
       <div className="flex gap-4 p-4 bg-elevated rounded-lg border border-[var(--color-border)] hover:shadow-md transition-shadow">
         {/* Imagen */}
-        <div className="w-20 h-20 shrink-0 bg-surface rounded-md overflow-hidden">
+        <div className="relative w-20 h-20 shrink-0 bg-surface rounded-md overflow-hidden">
           {product.imageUrl
-            ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" />
-            : <span className="flex items-center justify-center h-full text-3xl">🥡</span>
+            ? <Image src={product.imageUrl} alt={product.name} fill sizes="80px" className="object-cover" />
+            : <span className="flex items-center justify-center h-full" style={{ fontSize: 18, fontFamily: 'var(--font-korean, serif)', color: 'var(--color-celadon, #6b8f71)' }}>상품</span>
           }
         </div>
         <div className="flex-1 min-w-0 space-y-1">
@@ -78,8 +79,8 @@ export function ProductCard({ product, variant = 'grid', onAddToCart }: ProductC
       {/* Imagen */}
       <Link href={`/producto/${product.slug}`} className="block relative aspect-square bg-surface overflow-hidden">
         {product.imageUrl
-          ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-slow" />
-          : <span className="flex items-center justify-center h-full text-5xl">🥡</span>
+          ? <Image src={product.imageUrl} alt={product.name} fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" className="object-cover group-hover:scale-105 transition-transform duration-slow" />
+          : <span className="flex items-center justify-center h-full" style={{ fontSize: 28, fontFamily: 'var(--font-korean, serif)', color: 'var(--color-celadon, #6b8f71)' }}>상품</span>
         }
         {outOfStock && (
           <div className="absolute inset-0 bg-white/70 flex items-center justify-center">

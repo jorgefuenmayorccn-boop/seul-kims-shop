@@ -29,6 +29,21 @@
 
   --white: #ffffff;
 
+  /* ── Obangsaek — 5 Colores Tradicionales Coreanos ── */
+  --celadon-100: #e6eeea;
+  --celadon-300: #a8c4b5;
+  --celadon-500: #7ca38e;  /* Celadón Goryeo —청자 */
+  --celadon-700: #4f7a67;
+  --celadon-900: #2e4d40;
+
+  --baek-50:  #fafaf8;     /* 백 Blanco Hanji — fondo editorial */
+  --baek-100: #f5f5f2;
+  --baek-200: #ebebе6;
+
+  --heuk-950: #0a0a0a;     /* 흑 Negro tinta — tipografía editorial */
+  --heuk-900: #111111;
+  --heuk-800: #1c1c1c;
+
   --green-500: #00c853;
   --green-100: #e8f5e9;
   --amber-500: #ffd600;

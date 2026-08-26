@@ -4,34 +4,48 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts",
-    "./pos/product-tile":    "./src/pos/product-tile.tsx",
-    "./pos/numpad":          "./src/pos/numpad.tsx",
-    "./pos/cart-line":       "./src/pos/cart-line.tsx",
-    "./pos/baes-validator":  "./src/pos/baes-validator.tsx",
-    "./pos/cold-chain-alert":"./src/pos/cold-chain-alert.tsx",
-    "./shop/product-card":   "./src/shop/product-card.tsx",
-    "./shop/delivery-picker":"./src/shop/delivery-picker.tsx",
-    "./shop/hero-slider":    "./src/shop/hero-slider.tsx",
-    "./shop/category-bubble":"./src/shop/category-bubble.tsx",
+    "./pos/product-tile": "./src/pos/product-tile.tsx",
+    "./pos/numpad": "./src/pos/numpad.tsx",
+    "./pos/cart-line": "./src/pos/cart-line.tsx",
+    "./pos/baes-validator": "./src/pos/baes-validator.tsx",
+    "./pos/cold-chain-alert": "./src/pos/cold-chain-alert.tsx",
+    "./shop/product-card": "./src/shop/product-card.tsx",
+    "./shop/animated-product-card": "./src/shop/animated-product-card.tsx",
+    "./shop/delivery-picker": "./src/shop/delivery-picker.tsx",
+    "./shop/hero-slider": "./src/shop/hero-slider.tsx",
+    "./shop/kwave-hero": "./src/shop/kwave-hero.tsx",
+    "./shop/category-bubble": "./src/shop/category-bubble.tsx",
+    "./shop/category-bubble-animated": "./src/shop/category-bubble-animated.tsx",
     "./shop/checkout-timer": "./src/shop/checkout-timer.tsx",
-    "./b2b/*":  "./src/b2b/*.tsx",
+    "./shop/editorial-hero": "./src/shop/editorial-hero.tsx",
+    "./shop/category-nav": "./src/shop/category-nav.tsx",
+    "./shop/product-card-editorial": "./src/shop/product-card-editorial.tsx",
+    "./shop/shop-footer": "./src/shop/shop-footer.tsx",
+    "./b2b/*": "./src/b2b/*.tsx",
     "./chat/*": "./src/chat/*.tsx"
   },
+  "scripts": {
+    "clean": "rm -rf dist .turbo"
+  },
   "dependencies": {
-    "@seul/tokens": "workspace:*",
+    "@seul/icons": "workspace:*",
     "@seul/tailwind-config": "workspace:*",
+    "@seul/tokens": "workspace:*",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "framer-motion": "^11.18.2",
     "lucide-react": "^0.400.0",
     "tailwind-merge": "^2.4.0"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
+    "next": "14.2.0",
     "react": "^18.0.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.6.0"
   },
   "peerDependencies": {
+    "next": ">=14",
     "react": ">=18"
   }
 }

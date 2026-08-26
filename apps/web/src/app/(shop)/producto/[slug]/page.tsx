@@ -1,8 +1,12 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import { BadgeChain, BadgeBAES, BadgeNutrition, WhatsAppCTA, formatCLP } from '@seul/ui'
-import { apiFetch } from '@/lib/api'
-import { ShoppingCart, ChevronLeft, Thermometer } from 'lucide-react'
+import { apiServerFetch, CACHE_TAGS } from '@/lib/api-server'
+import { Thermometer } from '@seul/icons'
+import { productJsonLd, breadcrumbJsonLd } from '@/lib/jsonld'
+import { PDPAddButton } from '@/components/shop/pdp-add-button'
+import { PDPGallery } from '@/components/shop/pdp-gallery'
 
 interface ProductDetail {
   id:             string
@@ -17,6 +21,7 @@ interface ProductDetail {
   isBaesEligible: boolean
   isWeighable:    boolean
   imageUrl?:      string | null
+  images:         Array<{ id: string; url: string }>
   sellos:         string[]
   stockTotal:     number
   nextExpiry?:    string | null
@@ -29,10 +34,29 @@ interface PageProps {
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   try {
-    const p = await apiFetch<ProductDetail>(`/api/products/${params.slug}`)
+    const p = await apiServerFetch<ProductDetail>(`/api/products/${params.slug}`, {
+      tags: [CACHE_TAGS.product(params.slug)],
+    })
+    const description = p.description ?? `${p.name} — SEUL SHOP CL, Viña del Mar`
     return {
       title: p.name,
-      description: p.description ?? `${p.name} — Tienda coreana Seoul Kims, Viña del Mar`,
+      description,
+      openGraph: {
+        title: p.name,
+        description,
+        images: p.imageUrl
+          ? [{ url: p.imageUrl, width: 800, height: 800, alt: p.name }]
+          : [],
+        type: 'website',
+        locale: 'es_CL',
+        siteName: 'SEUL SHOP',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: p.name,
+        description,
+        images: p.imageUrl ? [p.imageUrl] : [],
+      },
     }
   } catch {
     return { title: 'Producto no encontrado' }
@@ -48,16 +72,39 @@ const COLD_CHAIN_TEXT: Record<'ambient' | 'refrigerated' | 'frozen', string> = {
 export default async function ProductPage({ params }: PageProps) {
   let product: ProductDetail
   try {
-    product = await apiFetch<ProductDetail>(`/api/products/${params.slug}`)
+    product = await apiServerFetch<ProductDetail>(`/api/products/${params.slug}`, {
+      tags: [CACHE_TAGS.product(params.slug)],
+    })
   } catch {
     notFound()
   }
 
   const outOfStock = product.stockTotal <= 0
-  const waText = `¡Hola! Me interesa comprar ${product.name} 🥢`
+  const waText = `¡Hola! Me interesa comprar ${product.name}`
+
+  const BASE_URL = 'https://seoulkims.cl'
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd({
+          name: product.name,
+          description: product.description,
+          imageUrl: product.imageUrl,
+          priceRetail: product.priceRetail,
+          slug: product.slug,
+          stockTotal: product.stockTotal,
+        })) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd([
+          { name: 'Inicio', url: BASE_URL },
+          { name: 'Productos', url: `${BASE_URL}/productos` },
+          { name: product.name, url: `${BASE_URL}/producto/${product.slug}` },
+        ])) }}
+      />
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-sm text-text-muted font-body mb-6">
         <a href="/" className="hover:text-text transition-colors">Inicio</a>
@@ -69,23 +116,13 @@ export default async function ProductPage({ params }: PageProps) {
 
       <div className="grid md:grid-cols-2 gap-10">
 
-        {/* Galería */}
-        <div className="space-y-3">
-          <div className="aspect-square bg-surface rounded-2xl overflow-hidden border border-[var(--color-border)] flex items-center justify-center">
-            {product.imageUrl
-              ? <img src={product.imageUrl} alt={product.name} className="w-full h-full object-contain p-4" />
-              : <span className="text-8xl">🥡</span>
-            }
-          </div>
-          {/* Miniaturas — placeholder para más imágenes */}
-          <div className="flex gap-2">
-            <div className="w-16 h-16 bg-surface rounded-lg border-2 border-brand/40 overflow-hidden flex items-center justify-center">
-              {product.imageUrl
-                ? <img src={product.imageUrl} alt="" className="w-full h-full object-cover" />
-                : <span className="text-2xl">🥡</span>
-              }
-            </div>
-          </div>
+        {/* Galería interactiva */}
+        <div>
+          <PDPGallery
+            name={product.name}
+            images={product.images ?? []}
+            coverUrl={product.imageUrl}
+          />
         </div>
 
         {/* Info */}
@@ -142,19 +179,26 @@ export default async function ProductPage({ params }: PageProps) {
             {outOfStock ? (
               <p className="text-sm text-text-muted font-body mt-1">Producto agotado — escríbenos para reservar del próximo pedido</p>
             ) : (
-              <p className="text-xs text-success font-body mt-1">✓ En stock</p>
+              <p className="text-xs text-success font-body mt-1">En stock</p>
             )}
           </div>
 
           {/* Acciones */}
           <div className="flex flex-col gap-3">
-            <button
-              disabled={outOfStock}
-              className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl bg-brand text-white font-headline font-bold text-base hover:bg-brand-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <ShoppingCart size={18} />
-              {outOfStock ? 'Sin stock' : 'Agregar al pedido'}
-            </button>
+            <PDPAddButton
+              outOfStock={outOfStock}
+              product={{
+                id:             product.id,
+                slug:           product.slug,
+                name:           product.name,
+                nameKo:         product.nameKo,
+                brand:          product.brand,
+                imageUrl:       product.imageUrl,
+                priceRetail:    product.priceRetail,
+                coldChain:      product.coldChain,
+                isBaesEligible: product.isBaesEligible,
+              }}
+            />
             <WhatsAppCTA
               variant="button"
               message={waText}
@@ -175,17 +219,17 @@ export default async function ProductPage({ params }: PageProps) {
             <p className="font-semibold text-text">Opciones de entrega</p>
             {product.coldChain !== 'ambient' ? (
               <>
-                <p className="text-text-muted">🚉 Retiro Metro Merval — gratis</p>
-                <p className="text-text-muted">🛵 Rappi Express — Viña, Reñaca, Concón</p>
-                <p className="text-text-muted">🏪 Retiro en tienda</p>
-                <p className="text-red-400 text-xs">⚠ No disponible para despacho a regiones (cadena de frío)</p>
+                <p className="text-text-muted">Retiro Metro Merval — gratis</p>
+                <p className="text-text-muted">Rappi Express — Viña, Reñaca, Concón</p>
+                <p className="text-text-muted">Retiro en tienda</p>
+                <p className="text-red-400 text-xs">No disponible para despacho a regiones (cadena de frío)</p>
               </>
             ) : (
               <>
-                <p className="text-text-muted">🚉 Retiro Metro Merval — gratis</p>
-                <p className="text-text-muted">🛵 Rappi Express — Viña, Reñaca, Concón</p>
-                <p className="text-text-muted">🏪 Retiro en tienda</p>
-                <p className="text-text-muted">📦 Despacho a regiones — Chilexpress 3-5 días</p>
+                <p className="text-text-muted">Retiro Metro Merval — gratis</p>
+                <p className="text-text-muted">Rappi Express — Viña, Reñaca, Concón</p>
+                <p className="text-text-muted">Retiro en tienda</p>
+                <p className="text-text-muted">Despacho a regiones — Chilexpress 3-5 días</p>
               </>
             )}
           </div>

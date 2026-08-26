@@ -5,11 +5,16 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "@seul/db": "workspace:*",
     "@hono/zod-validator": "^0.4.0",
+    "@neondatabase/serverless": "^0.10.4",
+    "@seul/db": "workspace:*",
+    "@seul/dte": "workspace:*",
+    "@seul/pdf-templates": "workspace:*",
+    "drizzle-orm": "^0.36.4",
     "hono": "^4.6.0",
     "zod": "^3.23.0"
   },

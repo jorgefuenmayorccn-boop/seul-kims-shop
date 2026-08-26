@@ -1,0 +1,12 @@
+{
+  "port": 9101,
+  "printerType": "EPSON",
+  "interface": "usb",
+  "width": 42,
+  "characterSet": "PC858_EURO",
+  "removeSpecialCharacters": false,
+  "lineCharacter": "-",
+  "options": {
+    "timeout": 5000
+  }
+}

@@ -5,6 +5,8 @@
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
+    "dev:clean": "node scripts/kill-ports.mjs && turbo dev",
+    "clean": "turbo run clean --continue",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "test": "turbo test",

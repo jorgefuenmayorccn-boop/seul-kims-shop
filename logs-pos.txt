@@ -1,0 +1,10 @@
+
+> @seul/pos@0.1.0 dev /Users/vertice/vertice_productions/seul-kims-os/apps/pos
+> next dev --port 3001
+
+  ▲ Next.js 14.2.25
+  - Local:        http://localhost:3001
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 139.1s

@@ -1,0 +1,40 @@
+/* SEUL KING OS — K-wave Design Tokens */
+:root {
+  /* Paleta K-wave complementaria al rojo #D7263D */
+  --kwave-pink-100:     #FFE8F0;
+  --kwave-pink-300:     #FFB3CC;
+  --kwave-pink-500:     #FF6B9D;
+  --kwave-pink-700:     #D4447A;
+
+  --kwave-gold-100:     #FFF8E7;
+  --kwave-gold-300:     #FFDA6B;
+  --kwave-gold-500:     #E8B84A;
+  --kwave-gold-700:     #B8861A;
+
+  --kwave-lavender-100: #F2EEFF;
+  --kwave-lavender-300: #C9B8F5;
+  --kwave-lavender-500: #9B7EE8;
+
+  --kwave-mint-100:     #E0FAF3;
+  --kwave-mint-500:     #2EC4A9;
+
+  --kwave-navy-900:     #0D1B3E;
+  --kwave-navy-800:     #1A2E5A;
+
+  /* Tipografías K-wave */
+  --font-korean:  'Noto Sans KR', 'Pretendard', system-ui, sans-serif;
+  --font-display: 'Poppins', 'Pretendard', system-ui, sans-serif;
+
+  /* Gradientes */
+  --gradient-kwave-hero:    linear-gradient(135deg, #1a0a14 0%, #4a0a1a 40%, #D7263D 100%);
+  --gradient-kwave-brand:   linear-gradient(135deg, #D7263D 0%, #8C1526 100%);
+  --gradient-kwave-soft:    linear-gradient(135deg, #FFE8F0 0%, #F2EEFF 100%);
+  --gradient-kwave-gold:    linear-gradient(135deg, #FFF8E7 0%, #FFD700 100%);
+  --gradient-kwave-dark:    linear-gradient(180deg, #0D1B3E 0%, #1A0A14 100%);
+
+  /* Sombras especiales */
+  --shadow-kwave-card:  0 4px 24px rgba(215, 38, 61, 0.12), 0 1px 4px rgba(0,0,0,0.08);
+  --shadow-kwave-hero:  0 24px 64px rgba(215, 38, 61, 0.3);
+  --shadow-brand-glow:  0 0 32px rgba(215, 38, 61, 0.35);
+  --shadow-pink-glow:   0 0 24px rgba(255, 107, 157, 0.25);
+}

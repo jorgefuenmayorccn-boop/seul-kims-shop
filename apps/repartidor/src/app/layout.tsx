@@ -2,11 +2,11 @@ import type { Metadata } from 'next'
 import '../styles/globals.css'
 
 export const metadata: Metadata = {
-  title: 'Seoul Kims · Repartidor',
-  description: 'App de repartidor Seoul Kims',
+  title: 'SEUL DRIVE',
+  description: 'App de repartidor — SEUL DRIVE',
   manifest: '/manifest.json',
   themeColor: '#D7263D',
-  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'SK Repartidor' },
+  appleWebApp: { capable: true, statusBarStyle: 'default', title: 'SEUL DRIVE' },
 }
 
 export default function RepartidorLayout({ children }: { children: React.ReactNode }) {

@@ -82,6 +82,15 @@ const config: Omit<Config, 'content'> = {
           hyung:  'var(--color-tier-hyung)',
         },
 
+        // ── K-wave Design System ──
+        kwave: {
+          pink:     { 100: 'var(--kwave-pink-100)', 300: 'var(--kwave-pink-300)', 500: 'var(--kwave-pink-500)', 700: 'var(--kwave-pink-700)' },
+          gold:     { 100: 'var(--kwave-gold-100)', 300: 'var(--kwave-gold-300)', 500: 'var(--kwave-gold-500)', 700: 'var(--kwave-gold-700)' },
+          lavender: { 100: 'var(--kwave-lavender-100)', 300: 'var(--kwave-lavender-300)', 500: 'var(--kwave-lavender-500)' },
+          mint:     { 100: 'var(--kwave-mint-100)', 500: 'var(--kwave-mint-500)' },
+          navy:     { 800: 'var(--kwave-navy-800)', 900: 'var(--kwave-navy-900)' },
+        },
+
         // ── Business: Comandas ──
         comanda: {
           nueva:      'var(--color-comanda-nueva)',
@@ -90,12 +99,42 @@ const config: Omit<Config, 'content'> = {
           entregada:  'var(--color-comanda-entregada)',
           cancelada:  'var(--color-comanda-cancelada)',
         },
+
+        // ── Obangsaek — Sistema editorial coreano ──
+        celadon: {
+          DEFAULT: 'var(--color-celadon)',
+          light:   'var(--color-celadon-light)',
+          dark:    'var(--color-celadon-dark)',
+          100: 'var(--celadon-100)',
+          300: 'var(--celadon-300)',
+          500: 'var(--celadon-500)',
+          700: 'var(--celadon-700)',
+          900: 'var(--celadon-900)',
+        },
+        baek: {
+          DEFAULT: 'var(--color-baek)',
+          pure:    'var(--color-baek-pure)',
+          50:  'var(--baek-50)',
+          100: 'var(--baek-100)',
+        },
+        heuk: {
+          DEFAULT: 'var(--color-heuk)',
+          soft:    'var(--color-heuk-soft)',
+          800: 'var(--heuk-800)',
+          900: 'var(--heuk-900)',
+          950: 'var(--heuk-950)',
+        },
+        seoul: {
+          red:  'var(--color-seoul-red)',
+        },
       },
 
       fontFamily: {
         headline: ['var(--font-headline)'],
         body:     ['var(--font-body)'],
         mono:     ['var(--font-mono)'],
+        korean:   ['var(--font-korean)'],
+        display:  ['var(--font-display)'],
       },
 
       borderRadius: {
@@ -124,10 +163,13 @@ const config: Omit<Config, 'content'> = {
       },
 
       boxShadow: {
-        sm:  'var(--shadow-sm)',
-        md:  'var(--shadow-md)',
-        lg:  'var(--shadow-lg)',
-        pos: 'var(--shadow-pos)',
+        sm:         'var(--shadow-sm)',
+        md:         'var(--shadow-md)',
+        lg:         'var(--shadow-lg)',
+        pos:        'var(--shadow-pos)',
+        'kwave':    'var(--shadow-kwave-card)',
+        'brand-glow': 'var(--shadow-brand-glow)',
+        'pink-glow':  'var(--shadow-pink-glow)',
       },
 
       transitionDuration: {

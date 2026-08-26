@@ -1,15 +1,16 @@
 import type { Metadata } from 'next'
+import { notoSansKr, poppins } from '@/lib/fonts'
 import '../styles/globals.css'
 
 export const metadata: Metadata = {
   title: {
-    default: 'Seoul Kims — Tienda coreana en Viña del Mar',
-    template: '%s | Seoul Kims',
+    default: 'SEUL SHOP — Tienda coreana en Viña del Mar',
+    template: '%s | SEUL SHOP',
   },
   description: 'Kimchi, ramen, snacks y K-beauty. Retiro gratis en Metro Merval o delivery con Rappi. Viña del Mar, Chile.',
   keywords: ['korea', 'kimchi', 'ramen', 'kpop', 'tienda coreana', 'viña del mar', 'chile'],
   openGraph: {
-    siteName: 'Seoul Kims',
+    siteName: 'SEUL SHOP',
     locale: 'es_CL',
   },
 }
@@ -17,14 +18,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <head>
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" />
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
-        />
-      </head>
-      <body>{children}</body>
+      <body className={[notoSansKr.variable, poppins.variable].join(' ')}>{children}</body>
     </html>
   )
 }

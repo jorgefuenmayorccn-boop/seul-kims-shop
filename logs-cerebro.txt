@@ -1,0 +1,10 @@
+
+> @seul/cerebro@0.1.0 dev /Users/vertice/vertice_productions/seul-kims-os/apps/cerebro
+> next dev -p 3003
+
+  ▲ Next.js 14.2.25
+  - Local:        http://localhost:3003
+  - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 144.1s

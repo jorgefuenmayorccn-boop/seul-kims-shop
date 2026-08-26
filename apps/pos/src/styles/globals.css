@@ -9,11 +9,10 @@
     background-color: var(--color-background);
     color: var(--color-text);
     -webkit-font-smoothing: antialiased;
-    /* Prevenir zoom en inputs táctiles */
     touch-action: manipulation;
   }
 
-  /* Deshabilitar text selection en POS táctil */
+  /* Sin selección de texto en POS táctil */
   * {
     -webkit-user-select: none;
     user-select: none;
@@ -23,5 +22,34 @@
   input, textarea {
     -webkit-user-select: text;
     user-select: text;
+  }
+
+  /* Transición suave entre temas */
+  :root {
+    transition: background-color 200ms ease, color 200ms ease;
+  }
+}
+
+@layer utilities {
+  .font-korean  { font-family: var(--font-korean,  'Noto Sans KR', sans-serif); }
+  .font-display { font-family: var(--font-display, 'Noto Sans KR', sans-serif); }
+
+  /* Flash de confirmación al agregar producto */
+  @keyframes pos-flash {
+    0%   { opacity: 0; transform: scale(0.95); }
+    30%  { opacity: 1; transform: scale(1.02); }
+    100% { opacity: 0; transform: scale(1.04); }
+  }
+  .animate-pos-flash {
+    animation: pos-flash 350ms ease-out forwards;
+  }
+
+  /* Pulse suave para badge de scanner listo */
+  @keyframes scanner-pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.4; }
+  }
+  .animate-scanner-pulse {
+    animation: scanner-pulse 2s ease-in-out infinite;
   }
 }

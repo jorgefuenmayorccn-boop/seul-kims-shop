@@ -3,6 +3,7 @@ import { sql, eq, and, gte, lte, asc, desc, lt } from 'drizzle-orm'
 import { zValidator } from '@hono/zod-validator'
 import { z } from 'zod'
 import { getDb } from '../lib/db'
+import { requireAuth } from '../middleware/require-auth'
 import type { Bindings } from '../index'
 import { inventory, inventoryMovements, products, categories } from '@seul/db/schema'
 
@@ -85,7 +86,7 @@ const adjustSchema = z.object({
   notes: z.string().optional(),
 })
 
-router.post('/adjust', zValidator('json', adjustSchema), async (c) => {
+router.post('/adjust', requireAuth(['owner', 'admin', 'staff']), zValidator('json', adjustSchema), async (c) => {
   const db = getDb(c.env)
   const body = c.req.valid('json')
 
@@ -112,12 +113,12 @@ const lotSchema = z.object({
   productId: z.string().uuid(),
   lot: z.string().optional(),
   quantity: z.number().int().positive(),
-  expiresAt: z.string().datetime().optional(),
+  expiresAt: z.string().optional(),
   costPerUnit: z.number().int().optional(),
   location: z.enum(['main', 'freezer', 'fridge']).default('main'),
 })
 
-router.post('/lot', zValidator('json', lotSchema), async (c) => {
+router.post('/lot', requireAuth(['owner', 'admin', 'staff']), zValidator('json', lotSchema), async (c) => {
   const db = getDb(c.env)
   const body = c.req.valid('json')
 

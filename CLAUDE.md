@@ -15,9 +15,10 @@ El sistema es un monorepo con 6 canales que comparten un único backend ("El Cer
 pnpm dev
 
 # App individual
-pnpm --filter @seul/web dev     # localhost:3000 — Cerebro + B2C + B2B
-pnpm --filter @seul/pos dev     # localhost:3001 — POS táctil
-pnpm --filter @seul/repartidor dev  # localhost:3002 — PWA repartidor
+pnpm --filter @seul/web dev        # localhost:3000 — Tienda B2C + B2B
+pnpm --filter @seul/pos dev        # localhost:3001 — POS táctil
+pnpm --filter @seul/repartidor dev # localhost:3002 — PWA repartidor
+pnpm --filter @seul/cerebro dev    # localhost:3003 — Panel admin (El Cerebro)
 
 # API (Cloudflare Workers)
 pnpm --filter @seul/api dev     # wrangler dev
@@ -45,13 +46,16 @@ pnpm format
 ```
 seul-kims-os/
 ├── apps/
-│   ├── web/          # @seul/web — Next.js 14 App Router
+│   ├── web/          # @seul/web — Next.js 14 · puerto 3000
 │   │   └── src/app/
-│   │       ├── (cerebro)/   # Dashboard, Inventario, POS, Comandas
-│   │       ├── (shop)/      # Tienda B2C seoulkims.cl
-│   │       └── (b2b)/       # Portal mayorista
-│   ├── pos/          # @seul/pos — POS táctil (tablet 10"/12")
-│   └── repartidor/   # @seul/repartidor — PWA offline-capable
+│   │       ├── (shop)/   # Tienda B2C seoulkims.cl
+│   │       └── (b2b)/    # Portal mayorista
+│   ├── cerebro/      # @seul/cerebro — Next.js 14 · puerto 3003 — Panel admin (PRIVADO)
+│   │   └── src/app/
+│   │       ├── login/       # /login
+│   │       └── (admin)/     # Dashboard, Productos, Inventario, Comandas, Seguridad, Ajustes
+│   ├── pos/          # @seul/pos — POS táctil (tablet 10"/12") · puerto 3001
+│   └── repartidor/   # @seul/repartidor — PWA offline-capable · puerto 3002
 ├── packages/
 │   ├── api/          # @seul/api — Hono en Cloudflare Workers
 │   ├── db/           # @seul/db — Drizzle ORM + schema PostgreSQL

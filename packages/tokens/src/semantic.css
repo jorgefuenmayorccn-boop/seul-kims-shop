@@ -40,9 +40,9 @@
   --color-error-subtle:     var(--red-error-container);
 }
 
-/* ── Dark mode ── */
+/* ── Dark mode — media query (tienda web) ── */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-background:       #111111;
     --color-surface:          #1c1c1c;
     --color-surface-elevated: #252525;
@@ -51,4 +51,29 @@
     --color-border:           #333333;
     --color-border-strong:    #555555;
   }
+}
+
+/* ── Dark mode — toggle manual POS (data-theme="dark") ── */
+[data-theme="dark"] {
+  --color-background:       #0f0f0f;
+  --color-surface:          #1a1a1a;
+  --color-surface-elevated: #222222;
+  --color-surface-overlay:  rgba(0, 0, 0, 0.7);
+  --color-text:             #f0ede8;
+  --color-text-muted:       #888888;
+  --color-text-disabled:    #555555;
+  --color-border:           #2e2e2e;
+  --color-border-strong:    #444444;
+}
+
+/* ── Light mode — override explícito ── */
+[data-theme="light"] {
+  --color-background:       var(--cream-500);
+  --color-surface:          var(--cream-100);
+  --color-surface-elevated: var(--white);
+  --color-text:             var(--ink-900);
+  --color-text-muted:       var(--ink-500);
+  --color-text-disabled:    var(--ink-300);
+  --color-border:           var(--ink-100);
+  --color-border-strong:    var(--ink-300);
 }

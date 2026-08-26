@@ -1,0 +1,18 @@
+{
+  "name": "seul-print-agent",
+  "version": "1.0.0",
+  "description": "Agente local de impresión ESC/POS para Seoul Kims POS — escucha en 127.0.0.1:9101",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start":   "node src/server.js",
+    "dev":     "node --watch src/server.js",
+    "build":   "npx pkg src/server.js --targets node18-macos-x64,node18-win-x64,node18-linux-x64 --output dist/seul-print-agent"
+  },
+  "dependencies": {
+    "node-thermal-printer": "^4.4.2"
+  },
+  "pkg": {
+    "assets": ["src/config.json"]
+  }
+}
