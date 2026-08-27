@@ -322,3 +322,256 @@ Error: Cannot find module '/Users/vertice/vertice_productions/seul-kims-os/node_
 <w>  at resolve commonjs /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/mini-css-extract-plugin/loader.js
 <w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: Can't resolve '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled' in '/Users/vertice/vertice_productions/seul-kims-os/apps/web'
 <w> while resolving '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled' in /Users/vertice/vertice_productions/seul-kims-os/apps/web to a directory
+ ⨯ Module not found: Error: Can't resolve 'next-flight-client-entry-loader' in '/Users/vertice/vertice_productions/seul-kims-os/apps/web'
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: Can't resolve '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/mini-css-extract-plugin/loader.js' in '/Users/vertice/vertice_productions/seul-kims-os/apps/web'
+<w> while resolving '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/mini-css-extract-plugin/loader.js' in /Users/vertice/vertice_productions/seul-kims-os/apps/web as file
+<w>  at resolve commonjs /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/mini-css-extract-plugin/loader.js
+ ⨯ Module not found: Error: Can't resolve 'next-flight-client-entry-loader' in '/Users/vertice/vertice_productions/seul-kims-os/apps/web'
+ ⨯ src/lib/fonts.ts
+An error occurred in `next/font`.
+
+Error: ENOENT: no such file or directory, lstat '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/nanoid@3.3.17/node_modules/nanoid/non-secure'
+    at Object.realpathSync (node:fs:2787:29)
+    at toRealPath (node:internal/modules/helpers:61:13)
+    at tryFile (node:internal/modules/cjs/loader:526:10)
+    at finalizeEsmResolution (node:internal/modules/cjs/loader:1246:18)
+    at resolveExports (node:internal/modules/cjs/loader:639:14)
+    at Function._findPath (node:internal/modules/cjs/loader:728:31)
+    at Function.<anonymous> (node:internal/modules/cjs/loader:1211:27)
+    at /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:55:36
+    at Function._load (node:internal/modules/cjs/loader:1055:27)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1311:12)
+    at mod.require (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/postcss@8.4.31/node_modules/postcss/lib/input.js:6:18)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1311:12)
+    at mod.require (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/postcss@8.4.31/node_modules/postcss/lib/map-generator.js:7:13)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1311:12)
+    at mod.require (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/postcss@8.4.31/node_modules/postcss/lib/lazy-result.js:4:20)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1311:12)
+    at mod.require (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/postcss@8.4.31/node_modules/postcss/lib/postcss.js:5:18)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/caniuse-lite@1.0.30001806'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/region' in /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist for build dependencies doesn't lead to expected result '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/region.js', but to 'Error: Can't resolve '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/region' in '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist'' instead. Resolving dependencies are ignored for this path.
+<w>  at unknown 4 .pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/region
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/sandbox.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/sandbox.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/handle-externals.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/handle-externals.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at resolve commonjs /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/feature' in /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist for build dependencies doesn't lead to expected result '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/feature.js', but to 'Error: Can't resolve '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/feature' in '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist'' instead. Resolving dependencies are ignored for this path.
+<w>  at unknown 4 .pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/feature
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/sandbox.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/sandbox.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/handle-externals.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/handle-externals.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at resolve commonjs /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/agents' in /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist for build dependencies doesn't lead to expected result '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/agents.js', but to 'Error: Can't resolve '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/agents' in '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist'' instead. Resolving dependencies are ignored for this path.
+<w>  at unknown 4 .pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/agents
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/sandbox.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/sandbox.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/utils.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/handle-externals.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/handle-externals.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at resolve commonjs /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+ ⨯ src/lib/fonts.ts
+An error occurred in `next/font`.
+
+Error: ENOENT: no such file or directory, lstat '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/nanoid@3.3.17/node_modules/nanoid/non-secure'
+    at Object.realpathSync (node:fs:2787:29)
+    at toRealPath (node:internal/modules/helpers:61:13)
+    at tryFile (node:internal/modules/cjs/loader:526:10)
+    at finalizeEsmResolution (node:internal/modules/cjs/loader:1246:18)
+    at resolveExports (node:internal/modules/cjs/loader:639:14)
+    at Function._findPath (node:internal/modules/cjs/loader:728:31)
+    at Function.<anonymous> (node:internal/modules/cjs/loader:1211:27)
+    at /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:55:36
+    at Function._load (node:internal/modules/cjs/loader:1055:27)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1311:12)
+    at mod.require (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/postcss@8.4.31/node_modules/postcss/lib/input.js:6:18)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1311:12)
+    at mod.require (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/postcss@8.4.31/node_modules/postcss/lib/map-generator.js:7:13)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1311:12)
+    at mod.require (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/postcss@8.4.31/node_modules/postcss/lib/lazy-result.js:4:20)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:220:24)
+    at Module.<anonymous> (node:internal/modules/cjs/loader:1311:12)
+    at mod.require (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/require-hook.js:65:28)
+    at require (node:internal/modules/helpers:136:16)
+    at Object.<anonymous> (/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/postcss@8.4.31/node_modules/postcss/lib/postcss.js:5:18)
+    at Module._compile (node:internal/modules/cjs/loader:1554:14)
+    at Object..js (node:internal/modules/cjs/loader:1706:10)
+    at Module.load (node:internal/modules/cjs/loader:1289:32)
+    at Function._load (node:internal/modules/cjs/loader:1108:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, lstat '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/caniuse-lite@1.0.30001806'
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/feature' in /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist for build dependencies doesn't lead to expected result '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/feature.js', but to 'Error: Can't resolve '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/feature' in '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist'' instead. Resolving dependencies are ignored for this path.
+<w>  at unknown 4 .pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/feature
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/context.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/context.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/plugins/nextjs-require-cache-hot-reloader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/plugins/nextjs-require-cache-hot-reloader.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack-config.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack-config.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at resolve commonjs /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/region' in /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist for build dependencies doesn't lead to expected result '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/region.js', but to 'Error: Can't resolve '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/region' in '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist'' instead. Resolving dependencies are ignored for this path.
+<w>  at unknown 4 .pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/region
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/context.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/context.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/plugins/nextjs-require-cache-hot-reloader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/plugins/nextjs-require-cache-hot-reloader.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack-config.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack-config.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at resolve commonjs /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w> [webpack.cache.PackFileCacheStrategy/webpack.FileSystemInfo] Resolving '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/agents' in /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist for build dependencies doesn't lead to expected result '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/agents.js', but to 'Error: Can't resolve '.pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/agents' in '/Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist'' instead. Resolving dependencies are ignored for this path.
+<w>  at unknown 4 .pnpm/caniuse-lite@1.0.30001806/node_modules/caniuse-lite/dist/unpacker/agents
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/browserslist/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/bundle.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/compiled/babel/code-frame.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/shared.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/client/components/react-dev-overlay/server/middleware.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/context.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/context.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/server/web/sandbox/index.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/plugins/nextjs-require-cache-hot-reloader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/plugins/nextjs-require-cache-hot-reloader.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack-config.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack-config.js
+<w>  at file dependencies /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at file /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js
+<w>  at resolve commonjs /Users/vertice/vertice_productions/seul-kims-os/node_modules/.pnpm/next@14.2.25_react-dom@18.3.1_react@18.3.1__react@18.3.1/node_modules/next/dist/build/webpack/loaders/next-swc-loader.js

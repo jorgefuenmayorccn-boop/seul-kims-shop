@@ -21,8 +21,11 @@
     "./shop/category-nav": "./src/shop/category-nav.tsx",
     "./shop/product-card-editorial": "./src/shop/product-card-editorial.tsx",
     "./shop/shop-footer": "./src/shop/shop-footer.tsx",
-    "./b2b/*": "./src/b2b/*.tsx",
-    "./chat/*": "./src/chat/*.tsx"
+    "./b2b/b2b-pricing-table": "./src/b2b/b2b-pricing-table.tsx",
+    "./b2b/credit-gauge": "./src/b2b/credit-gauge.tsx",
+    "./b2b/invoice-row": "./src/b2b/invoice-row.tsx",
+    "./b2b/tier-badge": "./src/b2b/tier-badge.tsx",
+    "./chat/chat-widget": "./src/chat/chat-widget.tsx"
   },
   "scripts": {
     "clean": "rm -rf dist .turbo"
@@ -34,7 +37,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "framer-motion": "^11.18.2",
-    "lucide-react": "^0.400.0",
+    "lucide-react": "^0.462.0",
     "tailwind-merge": "^2.4.0"
   },
   "devDependencies": {

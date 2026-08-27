@@ -259,7 +259,7 @@ export default function POSPage() {
         deliveryMode:  delivery.deliveryMode,
         paymentAtDoor: delivery.paymentAtDoor,
         customerName:  delivery.guestName ?? '',
-        address:       delivery.deliveryAddress,
+        address:       delivery.deliveryAddress ?? '',
       })
     }
 
