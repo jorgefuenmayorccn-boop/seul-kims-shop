@@ -28,3 +28,4 @@ storybook-static/
 # PDFs / uploads locales
 *.pdf
 /tmp/
+.vercel
