@@ -41,19 +41,6 @@ export const newsletterSubscribers = pgTable('newsletter_subscribers', {
   emailIdx: index('newsletter_email_idx').on(t.email),
 }))
 
-export const emailLog = pgTable('email_log', {
-  id:         uuid('id').primaryKey().defaultRandom(),
-  customerId: uuid('customer_id').references(() => customers.id, { onDelete: 'set null' }),
-  to:         text('to').notNull(),
-  template:   text('template').notNull(),         // 'welcome' | 'verify' | 'reset' | 'order' | 'promo'
-  status:     text('status').notNull().default('sent'), // 'sent' | 'failed' | 'bounced'
-  providerId: text('provider_id'),                // ID de Resend
-  error:      text('error'),
-  sentAt:     timestamp('sent_at').defaultNow(),
-}, t => ({
-  customerIdx: index('email_log_customer_idx').on(t.customerId),
-}))
-
 export const consents = pgTable('consents', {
   id:              uuid('id').primaryKey().defaultRandom(),
   customerId:      uuid('customer_id').notNull().references(() => customers.id, { onDelete: 'cascade' }),

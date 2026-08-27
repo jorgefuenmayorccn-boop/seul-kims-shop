@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { getDb } from '../lib/db'
-import { newsletterSubscribers, emailLog } from '@seul/db/schema'
+import { newsletterSubscribers, emailQueue } from '@seul/db/schema'
 import { generateToken } from '../lib/crypto'
 import { sendEmail, templateNewsletterConfirm } from '../lib/send-email'
 import type { Bindings } from '../index'
@@ -46,12 +46,13 @@ router.post('/subscribe', async (c) => {
     html:    templateNewsletterConfirm(confirmUrl),
   })
 
-  await db.insert(emailLog).values({
-    to:       email,
-    template: 'newsletter_confirm',
-    status:   emailResult.ok ? 'sent' : 'failed',
-    providerId: emailResult.id,
-    error:    emailResult.error,
+  await db.insert(emailQueue).values({
+    email,
+    type:       'newsletter',
+    subject:    'Confirma tu suscripción a SEUL SHOP',
+    status:     emailResult.ok ? 'sent' : 'failed',
+    templateId: 'newsletter',
+    templateData: { confirmUrl },
   })
 
   return c.json({ ok: true, message: 'Revisa tu correo para confirmar la suscripción.' })

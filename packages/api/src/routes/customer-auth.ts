@@ -3,7 +3,7 @@ import { setCookie, deleteCookie, getCookie } from 'hono/cookie'
 import { eq, and, gt, desc } from 'drizzle-orm'
 import { getDb } from '../lib/db'
 import {
-  customers, emailVerificationTokens, passwordResetTokens, consents, emailLog, orders, orderItems,
+  customers, emailVerificationTokens, passwordResetTokens, consents, emailQueue, orders, orderItems,
 } from '@seul/db/schema'
 import {
   CUSTOMER_COOKIE, createCustomerSession, validateCustomerSession,
@@ -99,13 +99,14 @@ router.post('/register', async (c) => {
     html:    templateWelcome(customer.name, verifyUrl, tempPassword),
   })
 
-  await db.insert(emailLog).values({
+  await db.insert(emailQueue).values({
     customerId: customer.id,
-    to:         customer.email!,
-    template:   'welcome',
+    email:      customer.email!,
+    type:       'welcome',
+    subject:    'Bienvenido/a a SEUL SHOP — Confirma tu cuenta',
     status:     emailResult.ok ? 'sent' : 'failed',
-    providerId: emailResult.id,
-    error:      emailResult.error,
+    templateId: 'welcome',
+    templateData: { verifyUrl, tempPassword },
   })
 
   return c.json({ ok: true, message: 'Revisa tu correo para confirmar tu cuenta' })

@@ -5,7 +5,7 @@ import { z } from 'zod'
 import { getDb } from '../lib/db'
 import { requireAuth } from '../middleware/require-auth'
 import type { Bindings } from '../index'
-import { inventory, inventoryMovements, products, categories } from '@seul/db/schema'
+import { inventory, inventoryMovements, products, categories, inventorySummary } from '@seul/db/schema'
 
 const router = new Hono<{ Bindings: Bindings }>()
 
@@ -59,6 +59,38 @@ router.get('/', async (c) => {
   })
 
   return c.json({ items: withSemaforo, total: withSemaforo.length })
+})
+
+// GET /api/inventory/availability/:productId (OPTIMIZADO)
+// Consulta rápida de disponibilidad usando inventory_summary
+router.get('/availability/:productId', async (c) => {
+  const db = getDb(c.env)
+  const { productId } = c.req.param()
+
+  const [availability] = await db.select({
+    productId: inventorySummary.productId,
+    qtyTotal: inventorySummary.qtyTotal,
+    qtyAvailable: inventorySummary.qtyAvailable,
+    qtyReserved: inventorySummary.qtyReserved,
+    qtyFrozen: inventorySummary.qtyFrozen,
+    updatedAt: inventorySummary.updatedAt,
+  })
+    .from(inventorySummary)
+    .where(eq(inventorySummary.productId, productId))
+
+  if (!availability) {
+    return c.json({ qtyTotal: 0, qtyAvailable: 0, qtyReserved: 0, qtyFrozen: 0 })
+  }
+
+  return c.json({
+    productId: availability.productId,
+    qtyTotal: availability.qtyTotal,
+    qtyAvailable: availability.qtyAvailable,
+    qtyReserved: availability.qtyReserved,
+    qtyFrozen: availability.qtyFrozen,
+    inStock: availability.qtyAvailable > 0,
+    updatedAt: availability.updatedAt,
+  })
 })
 
 // GET /api/inventory/:productId/movements

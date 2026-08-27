@@ -31,6 +31,8 @@ import { inventoryRouter } from './routes/inventory'
 import { dashboardRouter } from './routes/dashboard'
 import { ordersRouter }    from './routes/orders'
 import { processDTEMessage, dteRouter } from './routes/dte'
+import { dteRetryRouter } from './routes/dte-retry'
+import { emailRouter } from './routes/email'
 import { processEmailMessage }          from './queue-consumers/email-processor'
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -100,6 +102,8 @@ app.route('/api/events', eventsRouter)
 
 // Fase 6 — PDF boleta pública (token 48h)
 app.route('/boleta', dteRouter)
+app.route('/api/dte', dteRetryRouter)    // DTE retry queue management
+app.route('/api/email', emailRouter)     // Email queue management
 
 // Fase 4 — Portal B2B mayorista
 import { b2bRouter } from './routes/b2b'

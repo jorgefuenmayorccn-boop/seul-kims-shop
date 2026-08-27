@@ -32,3 +32,14 @@ export const inventoryMovements = pgTable('inventory_movements', {
   createdAt:   timestamp('created_at').defaultNow(),
   createdBy:   uuid('created_by'),           // user_id
 })
+
+// NUEVO: Tabla de resumen para queries rápidas
+export const inventorySummary = pgTable('inventory_summary', {
+  productId:      uuid('product_id').primaryKey().references(() => products.id, { onDelete: 'cascade' }),
+  qtyTotal:       integer('qty_total').notNull().default(0),        // suma de todos los lotes
+  qtyAvailable:   integer('qty_available').notNull().default(0),    // qtyTotal - reserved
+  qtyReserved:    integer('qty_reserved').notNull().default(0),     // en órdenes pendientes
+  qtyFrozen:      integer('qty_frozen').notNull().default(0),       // en cold chain
+  lastMovementAt: timestamp('last_movement_at'),
+  updatedAt:      timestamp('updated_at').defaultNow(),
+})

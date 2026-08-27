@@ -7,6 +7,7 @@ export * from './customers'
 export * from './customer-auth'
 export * from './returns'
 export * from './dte-events'
+export * from './email'  // NEW: Email queue + log
 export * from './hero-banners'
 export * from './faq'
 export * from './promotions'
