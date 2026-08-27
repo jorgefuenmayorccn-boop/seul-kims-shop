@@ -1,7 +1,5 @@
 {
-  "buildCommand": "npm install -g pnpm && pnpm install --frozen-lockfile && pnpm build --filter @seul/web",
-  "installCommand": "npm install -g pnpm && pnpm install --frozen-lockfile",
-  "outputDirectory": "apps/web/.next",
-  "framework": "nextjs",
-  "nodeVersion": "20.x"
+  "buildCommand": "npm install -g pnpm@9.15.0 && pnpm install --frozen-lockfile && pnpm build --filter @seul/web",
+  "installCommand": "npm install -g pnpm@9.15.0 && pnpm install --frozen-lockfile",
+  "outputDirectory": "apps/web/.next"
 }
