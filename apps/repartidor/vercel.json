@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm build --filter @seul/repartidor",
+  "buildCommand": "next build",
   "outputDirectory": ".next",
   "framework": "nextjs"
 }
