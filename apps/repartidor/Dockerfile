@@ -4,14 +4,22 @@ WORKDIR /app
 
 RUN npm install -g pnpm@9
 
-COPY ../../package.json ../../pnpm-lock.yaml ./
-COPY ../../packages/ ./packages/
-COPY . ./apps/repartidor/
+# Copy monorepo root files
+COPY package.json pnpm-lock.yaml ./
 
+# Copy packages directory
+COPY packages/ ./packages/
+
+# Copy only this app
+COPY apps/repartidor/ ./apps/repartidor/
+
+# Install all dependencies
 RUN pnpm install --frozen-lockfile
+
+# Build only this app
 RUN pnpm --filter @seul/repartidor build
 
 EXPOSE 3002
 
 ENV NODE_ENV=production
-CMD ["sh", "-c", "cd /app/apps/repartidor && /app/node_modules/.bin/next start -p ${PORT:-3002}"]
+CMD ["/app/node_modules/.bin/next", "start", "-p", "3002"]
