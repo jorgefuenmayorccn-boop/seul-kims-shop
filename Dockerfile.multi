@@ -16,5 +16,8 @@ RUN pnpm build
 
 EXPOSE 3000 3001 3002 3003
 
+# Ensure pnpm is in PATH at runtime
+ENV PATH="/app/node_modules/.bin:$PATH"
+
 # Start appropriate app based on APP_TYPE env var
-CMD ["sh", "-c", "if [ \"$APP_TYPE\" = \"pos\" ]; then pnpm --filter @seul/pos start; elif [ \"$APP_TYPE\" = \"admin\" ]; then pnpm --filter @seul/cerebro start; elif [ \"$APP_TYPE\" = \"repartidor\" ]; then pnpm --filter @seul/repartidor start; else pnpm --filter @seul/web start; fi"]
+CMD ["sh", "-c", "if [ \"$APP_TYPE\" = \"pos\" ]; then cd /app/apps/pos && next start -p ${PORT:-3001}; elif [ \"$APP_TYPE\" = \"admin\" ]; then cd /app/apps/cerebro && next start -p ${PORT:-3003}; elif [ \"$APP_TYPE\" = \"repartidor\" ]; then cd /app/apps/repartidor && next start -p ${PORT:-3002}; else cd /app/apps/web && next start -p ${PORT:-3000}; fi"]
