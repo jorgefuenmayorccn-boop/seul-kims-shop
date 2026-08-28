@@ -68,7 +68,22 @@ max_retries       = 2
 # ANTHROPIC_API_KEY     — Claude API key
 
 [env.production]
-vars = { ENVIRONMENT = "production", APP_URL = "https://seoulshop.cl", PUBLIC_API_URL = "https://api.seoulshop.cl" }
+vars = {
+  ENVIRONMENT = "production",
+  APP_URL = "https://seoulshop.cl",
+  PUBLIC_API_URL = "https://api.seoulshop.cl",
+  NEXT_PUBLIC_WEB_URL = "https://shop.seoulshop.cl",
+}
+
+# Secrets de producción — configurar con: wrangler secret put <NOMBRE>
+# DATABASE_URL          — Neon PostgreSQL
+# DTE_API_KEY           — Bsale/Toku/Haulmer
+# DTE_RUT_EMPRESA       — RUT empresa
+# UPSTASH_REDIS_URL     — Redis URL
+# UPSTASH_REDIS_TOKEN   — Redis token
+# SENTRY_DSN            — Error tracking
+# ANTHROPIC_API_KEY     — Claude API (Fase 5)
+# RESEND_API_KEY        — Email service
 
 [[env.production.kv_namespaces]]
 binding = "SESSIONS"

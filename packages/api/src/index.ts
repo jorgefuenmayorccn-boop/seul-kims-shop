@@ -15,14 +15,15 @@ export type Bindings = {
   RESEND_API_KEY:      string   // Email transaccional
   SESSIONS:   KVNamespace
   CARTS:      KVNamespace
-  PDF_BUCKET: R2Bucket
+  // PDF_BUCKET: R2Bucket  — Comentado: R2 requiere plan pagado
   DTE_QUEUE:   Queue
   EMAIL_QUEUE: Queue
-  ORDER_HUB:   DurableObjectNamespace  // Realtime SSE broadcast
+  // ORDER_HUB: DurableObjectNamespace  — Comentado: Durable Objects requieren plan pagado
 }
 
 // Exportar DO para que wrangler lo registre
-export { OrderHub } from './durable-objects/order-hub'
+// Comentado: Durable Objects requiere plan pagado en Cloudflare
+// export { OrderHub } from './durable-objects/order-hub'
 
 // Routes
 import { authRouter }      from './routes/auth'
@@ -50,18 +51,19 @@ app.use('/api/*', cors({
 app.get('/', c => c.json({ service: 'SEUL KING OS API', version: '1.0.0' }))
 
 // Serve product images from R2
-app.get('/api/images/:key{.+}', async (c) => {
-  const key = c.req.param('key')
-  const obj = await c.env.PDF_BUCKET.get(key)
-  if (!obj) return c.notFound()
-  const contentType = obj.httpMetadata?.contentType ?? 'image/jpeg'
-  return new Response(obj.body, {
-    headers: {
-      'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=31536000, immutable',
-    },
-  })
-})
+// Comentado: R2 requiere plan pagado en Cloudflare
+// app.get('/api/images/:key{.+}', async (c) => {
+//   const key = c.req.param('key')
+//   const obj = await c.env.PDF_BUCKET.get(key)
+//   if (!obj) return c.notFound()
+//   const contentType = obj.httpMetadata?.contentType ?? 'image/jpeg'
+//   return new Response(obj.body, {
+//     headers: {
+//       'Content-Type': contentType,
+//       'Cache-Control': 'public, max-age=31536000, immutable',
+//     },
+//   })
+// })
 
 // Auth
 app.route('/api/auth', authRouter)

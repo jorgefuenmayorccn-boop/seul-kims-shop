@@ -71,7 +71,7 @@ async function main() {
   // Usuario 1: ROOT ADMIN (Dueño)
   const ownerResult = await createProductionUser(
     'founder@seoulshop.cl',
-    'e3c4749c2bbd1f1d2b699c0af8272a10',
+    'SeoulKims2026!',
     'Fundador & Dueño Seoul Kims',
     'owner',
   )
@@ -82,7 +82,7 @@ async function main() {
   // Usuario 2: STAFF ADMIN (Administradora Local)
   const staffResult = await createProductionUser(
     'gerente@seoulshop.cl',
-    '5d63cc31206b84ddef421d9efb67e6e9',
+    'Gerente2026!',
     'Gerente Operacional',
     'admin',
   )

@@ -7,7 +7,7 @@ import { sendEmail, templateNewsletterConfirm } from '../lib/send-email'
 import type { Bindings } from '../index'
 
 const router = new Hono<{ Bindings: Bindings }>()
-const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://shop.seoulshop.cl'
+const WEB_URL = 'https://shop.seoulshop.cl' // env var from wrangler.toml
 
 // POST /api/newsletter/subscribe
 router.post('/subscribe', async (c) => {

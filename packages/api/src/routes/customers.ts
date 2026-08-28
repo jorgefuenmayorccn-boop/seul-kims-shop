@@ -17,8 +17,8 @@ async function sendWelcomeEmail(env: Bindings, customer: { name: string; email: 
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${env.RESEND_API_KEY}` },
     body: JSON.stringify({
-      from:    'SEUL SHOP <noreply@seoulkims.cl>',
-      to:      ['masterclass@verticeproductions.com'],
+      from:    'SEUL SHOP <noreply@seoulshop.cl>',
+      to:      ['contact@seoulshop.cl'],
       subject: `Nuevo cliente registrado — ${customer.name}`,
       html:    `<p>Nuevo cliente <strong>${customer.name}</strong> (${customer.email}) se registró vía <b>${customer.createdChannel}</b>.</p>`,
     }),

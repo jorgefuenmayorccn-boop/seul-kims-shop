@@ -30,7 +30,7 @@ function generateTempPassword(): string {
   return Array.from(bytes).map(b => chars[b % chars.length]).join('')
 }
 
-const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://shop.seoulshop.cl'
+const WEB_URL = 'https://shop.seoulshop.cl' // env var from wrangler.toml
 
 // POST /api/customer/register
 router.post('/register', async (c) => {
