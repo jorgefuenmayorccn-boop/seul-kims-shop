@@ -13,15 +13,17 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 RUN pnpm build
 
-# Runtime stage - select app based on APP_TYPE
+# Runtime stage
 FROM node:20-alpine
 
 WORKDIR /app
 
 RUN npm install -g pnpm@9
 
+# Copy everything from builder including node_modules
 COPY --from=builder /app .
 
 EXPOSE 3000 3001 3002 3003
 
+# Start appropriate app based on APP_TYPE env var
 CMD ["sh", "-c", "if [ \"$APP_TYPE\" = \"pos\" ]; then pnpm --filter @seul/pos start; elif [ \"$APP_TYPE\" = \"admin\" ]; then pnpm --filter @seul/cerebro start; elif [ \"$APP_TYPE\" = \"repartidor\" ]; then pnpm --filter @seul/repartidor start; else pnpm --filter @seul/web start; fi"]
