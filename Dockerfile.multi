@@ -1,0 +1,27 @@
+# Build stage
+FROM node:20-alpine as builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN npm install -g pnpm@9
+
+# Copy everything
+COPY . .
+
+# Build all apps
+RUN pnpm install --frozen-lockfile
+RUN pnpm build
+
+# Runtime stage - select app based on APP_TYPE
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN npm install -g pnpm@9
+
+COPY --from=builder /app .
+
+EXPOSE 3000 3001 3002 3003
+
+CMD ["sh", "-c", "if [ \"$APP_TYPE\" = \"pos\" ]; then pnpm --filter @seul/pos start; elif [ \"$APP_TYPE\" = \"admin\" ]; then pnpm --filter @seul/cerebro start; elif [ \"$APP_TYPE\" = \"repartidor\" ]; then pnpm --filter @seul/repartidor start; else pnpm --filter @seul/web start; fi"]
