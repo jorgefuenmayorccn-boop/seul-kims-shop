@@ -1,0 +1,10 @@
+{
+  "build": {
+    "builder": "nixpacks"
+  },
+  "deploy": {
+    "startCommand": "pnpm start",
+    "restartPolicyCondition": "on_failure",
+    "restartPolicyMaxRetries": 3
+  }
+}
