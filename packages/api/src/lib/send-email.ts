@@ -1,6 +1,6 @@
 import type { Bindings } from '../index'
 
-const FROM_DEFAULT = 'SEUL SHOP <noreply@seoulkims.cl>'
+const FROM_DEFAULT = 'SEUL SHOP <noreply@seoulshop.cl>'
 const QA_REDIRECT  = 'contact@verticeproductions.com'
 
 export async function sendEmail(
@@ -93,7 +93,7 @@ const headerHtml = `
 const footerHtml = `
 <div style="border-top:1px solid #eee;margin-top:32px;padding-top:16px;color:#aaa;font-size:11px;line-height:1.6">
   SEUL SHOP · Viña del Mar, Chile<br>
-  <a href="https://seoulkims.cl" style="color:#D7263D;text-decoration:none">seoulkims.cl</a>
+  <a href="https://seoulshop.cl" style="color:#D7263D;text-decoration:none">seoulshop.cl</a>
 </div>`
 
 function itemsTable(items: OrderItem[]) {

@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: '/',
       disallow: ['/cuenta', '/checkout', '/b2b/dashboard', '/api'],
     },
-    sitemap: 'https://seoulkims.cl/sitemap.xml',
+    sitemap: 'https://seoulshop.cl/sitemap.xml',
   }
 }

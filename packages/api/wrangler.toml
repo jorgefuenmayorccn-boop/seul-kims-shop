@@ -70,11 +70,11 @@ vars = { ENVIRONMENT = "production", APP_URL = "https://seoulshop.cl", PUBLIC_AP
 
 [[env.production.kv_namespaces]]
 binding = "SESSIONS"
-id = "local-sessions-dev"
+id = "74adc65cf5a94d8cb90c563672f89270"
 
 [[env.production.kv_namespaces]]
 binding = "CARTS"
-id = "local-carts-dev"
+id = "363648fb7e044ba392e0459fcf7a0d9e"
 
 # [[env.production.r2_buckets]]
 # binding = "PDF_BUCKET"

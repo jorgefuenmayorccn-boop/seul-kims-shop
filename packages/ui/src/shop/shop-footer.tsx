@@ -197,7 +197,7 @@ export function ShopFooter() {
             </a>
 
             <a
-              href="mailto:contacto@seoulkims.cl"
+              href="mailto:contacto@seoulshop.cl"
               className="flex items-center gap-2 group"
               aria-label="Email SEUL SHOP"
             >
@@ -210,7 +210,7 @@ export function ShopFooter() {
                 className="font-body text-[10px] tracking-wide hidden sm:block group-hover:opacity-80 transition-opacity"
                 style={{ color: 'var(--color-heuk)', opacity: 0.45, letterSpacing: '0.08em' }}
               >
-                contacto@seoulkims.cl
+                contacto@seoulshop.cl
               </span>
             </a>
           </div>

@@ -30,7 +30,7 @@ function generateTempPassword(): string {
   return Array.from(bytes).map(b => chars[b % chars.length]).join('')
 }
 
-const WEB_URL = 'http://localhost:3000' // será env var en producción
+const WEB_URL = process.env.NEXT_PUBLIC_WEB_URL ?? 'https://shop.seoulshop.cl'
 
 // POST /api/customer/register
 router.post('/register', async (c) => {

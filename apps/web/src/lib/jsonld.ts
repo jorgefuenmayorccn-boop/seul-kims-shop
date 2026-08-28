@@ -1,4 +1,4 @@
-const BASE_URL = 'https://seoulkims.cl'
+const BASE_URL = 'https://seoulshop.cl'
 
 export function localBusinessJsonLd() {
   return {

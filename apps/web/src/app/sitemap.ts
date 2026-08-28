@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next'
 
 export const revalidate = 3600
 
-const BASE_URL = 'https://seoulkims.cl'
+const BASE_URL = 'https://seoulshop.cl'
 
 const STATIC_PAGES: MetadataRoute.Sitemap = [
   { url: BASE_URL, lastModified: new Date(), changeFrequency: 'daily', priority: 1 },

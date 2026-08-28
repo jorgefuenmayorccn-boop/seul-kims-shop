@@ -82,7 +82,7 @@ export default async function ProductPage({ params }: PageProps) {
   const outOfStock = product.stockTotal <= 0
   const waText = `¡Hola! Me interesa comprar ${product.name}`
 
-  const BASE_URL = 'https://seoulkims.cl'
+  const BASE_URL = 'https://seoulshop.cl'
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">

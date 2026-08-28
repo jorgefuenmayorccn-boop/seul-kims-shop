@@ -38,7 +38,7 @@ export function buildOrderConfirmationWA(params: {
     '_(El enlace vence en 48 horas)_',
     '',
     'Gracias por comprar en Seoul Kims 감사합니다! 🙏',
-    '@seulshopcl · seoulkims.cl',
+    '@seulshopcl · seoulshop.cl',
   ].filter(Boolean).join('\n')
 
   return `https://wa.me/${SEUL_WA_NUMBER}?text=${encodeWA(msg)}`
@@ -57,7 +57,7 @@ export function buildOwnerNewOrderWA(params: {
   const msg = [
     `🔔 Nuevo pedido *#${numero}* — ${channel.toUpperCase()}`,
     `${items} ítem${items !== 1 ? 's' : ''} · *${clp(total)}*`,
-    'Ver en dashboard: seoulkims.cl/cerebro',
+    'Ver en dashboard: seoulshop.cl/cerebro',
   ].join('\n')
 
   return `https://wa.me/${SEUL_WA_NUMBER}?text=${encodeWA(msg)}`
@@ -84,7 +84,7 @@ export function buildB2BOrderWA(params: {
     '_(El enlace vence en 48 horas)_',
     '',
     '¿Consultas? Responde este mensaje.',
-    '@seulshopcl · seoulkims.cl',
+    '@seulshopcl · seoulshop.cl',
   ].join('\n')
 
   return `https://wa.me/${SEUL_WA_NUMBER}?text=${encodeWA(msg)}`
@@ -92,5 +92,5 @@ export function buildB2BOrderWA(params: {
 
 // URL pública del PDF desde R2
 export function buildPDFUrl(pdfToken: string): string {
-  return `https://seoulkims.cl/boleta/${pdfToken}`
+  return `https://seoulshop.cl/boleta/${pdfToken}`
 }

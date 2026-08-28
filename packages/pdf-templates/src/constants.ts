@@ -21,5 +21,5 @@ export const STORE_INFO = {
   giro: 'COMERCIO AL POR MENOR',
   phone: '+56 9 XXXX XXXX',
   ig: '@seulshopcl',
-  web: 'seoulkims.cl',
+  web: 'seoulshop.cl',
 } as const

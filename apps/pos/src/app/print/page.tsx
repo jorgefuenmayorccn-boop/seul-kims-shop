@@ -76,7 +76,7 @@ function PrintContent() {
       <div className="center">COMERCIO AL POR MENOR</div>
       <div className="center small">CONFIRMAR DIRECCION</div>
       <div className="center small">RUT: XX.XXX.XXX-X</div>
-      <div className="center small">seoulkims.cl</div>
+      <div className="center small">seoulshop.cl</div>
 
       <div className="line" />
       <div className="center bold">*** NOTA DE VENTA ***</div>
