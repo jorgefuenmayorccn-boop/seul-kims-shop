@@ -10,5 +10,8 @@
     "./primitives": "./src/primitives.css",
     "./semantic": "./src/semantic.css",
     "./business": "./src/business.css"
+  },
+  "dependencies": {
+    "next": "^14.2.35"
   }
 }

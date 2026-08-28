@@ -4,13 +4,14 @@
   "private": true,
   "main": "./src/index.ts",
   "exports": {
-    ".":        "./src/index.ts",
+    ".": "./src/index.ts",
     "./client": "./src/client.ts"
   },
   "scripts": {
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "next": "^14.2.35",
     "pdfkit": "^0.15.0"
   },
   "devDependencies": {
