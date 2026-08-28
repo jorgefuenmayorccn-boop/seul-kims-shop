@@ -17,10 +17,10 @@ id      = "local-sessions-dev"
 binding = "CARTS"
 id      = "local-carts-dev"
 
-# R2 — simulado localmente
-[[r2_buckets]]
-binding     = "PDF_BUCKET"
-bucket_name = "seul-kims-pdfs-dev"
+# R2 — simulado localmente (comentado: R2 no está habilitado en Cloudflare free tier)
+# [[r2_buckets]]
+# binding     = "PDF_BUCKET"
+# bucket_name = "seul-kims-pdfs-dev"
 
 # Durable Objects — OrderHub singleton para eventos realtime (SSE → POS)
 [[durable_objects.bindings]]
@@ -64,3 +64,46 @@ max_retries       = 2
 # UPSTASH_REDIS_TOKEN   — Redis token
 # SENTRY_DSN            — Sentry DSN
 # ANTHROPIC_API_KEY     — Claude API key
+
+[env.production]
+vars = { ENVIRONMENT = "production", APP_URL = "https://seoulshop.cl", PUBLIC_API_URL = "https://api.seoulshop.cl" }
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "local-sessions-dev"
+
+[[env.production.kv_namespaces]]
+binding = "CARTS"
+id = "local-carts-dev"
+
+# [[env.production.r2_buckets]]
+# binding = "PDF_BUCKET"
+# bucket_name = "seul-kims-pdfs-dev"
+
+[[env.production.durable_objects.bindings]]
+name = "ORDER_HUB"
+class_name = "OrderHub"
+
+[[env.production.migrations]]
+tag = "v1"
+new_classes = ["OrderHub"]
+
+[[env.production.queues.producers]]
+binding = "DTE_QUEUE"
+queue = "seul-kims-dte"
+
+[[env.production.queues.consumers]]
+queue = "seul-kims-dte"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 3
+
+[[env.production.queues.producers]]
+binding = "EMAIL_QUEUE"
+queue = "seul-kims-email"
+
+[[env.production.queues.consumers]]
+queue = "seul-kims-email"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 2

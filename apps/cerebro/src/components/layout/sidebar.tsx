@@ -20,8 +20,8 @@ const nav = [
 ]
 
 const externalNav = [
-  { href: 'http://localhost:3001', label: 'POS Caja',    icon: ShoppingCart },
-  { href: 'http://localhost:3000', label: 'Tienda Web',  icon: Globe },
+  { href: 'https://pos.seoulshop.cl', label: 'POS Caja',    icon: ShoppingCart },
+  { href: 'https://shop.seoulshop.cl', label: 'Tienda Web',  icon: Globe },
 ]
 
 interface Props { user: SessionUser }

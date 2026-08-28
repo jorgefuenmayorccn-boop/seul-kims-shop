@@ -40,13 +40,9 @@ const app = new Hono<{ Bindings: Bindings }>()
 app.use('*', logger())
 app.use('/api/*', cors({
   origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',  // POS
-    'http://localhost:3002',  // Repartidor
-    'http://localhost:3003',  // Cerebro (admin)
-    'https://seoulkims.cl',
-    'https://www.seoulkims.cl',
-    'https://pos.seoulkims.cl',
+    'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003',
+    'https://seoulshop.cl', 'https://www.seoulshop.cl', 'https://shop.seoulshop.cl',
+    'https://pos.seoulshop.cl', 'https://cmr.seoulshop.cl', 'https://drive.seoulshop.cl',
   ],
   credentials: true,
 }))

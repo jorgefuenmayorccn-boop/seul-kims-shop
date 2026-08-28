@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**SEUL KING OS v1.0** — Sistema operativo completo para Seoul Kims (@seulshopcl), tienda de productos coreanos en Viña del Mar, Chile.
+**SEUL KING OS v1.0** — Sistema operativo completo para Seoul Kims (@@seulshopcl), tienda de productos coreanos en Viña del Mar, Chile.
 
 El sistema es un monorepo con 6 canales que comparten un único backend ("El Cerebro"): POS (caja), Tienda B2C, Portal B2B, Dashboard operacional, Logística (Rappi + Metro Merval), y Asistente IA (v1.4+).
 
@@ -48,7 +48,7 @@ seul-kims-os/
 ├── apps/
 │   ├── web/          # @seul/web — Next.js 14 · puerto 3000
 │   │   └── src/app/
-│   │       ├── (shop)/   # Tienda B2C seoulkims.cl
+│   │       ├── (shop)/   # Tienda B2C seoulshop.cl
 │   │       └── (b2b)/    # Portal mayorista
 │   ├── cerebro/      # @seul/cerebro — Next.js 14 · puerto 3003 — Panel admin (PRIVADO)
 │   │   └── src/app/
