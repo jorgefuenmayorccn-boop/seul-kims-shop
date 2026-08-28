@@ -29,3 +29,6 @@ storybook-static/
 *.pdf
 /tmp/
 .vercel
+
+# Credentials & secrets
+CREDENCIALES_*
