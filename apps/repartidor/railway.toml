@@ -1,7 +1,0 @@
-[build]
-builder = "dockerfile"
-dockerfilePath = "apps/repartidor/Dockerfile"
-
-[deploy]
-restartPolicyCondition = "on_failure"
-restartPolicyMaxRetries = 3
