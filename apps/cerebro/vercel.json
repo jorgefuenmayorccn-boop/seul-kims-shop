@@ -1,6 +1,5 @@
 {
   "buildCommand": "pnpm build --filter @seul/cerebro",
-  "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": ".next",
   "framework": "nextjs"
 }

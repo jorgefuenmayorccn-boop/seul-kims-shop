@@ -1,6 +1,5 @@
 {
   "buildCommand": "pnpm build --filter @seul/repartidor",
-  "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": ".next",
   "framework": "nextjs"
 }
