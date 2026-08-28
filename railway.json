@@ -1,9 +1,8 @@
 {
   "build": {
-    "builder": "nixpacks"
+    "builder": "dockerfile"
   },
   "deploy": {
-    "startCommand": "pnpm start",
     "restartPolicyCondition": "on_failure",
     "restartPolicyMaxRetries": 3
   }
