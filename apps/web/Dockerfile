@@ -5,10 +5,10 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm@9
 
-# Copy root package files
-COPY package.json pnpm-lock.yaml ./
-COPY packages/ ./packages/
-COPY apps/web/ ./apps/web/
+# Copy root package files (relative to monorepo root)
+COPY ../../package.json ../../pnpm-lock.yaml ./
+COPY ../../packages/ ./packages/
+COPY . ./apps/web/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile

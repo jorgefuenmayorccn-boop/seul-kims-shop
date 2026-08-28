@@ -5,10 +5,10 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm@9
 
-# Copy root package files
-COPY package.json pnpm-lock.yaml ./
-COPY packages/ ./packages/
-COPY apps/cerebro/ ./apps/cerebro/
+# Copy root package files (relative to monorepo root)
+COPY ../../package.json ../../pnpm-lock.yaml ./
+COPY ../../packages/ ./packages/
+COPY . ./apps/cerebro/
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
