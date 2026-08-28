@@ -2,6 +2,7 @@ name = "seul-kims-api"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "aea007244afe9b92031ac1ec1d65584c"
 
 [vars]
 ENVIRONMENT     = "development"
@@ -23,13 +24,14 @@ id      = "local-carts-dev"
 # bucket_name = "seul-kims-pdfs-dev"
 
 # Durable Objects — OrderHub singleton para eventos realtime (SSE → POS)
-[[durable_objects.bindings]]
-name       = "ORDER_HUB"
-class_name = "OrderHub"
+# COMENTADO: Requiere plan pagado en Cloudflare
+# [[durable_objects.bindings]]
+# name       = "ORDER_HUB"
+# class_name = "OrderHub"
 
-[[migrations]]
-tag         = "v1"
-new_classes = ["OrderHub"]
+# [[migrations]]
+# tag         = "v1"
+# new_classes = ["OrderHub"]
 
 # Queue — simulado localmente
 [[queues.producers]]
@@ -80,13 +82,14 @@ id = "363648fb7e044ba392e0459fcf7a0d9e"
 # binding = "PDF_BUCKET"
 # bucket_name = "seul-kims-pdfs-dev"
 
-[[env.production.durable_objects.bindings]]
-name = "ORDER_HUB"
-class_name = "OrderHub"
+# COMENTADO: Requiere plan pagado en Cloudflare
+# [[env.production.durable_objects.bindings]]
+# name = "ORDER_HUB"
+# class_name = "OrderHub"
 
-[[env.production.migrations]]
-tag = "v1"
-new_classes = ["OrderHub"]
+# [[env.production.migrations]]
+# tag = "v1"
+# new_classes = ["OrderHub"]
 
 [[env.production.queues.producers]]
 binding = "DTE_QUEUE"
