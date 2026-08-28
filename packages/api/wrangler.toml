@@ -84,6 +84,8 @@ vars = {
 # SENTRY_DSN            — Error tracking
 # ANTHROPIC_API_KEY     — Claude API (Fase 5)
 # RESEND_API_KEY        — Email service
+# QA_EMAIL_REDIRECT     — (Opcional) Redireccionar TODOS los emails a esta dirección (pruebas)
+#                         Ej: jsfuenmayorproductions@gmail.com
 
 [[env.production.kv_namespaces]]
 binding = "SESSIONS"

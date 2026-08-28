@@ -1,7 +1,7 @@
 import type { Bindings } from '../index'
 
 const FROM_DEFAULT = 'SEUL SHOP <noreply@seoulshop.cl>'
-const QA_REDIRECT  = 'contact@verticeproductions.com'
+const QA_EMAIL_DEFAULT = 'jsfuenmayorproductions@gmail.com'
 
 export async function sendEmail(
   env: Bindings,
@@ -12,8 +12,10 @@ export async function sendEmail(
     return { ok: true, id: 'mock' }
   }
 
-  // Redirect all emails to QA inbox during local testing
-  const recipient = (env as Record<string, unknown>).QA_EMAIL_REDIRECT === 'true' ? QA_REDIRECT : opts.to
+  // QA_EMAIL_REDIRECT: Si está configurada, redirigir todos los emails a esta dirección (para pruebas)
+  const qaEmailRedirect = (env as Record<string, unknown>).QA_EMAIL_REDIRECT
+  const recipient = qaEmailRedirect ? String(qaEmailRedirect) : opts.to
+  const isQaMode = !!qaEmailRedirect
 
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -25,7 +27,7 @@ export async function sendEmail(
       body: JSON.stringify({
         from:    opts.from ?? FROM_DEFAULT,
         to:      [recipient],
-        subject: opts.subject + (recipient !== opts.to ? ` [QA→${opts.to}]` : ''),
+        subject: opts.subject + (isQaMode ? ` [QA→${opts.to}]` : ''),
         html:    opts.html,
       }),
     })
