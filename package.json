@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "turbo build",
+    "build": "turbo build --filter='./apps/**' --filter='./packages/**'",
     "dev": "turbo dev",
     "dev:clean": "node scripts/kill-ports.mjs && turbo dev",
     "clean": "turbo run clean --continue",
