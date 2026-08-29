@@ -6,6 +6,8 @@ import * as crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { sql, ADMIN_EMAIL, JWT_SECRET } from './db'
 import { enqueueEmail, templates } from './email-queue'
+import { apiKeysController } from './controllers/api-keys'
+import { validateApiKeyMiddleware } from './services/api-key.service'
 
 // ============================================================================
 // APP
@@ -313,6 +315,17 @@ app.post('/api/deliveries/:id/status', async (c) => {
     return c.json({ error: 'Error' }, 500)
   }
 })
+
+// ============================================================================
+// API KEY MIDDLEWARE & ENDPOINTS
+// ============================================================================
+
+app.use('/api/admin/*', validateApiKeyMiddleware())
+
+// API Key Management (Admin)
+app.post('/api/admin/api-keys', (c) => apiKeysController.create(c))
+app.get('/api/admin/api-keys', (c) => apiKeysController.list(c))
+app.post('/api/admin/api-keys/:id/revoke', (c) => apiKeysController.revoke(c))
 
 // ============================================================================
 // LEGACY ENDPOINTS

@@ -106,13 +106,33 @@ URL:        https://cmr.seoulshop.cl/login
 
 Once deployed, these endpoints are available:
 
+### Public Endpoints
 ```
 GET  /health              - Health check
 GET  /                    - Service info
-POST /api/auth/login      - Staff login
-POST /api/customer/login  - Customer login
+```
+
+### B2C/B2B Endpoints
+```
 POST /api/orders          - Create order
-POST /api/orders/:id/status - Update order
+POST /api/orders/:id/status - Update order status
+POST /api/b2b/quotes      - Create B2B quote
+POST /api/b2b/quotes/:id/accept - Accept quote
+POST /api/b2b/quotes/:id/reject - Reject quote
+```
+
+### Admin Endpoints (require API key)
+```
+POST /api/admin/api-keys         - Create new API key
+GET  /api/admin/api-keys         - List user's API keys
+POST /api/admin/api-keys/:id/revoke - Revoke API key
+```
+
+### API Key Authorization
+All admin endpoints require Bearer token in Authorization header:
+```bash
+curl -H "Authorization: Bearer seul_live_xxxxxx" \
+  https://api.seoulshop.cl/api/admin/api-keys
 ```
 
 ## 🎯 Next Steps

@@ -18,3 +18,4 @@ export * from './delivery'
 export * from './loyalty'
 export * from './pos-void-events'
 export * from './email-queue-log'
+export * from './api-keys'  // NEW: API key management
