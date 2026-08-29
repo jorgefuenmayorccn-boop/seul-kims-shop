@@ -1,7 +1,7 @@
 import * as crypto from 'crypto'
 import { db } from '../db'
-import { apiKeys, apiKeyLogs } from '@seul/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { apiKeys } from '@seul/db/schema'
+import { eq } from 'drizzle-orm'
 
 /**
  * API Key Management Service
