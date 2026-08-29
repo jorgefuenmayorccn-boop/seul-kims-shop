@@ -1,7 +1,18 @@
 {
   "compilerOptions": {
-    "target": "ES2020", "module": "ESM", "lib": ["ES2020"],
-    "moduleResolution": "node", "strict": true, "skipLibCheck": true
+    "target": "ES2020",
+    "module": "ESM",
+    "lib": ["ES2020"],
+    "moduleResolution": "node",
+    "strict": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "./dist"
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }
