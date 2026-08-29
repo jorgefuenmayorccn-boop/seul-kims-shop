@@ -4,13 +4,21 @@ import { customers } from './customers'
 export const emailTypeEnum = pgEnum('email_type', [
   'welcome',                // Bienvenida al registrarse
   'password-reset',         // Cambio de contraseña
-  'order-confirmation',     // Confirmación de orden
+  'order-confirmation',     // Confirmación de orden (cliente + copia admin)
   'order-shipped',          // Orden despachada
-  'order-delivered',        // Orden entregada
-  'delivery-update',        // Update de delivery
+  'order-delivered',        // Orden entregada / foto de entrega
+  'delivery-update',        // Update genérico de estado de orden
   'invoice',                // Envío de boleta/invoice
   'newsletter',             // Newsletter
   'contact-form-reply',     // Reply a formulario
+  // Agregados en migrate-0012 (SESSION 20 — fix de `type` hardcodeado)
+  'quote-sent',             // Cotización B2B enviada (comprador + copia admin)
+  'quote-accepted',         // Cotización B2B aceptada
+  'quote-rejected',         // Cotización B2B rechazada
+  'delivery-assigned',      // Entrega asignada a repartidor
+  'delivery-failed',        // Entrega fallida — alerta admin
+  'large-order-alert',      // Pedido grande — alerta admin
+  'user-created',           // Nuevo usuario registrado — alerta admin
 ])
 
 export const emailStatusEnum = pgEnum('email_status', [

@@ -2,153 +2,10 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
-import postgres from 'postgres'
 import * as crypto from 'crypto'
 import jwt from 'jsonwebtoken'
-import { Resend } from 'resend'
-
-// ============================================================================
-// ENV & CONFIG
-// ============================================================================
-
-const RESEND_KEY = process.env.RESEND_API_KEY
-if (!RESEND_KEY) throw new Error('RESEND_API_KEY required')
-
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@seoulshop.cl'
-const JWT_SECRET = process.env.JWT_SECRET || 'seul-king-os-secret-dev'
-
-const sql = postgres(process.env.DATABASE_URL || 'postgresql://localhost/seul_dev',
-  { ssl: 'require', max: 20, idle_timeout: 30, max_lifetime: 3600 })
-const resend = new Resend(RESEND_KEY)
-
-// ============================================================================
-// EMAIL ENGINE
-// ============================================================================
-
-async function enqueueEmail(email: string, subject: string, html: string): Promise<string> {
-  try {
-    const templateData = { html }
-    const [record] = await sql`
-      INSERT INTO email_queue (email, type, subject, template_data, status, attempts, max_attempts)
-      VALUES (${email}, 'contact-form-reply', ${subject}, ${templateData}, 'pending', 0, 3)
-      RETURNING id
-    `
-
-    console.log(`📧 Email enqueued: ${email} | ${subject}`)
-
-    // Send async
-    setTimeout(() => processEmailQueue(record.id).catch(e => console.error('Queue error:', e)), 100)
-    return record.id
-  } catch (err) {
-    console.error('Enqueue error:', err)
-    throw err
-  }
-}
-
-async function processEmailQueue(queueId: string, retryCount = 0): Promise<void> {
-  try {
-    const [record] = await sql`SELECT * FROM email_queue WHERE id = ${queueId}`
-    if (!record) return
-
-    if (record.attempts >= record.max_attempts) {
-      await sql`UPDATE email_queue SET status = 'failed' WHERE id = ${queueId}`
-      return
-    }
-
-    const updatedAttempts = record.attempts + 1
-    await sql`UPDATE email_queue SET attempts = ${updatedAttempts} WHERE id = ${queueId}`
-
-    const htmlContent = typeof record.template_data === 'string'
-      ? JSON.parse(record.template_data).html
-      : record.template_data?.html
-
-    if (!htmlContent) {
-      throw new Error(`No HTML content for email: ${record.id}`)
-    }
-
-    const result = await resend.emails.send({
-      from: 'Seoul Shop Viña del Mar <noreply@seoulshop.cl>',
-      to: record.email,
-      subject: record.subject,
-      html: htmlContent,
-    })
-
-    if (result.error) throw new Error(`Resend: ${JSON.stringify(result.error)}`)
-
-    // Log delivery
-    await sql`
-      INSERT INTO email_log (queue_id, email, type, subject, status, provider, provider_ref)
-      VALUES (${queueId}, ${record.email}, ${record.type}, ${record.subject}, 'delivered', 'resend', ${result.data?.id})
-    `
-
-    await sql`UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = ${queueId}`
-
-    console.log(`✅ Email sent: ${record.email}`)
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : String(err)
-    const [record] = await sql`SELECT * FROM email_queue WHERE id = ${queueId}`
-
-    if (record && record.attempts < record.max_attempts) {
-      const delay = Math.pow(2, record.attempts) * 1000
-      console.log(`⏳ Retry ${queueId} in ${delay}ms`)
-      setTimeout(() => processEmailQueue(queueId, retryCount + 1), delay)
-    } else {
-      await sql`UPDATE email_queue SET status = 'failed', last_error = ${errorMsg} WHERE id = ${queueId}`
-    }
-  }
-}
-
-// ============================================================================
-// TEMPLATES
-// ============================================================================
-
-const templates = {
-  orderConfirmation: (order: any) => `
-    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
-      <h2 style="color: #d7263d;">✅ Orden Confirmada #${order.number}</h2>
-      <p>Tu orden ha sido registrada. Total: $${Number(order.total).toLocaleString('es-CL')}</p>
-      <p>Tu pedido está siendo preparado. Recibirás notificaciones sobre su estado.</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | +56 32 250 0000</p>
-    </div>
-  `,
-  orderStatus: (order: any, status: string) => `
-    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
-      <h2 style="color: #d7263d;">📦 Actualización Orden #${order.number}</h2>
-      <p>Tu pedido cambió a: <strong>${status.toUpperCase()}</strong></p>
-      <p>Recibirás más actualizaciones pronto.</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar</p>
-    </div>
-  `,
-  quote: (quote: any) => `
-    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
-      <h2 style="color: #d7263d;">📋 Cotización #${quote.number}</h2>
-      <p>Tu cotización está lista. Total: $${Number(quote.total).toLocaleString('es-CL')}</p>
-      <p>Válida hasta: ${quote.validUntilAt}</p>
-      <p>Contacta con nosotros para aceptar o discutir.</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop B2B | b2b@seoulshop.cl</p>
-    </div>
-  `,
-  deliveryPhoto: (order: any) => `
-    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
-      <h2 style="color: #4caf50;">✅ Pedido Entregado #${order.number}</h2>
-      <p>Tu orden ha sido entregada exitosamente.</p>
-      <p>¡Gracias por tu compra!</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar</p>
-    </div>
-  `,
-  deliveryAssigned: () => `
-    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
-      <h2 style="color: #d7263d;">🚚 Nueva Entrega Asignada</h2>
-      <p>Tienes una nueva entrega. Revisá tu aplicación para más detalles.</p>
-      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop - Sistema de Entregas</p>
-    </div>
-  `,
-}
+import { sql, ADMIN_EMAIL, JWT_SECRET } from './db'
+import { enqueueEmail, templates } from './email-queue'
 
 // ============================================================================
 // APP
@@ -195,21 +52,36 @@ app.post('/api/orders', async (c) => {
     `
 
     // Email confirmación
-    await enqueueEmail(
+    const queueIdConfirmation = await enqueueEmail(
       customer_email,
       `✅ Orden Confirmada #${order.number}`,
-      templates.orderConfirmation(order)
+      templates.orderConfirmation(order),
+      'order-confirmation'
     )
 
     // Email admin
-    await enqueueEmail(
+    const queueIdAdminNotice = await enqueueEmail(
       ADMIN_EMAIL,
       `📦 Nueva Orden #${order.number}`,
-      `<p>Nueva orden de ${customer_name}. Total: $${total}</p>`
+      `<p>Nueva orden de ${customer_name}. Total: $${total}</p>`,
+      'order-confirmation'
     )
 
+    const queue_ids = [queueIdConfirmation, queueIdAdminNotice]
+
+    // Alerta de pedido grande
+    if (Number(total) >= 2_000_000) {
+      const queueIdLargeOrder = await enqueueEmail(
+        ADMIN_EMAIL,
+        `⚠️ Pedido grande: $${Number(total).toLocaleString('es-CL')}`,
+        templates.largeOrderAlert(order),
+        'large-order-alert'
+      )
+      queue_ids.push(queueIdLargeOrder)
+    }
+
     console.log(`✅ Order created: #${order.number}`)
-    return c.json({ ok: true, order_id: order.id, order_number: order.number })
+    return c.json({ ok: true, order_id: order.id, order_number: order.number, queue_ids })
   } catch (err) {
     console.error('Order error:', err)
     return c.json({ error: 'Error creating order' }, 500)
@@ -220,7 +92,7 @@ app.post('/api/orders', async (c) => {
 app.post('/api/orders/:id/status', async (c) => {
   try {
     const { id } = c.req.param()
-    const { status, customer_email } = await c.req.json()
+    const { status, customer_email, eta } = await c.req.json()
     if (!status) return c.json({ error: 'Missing status' }, 400)
 
     const [order] = await sql`
@@ -231,16 +103,22 @@ app.post('/api/orders/:id/status', async (c) => {
 
     if (!order) return c.json({ error: 'Order not found' }, 404)
 
+    let queue_id: string | undefined
     if (customer_email) {
-      await enqueueEmail(
+      // order_status enum real: 'nueva' | 'preparando' | 'lista' | 'en_ruta' | 'entregada' | 'cancelada'
+      const emailType = status === 'en_ruta' ? 'order-shipped'
+        : status === 'entregada' ? 'order-delivered'
+        : 'delivery-update'
+      queue_id = await enqueueEmail(
         customer_email,
         `Actualización: Orden #${order.number}`,
-        templates.orderStatus(order, status)
+        templates.orderStatus(order, status, eta),
+        emailType
       )
     }
 
     console.log(`✅ Order status: #${order.number} → ${status}`)
-    return c.json({ ok: true, status })
+    return c.json({ ok: true, status, queue_id })
   } catch (err) {
     console.error('Status error:', err)
     return c.json({ error: 'Error' }, 500)
@@ -266,16 +144,18 @@ app.post('/api/deliveries/:id/photo', async (c) => {
     await sql`UPDATE delivery_assignments SET status = 'delivered', delivered_at = NOW() WHERE id = ${id}`
     const [order] = await sql`UPDATE orders SET status = 'entregada' WHERE id = ${assignment.order_id} RETURNING number`
 
+    let queue_id: string | undefined
     if (customer_email) {
-      await enqueueEmail(
+      queue_id = await enqueueEmail(
         customer_email,
         `✅ Entregado: Orden #${order.number}`,
-        templates.deliveryPhoto(order)
+        templates.deliveryPhoto(order),
+        'order-delivered'
       )
     }
 
     console.log(`✅ Delivery completed`)
-    return c.json({ ok: true })
+    return c.json({ ok: true, queue_id })
   } catch (err) {
     console.error('Photo error:', err)
     return c.json({ error: 'Error' }, 500)
@@ -301,20 +181,22 @@ app.post('/api/b2b/quotes', async (c) => {
       VALUES (${quote_number}, ${company_id}, ${buyer_name}, ${buyer_email}, 'sent', ${JSON.stringify(items)}, ${total}, ${total}, ${validUntil}, NOW())
     `
 
-    await enqueueEmail(
+    const queueIdBuyer = await enqueueEmail(
       buyer_email,
       `📋 Cotización #${quote_number}`,
-      templates.quote({ number: quote_number, total, validUntilAt: validUntil.toLocaleDateString('es-CL') })
+      templates.quote({ number: quote_number, total, validUntilAt: validUntil.toLocaleDateString('es-CL') }),
+      'quote-sent'
     )
 
-    await enqueueEmail(
+    const queueIdAdmin = await enqueueEmail(
       ADMIN_EMAIL,
       `📋 Cotización #${quote_number} enviada`,
-      `<p>Cotización enviada a ${buyer_email}</p>`
+      `<p>Cotización enviada a ${buyer_email}</p>`,
+      'quote-sent'
     )
 
     console.log(`✅ Quote: #${quote_number}`)
-    return c.json({ ok: true, quote_number })
+    return c.json({ ok: true, quote_number, queue_ids: [queueIdBuyer, queueIdAdmin] })
   } catch (err) {
     console.error('Quote error:', err)
     return c.json({ error: 'Error' }, 500)
@@ -333,14 +215,15 @@ app.post('/api/b2b/quotes/:id/accept', async (c) => {
 
     if (!quote) return c.json({ error: 'Quote not found' }, 404)
 
-    await enqueueEmail(
+    const queue_id = await enqueueEmail(
       quote.buyer_email,
       `✅ Cotización #${quote.number} Aceptada`,
-      `<p>Tu cotización ha sido aceptada. Procederemos con la orden.</p>`
+      `<p>Tu cotización ha sido aceptada. Procederemos con la orden.</p>`,
+      'quote-accepted'
     )
 
     console.log(`✅ Quote accepted`)
-    return c.json({ ok: true })
+    return c.json({ ok: true, queue_id })
   } catch (err) {
     return c.json({ error: 'Error' }, 500)
   }
@@ -359,14 +242,15 @@ app.post('/api/b2b/quotes/:id/reject', async (c) => {
 
     if (!quote) return c.json({ error: 'Quote not found' }, 404)
 
-    await enqueueEmail(
+    const queue_id = await enqueueEmail(
       ADMIN_EMAIL,
       `❌ Cotización #${quote.number} Rechazada`,
-      `<p>Rechazada por ${quote.buyer_name}. Razón: ${reason || 'No especificada'}</p>`
+      `<p>Rechazada por ${quote.buyer_name}. Razón: ${reason || 'No especificada'}</p>`,
+      'quote-rejected'
     )
 
     console.log(`✅ Quote rejected`)
-    return c.json({ ok: true })
+    return c.json({ ok: true, queue_id })
   } catch (err) {
     return c.json({ error: 'Error' }, 500)
   }
@@ -388,16 +272,18 @@ app.post('/api/deliveries/assign', async (c) => {
       WHERE id = ${assignment_id}
     `
 
+    let queue_id: string | undefined
     if (driver_email) {
-      await enqueueEmail(
+      queue_id = await enqueueEmail(
         driver_email,
         `🚚 Nueva Entrega Asignada`,
-        templates.deliveryAssigned()
+        templates.deliveryAssigned(),
+        'delivery-assigned'
       )
     }
 
     console.log(`✅ Delivery assigned`)
-    return c.json({ ok: true })
+    return c.json({ ok: true, queue_id })
   } catch (err) {
     return c.json({ error: 'Error' }, 500)
   }
@@ -410,8 +296,19 @@ app.post('/api/deliveries/:id/status', async (c) => {
     const { status } = await c.req.json()
 
     await sql`UPDATE delivery_assignments SET status = ${status} WHERE id = ${id}`
+
+    let queue_id: string | undefined
+    if (status === 'failed') {
+      queue_id = await enqueueEmail(
+        ADMIN_EMAIL,
+        'Entrega fallida — acción requerida',
+        templates.deliveryFailed(id),
+        'delivery-failed'
+      )
+    }
+
     console.log(`✅ Delivery status: ${status}`)
-    return c.json({ ok: true })
+    return c.json({ ok: true, queue_id })
   } catch (err) {
     return c.json({ error: 'Error' }, 500)
   }
@@ -439,20 +336,22 @@ app.post('/api/auth/register', async (c) => {
 
     const fullName = lastName ? `${firstName} ${lastName}` : firstName
 
-    await enqueueEmail(
+    const queueIdAdmin = await enqueueEmail(
       ADMIN_EMAIL,
       `✨ Nuevo Usuario: ${fullName}`,
-      `<p>Email: ${email}</p>`
+      `<p>Email: ${email}</p>`,
+      'user-created'
     )
 
-    await enqueueEmail(
+    const queueIdWelcome = await enqueueEmail(
       email,
       `¡Bienvenido a Seoul Shop!`,
-      `<p>¡Hola ${fullName}! Bienvenido.</p>`
+      `<p>¡Hola ${fullName}! Bienvenido.</p>`,
+      'welcome'
     )
 
     const token = jwt.sign({ userId: crypto.randomUUID() }, JWT_SECRET, { expiresIn: '24h' })
-    return c.json({ ok: true, token })
+    return c.json({ ok: true, token, queue_ids: [queueIdAdmin, queueIdWelcome] })
   } catch (err) {
     return c.json({ error: 'Error' }, 500)
   }
