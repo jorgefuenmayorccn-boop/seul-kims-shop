@@ -9,10 +9,6 @@ import * as bcrypt from 'bcryptjs'
 import * as crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { Resend } from 'resend'
-import { config } from 'dotenv'
-
-// Load .dev.vars for local development
-config({ path: '.dev.vars' })
 
 // ============================================================================
 // SETUP
@@ -21,13 +17,9 @@ config({ path: '.dev.vars' })
 const app = new Hono()
 const RESEND_KEY = process.env.RESEND_API_KEY
 if (!RESEND_KEY) {
-  console.error('❌ ERROR: RESEND_API_KEY no encontrada')
-  console.error('Buscando en:', process.cwd() + '/.dev.vars')
-  console.error('Env vars cargadas:', Object.keys(process.env).filter(k => k.includes('RESEND') || k.includes('DATABASE')))
-  process.exit(1)
+  throw new Error('❌ RESEND_API_KEY environment variable is required')
 }
 const resend = new Resend(RESEND_KEY)
-console.log('✅ Resend API inicializado')
 const JWT_SECRET = process.env.JWT_SECRET || 'seul-king-os-secret-dev'
 
 app.use('*', logger())
