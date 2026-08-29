@@ -77,6 +77,31 @@ curl https://api.seoulshop.cl/health
 - **Payments:** Stripe
 - **DNS:** Cloudflare
 
+## 👥 CREDENCIALES DE ACCESO
+
+### USUARIO 1 — DUEÑO (Root Admin)
+```
+Email:      founder@seoulshop.cl
+Contraseña: SeoulKims2026!
+Rol:        Owner (Acceso total)
+URL:        https://cmr.seoulshop.cl/login
+```
+
+### USUARIO 2 — ADMINISTRADOR (Staff)
+```
+Email:      gerente@seoulshop.cl
+Contraseña: Gerente2026!
+Rol:        Admin (Inventario, Órdenes, Reportes)
+URL:        https://cmr.seoulshop.cl/login
+```
+
+⚠️ **SEGURIDAD IMPORTANTE:**
+- ✅ Cambiar contraseña en primer login
+- ✅ Guardar en gestor de contraseñas seguro (1Password, Dashlane)
+- ✅ No compartir por email
+- ✅ Usar 2FA si está disponible
+- ✅ Logout después de usar
+
 ## ✨ Endpoints
 
 Once deployed, these endpoints are available:
