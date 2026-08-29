@@ -91,7 +91,7 @@ async function processEmailQueue(id: string, retryCount = 0): Promise<void> {
 
   try {
     const result = await resend.emails.send({
-      from: 'noreply@seoulshop.cl',
+      from: 'Seoul Shop Viña del Mar <noreply@seoulshop.cl>',
       to: record.email,
       subject: record.subject,
       html: record.html,
