@@ -2,7 +2,6 @@ import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
-import { jwt } from 'hono/jwt'
 import postgres from 'postgres'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import { eq } from 'drizzle-orm'
@@ -10,7 +9,7 @@ import * as schema from '@seul/db/schema'
 import { Resend } from 'resend'
 import * as bcrypt from 'bcryptjs'
 import * as crypto from 'crypto'
-import { JwtPayload, sign, verify } from 'hono/utils/jwt'
+import { sign, verify } from 'jsonwebtoken'
 
 const app = new Hono()
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -31,10 +30,10 @@ const db = drizzle(sql, { schema })
 const generateToken = () => crypto.randomBytes(32).toString('hex')
 const hashPassword = (pwd: string) => bcrypt.hashSync(pwd, 12)
 const verifyPassword = (pwd: string, hash: string) => bcrypt.compareSync(pwd, hash)
-const createJWT = async (userId: string, role: string) => sign({ userId, role, exp: Math.floor(Date.now() / 1000) + 86400 }, JWT_SECRET)
-const verifyJWT = async (token: string) => {
+const createJWT = (userId: string, role: string) => sign({ userId, role }, JWT_SECRET, { expiresIn: '24h' })
+const verifyJWT = (token: string) => {
   try {
-    return await verify(token, JWT_SECRET)
+    return verify(token, JWT_SECRET) as any
   } catch { return null }
 }
 
@@ -73,7 +72,7 @@ app.post('/api/auth/login', async (c) => {
       if (!user || !verifyPassword(password, user.passwordHash)) return c.json({ error: 'Invalid credentials' }, 401)
       if (!user.isActive) return c.json({ error: 'Account disabled' }, 403)
 
-      const token = await createJWT(user.id, user.role)
+      const token = createJWT(user.id, user.role)
       await db.insert(schema.sessions).values({
         id: generateToken(),
         userId: user.id,
@@ -87,7 +86,7 @@ app.post('/api/auth/login', async (c) => {
       const customer = await db.query.customers.findFirst({ where: eq(schema.customers.email, email) })
       if (!customer || !verifyPassword(password, customer.passwordHash)) return c.json({ error: 'Invalid credentials' }, 401)
 
-      const token = await createJWT(customer.id, 'customer')
+      const token = createJWT(customer.id, 'customer')
       await db.insert(schema.customerSessions).values({
         id: generateToken(),
         customerId: customer.id,
@@ -134,7 +133,7 @@ app.post('/api/auth/register', async (c) => {
       html: `<h2>¡Hola ${firstName}!</h2><p>Verifica tu correo haciendo click <a href="${process.env.APP_URL}/verify?token=${verificationToken}">aquí</a></p><p>El link expira en 24h.</p>`,
     })
 
-    const token = await createJWT(customer[0].id, 'customer')
+    const token = createJWT(customer[0].id, 'customer')
     return c.json({ ok: true, token, customer: { id: customer[0].id, email: customer[0].email, firstName: customer[0].firstName } })
   } catch (error: any) {
     return c.json({ error: error.message }, 500)

@@ -15,7 +15,7 @@
     "drizzle-orm": "^0.37.0",
     "resend": "^4.0.1",
     "bcryptjs": "^2.4.3",
-    "hono-jwt": "^1.2.0"
+    "jsonwebtoken": "^9.1.2"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
