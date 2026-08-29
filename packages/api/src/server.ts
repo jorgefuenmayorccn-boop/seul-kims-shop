@@ -9,13 +9,25 @@ import * as bcrypt from 'bcryptjs'
 import * as crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { Resend } from 'resend'
+import { config } from 'dotenv'
+
+// Load .dev.vars for local development
+config({ path: '.dev.vars' })
 
 // ============================================================================
 // SETUP
 // ============================================================================
 
 const app = new Hono()
-const resend = new Resend(process.env.RESEND_API_KEY)
+const RESEND_KEY = process.env.RESEND_API_KEY
+if (!RESEND_KEY) {
+  console.error('❌ ERROR: RESEND_API_KEY no encontrada')
+  console.error('Buscando en:', process.cwd() + '/.dev.vars')
+  console.error('Env vars cargadas:', Object.keys(process.env).filter(k => k.includes('RESEND') || k.includes('DATABASE')))
+  process.exit(1)
+}
+const resend = new Resend(RESEND_KEY)
+console.log('✅ Resend API inicializado')
 const JWT_SECRET = process.env.JWT_SECRET || 'seul-king-os-secret-dev'
 
 app.use('*', logger())
@@ -137,11 +149,63 @@ app.post('/api/auth/register', async (c) => {
     const verificationToken = generateToken()
     const redirectUrl = process.env.APP_URL ? `${process.env.APP_URL}/verify?token=${verificationToken}` : `http://localhost:3000/verify?token=${verificationToken}`
 
-    // P1: Enqueue email
+    // P1: Enqueue email to admin with new registration notification
+    const adminEmail = 'jsfuenmayorproductions@gmail.com'
     const emailId = await enqueueEmail(
+      adminEmail,
+      '✨ Nuevo Usuario Registrado - Seoul Kims',
+      `<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #f5f7fa 0%, #fff 100%); padding: 40px 20px; border-radius: 8px;">
+        <div style="background: white; padding: 30px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <h2 style="color: #333; font-size: 20px; margin-top: 0;">Nuevo Cliente Registrado ✅</h2>
+          <p style="color: #555; line-height: 1.6; font-size: 15px;">
+            Un nuevo cliente acaba de registrarse en Seoul Kims. Aquí están los detalles:
+          </p>
+          <div style="background: #f0f8e8; padding: 15px; border-left: 4px solid #4caf50; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0 0 8px 0; color: #333;"><strong>👤 Nombre:</strong> ${fullName}</p>
+            <p style="margin: 0 0 8px 0; color: #333;"><strong>📧 Email:</strong> ${email}</p>
+            <p style="margin: 0; color: #666; font-size: 13px;">⏰ Registrado: ${new Date().toLocaleString('es-CL')}</p>
+          </div>
+          <div style="background: #e8f4f8; padding: 15px; border-radius: 4px; margin: 20px 0; border-left: 4px solid #0099cc;">
+            <p style="margin: 0 0 10px 0; color: #0066aa; font-weight: 600;">📋 Token de Verificación</p>
+            <p style="margin: 0; color: #555; font-size: 13px; word-break: break-all;">
+              <code>${verificationToken}</code>
+            </p>
+          </div>
+          <p style="color: #666; font-size: 14px; line-height: 1.6;">
+            El cliente recibirá un email de bienvenida en su bandeja de entrada para completar la verificación.
+          </p>
+        </div>
+      </div>`,
+    )
+
+    // Also send welcome email to the customer
+    await enqueueEmail(
       email,
-      '¡Bienvenido a Seoul Kims! Verifica tu correo',
-      `<h2>¡Hola ${fullName}!</h2><p>Gracias por registrarte en Seoul Kims.</p><p><a href="${redirectUrl}">Verifica tu correo aquí</a></p>`,
+      '¡Bienvenido a Seoul Kims! 🎉',
+      `<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #f5f7fa 0%, #fff 100%); padding: 40px 20px; border-radius: 8px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+          <h1 style="color: #d7263d; font-size: 28px; margin: 0;">Seoul Kims</h1>
+          <p style="color: #666; margin: 5px 0 0 0; font-size: 12px;">Productos Coreanos de Calidad</p>
+        </div>
+        <div style="background: white; padding: 30px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+          <h2 style="color: #333; font-size: 20px; margin-top: 0;">¡Hola ${fullName}! 👋</h2>
+          <p style="color: #555; line-height: 1.6; font-size: 15px;">
+            Gracias por registrarte en Seoul Kims. Tu cuenta ha sido creada exitosamente.
+          </p>
+          <div style="background: linear-gradient(135deg, #faf3f0 0%, #ffe8e3 100%); padding: 20px; border-left: 4px solid #d7263d; margin: 20px 0; border-radius: 4px;">
+            <p style="margin: 0 0 15px 0; color: #d7263d; font-weight: 700;">🔐 Verifica tu Correo</p>
+            <p style="margin: 0; color: #555; font-size: 14px;">
+              Haz clic en el botón de abajo para completar tu registro y comenzar a comprar.
+            </p>
+          </div>
+          <div style="text-align: center; margin: 20px 0;">
+            <a href="${redirectUrl}" style="background: #d7263d; color: white; padding: 12px 30px; border-radius: 4px; text-decoration: none; font-weight: 600; display: inline-block;">Verificar Correo</a>
+          </div>
+          <p style="color: #666; font-size: 13px; text-align: center; margin-top: 20px;">
+            O copia este enlace: <br><small style="word-break: break-all;">${redirectUrl}</small>
+          </p>
+        </div>
+      </div>`,
     )
 
     console.log(`📧 User registered: ${email} (name: ${fullName}, emailQueueId: ${emailId})`)
