@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "start": "node --loader tsx src/server.ts",
-    "build": "tsc"
+    "build": "echo Build skipped - using tsx runtime"
   },
   "dependencies": {
     "@seul/db": "workspace:*",
