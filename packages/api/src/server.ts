@@ -27,14 +27,17 @@ const resend = new Resend(RESEND_KEY)
 
 async function enqueueEmail(email: string, subject: string, html: string): Promise<string> {
   try {
+    const templateData = { html }
     const [record] = await sql`
       INSERT INTO email_queue (email, type, subject, template_data, status, attempts, max_attempts)
-      VALUES (${email}, 'contact-form-reply', ${subject}, ${JSON.stringify({html})}, 'pending', 0, 3)
+      VALUES (${email}, 'contact-form-reply', ${subject}, ${templateData}, 'pending', 0, 3)
       RETURNING id
     `
 
+    console.log(`📧 Email enqueued: ${email} | ${subject}`)
+
     // Send async
-    processEmailQueue(record.id).catch(e => console.error('Queue error:', e))
+    setTimeout(() => processEmailQueue(record.id).catch(e => console.error('Queue error:', e)), 100)
     return record.id
   } catch (err) {
     console.error('Enqueue error:', err)
@@ -55,11 +58,19 @@ async function processEmailQueue(queueId: string, retryCount = 0): Promise<void>
     const updatedAttempts = record.attempts + 1
     await sql`UPDATE email_queue SET attempts = ${updatedAttempts} WHERE id = ${queueId}`
 
+    const htmlContent = typeof record.template_data === 'string'
+      ? JSON.parse(record.template_data).html
+      : record.template_data?.html
+
+    if (!htmlContent) {
+      throw new Error(`No HTML content for email: ${record.id}`)
+    }
+
     const result = await resend.emails.send({
       from: 'Seoul Shop Viña del Mar <noreply@seoulshop.cl>',
       to: record.email,
       subject: record.subject,
-      html: record.template_data?.html || '',
+      html: htmlContent,
     })
 
     if (result.error) throw new Error(`Resend: ${JSON.stringify(result.error)}`)
