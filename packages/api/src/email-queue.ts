@@ -1,7 +1,7 @@
 import { Resend } from 'resend'
 import { sql, RESEND_KEY } from './db'
 
-const resend = new Resend(RESEND_KEY)
+const resend = RESEND_KEY ? new Resend(RESEND_KEY) : null
 
 // ============================================================================
 // EMAIL ENGINE
