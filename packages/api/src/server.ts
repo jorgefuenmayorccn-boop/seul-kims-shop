@@ -183,6 +183,86 @@ app.get('/api/email-queue/:id', (c) => {
 })
 
 // ============================================================================
+// FORMULARIOS EMAILS
+// ============================================================================
+
+app.post('/api/shop/devoluciones', async (c) => {
+  try {
+    const { email, nombre, razon, numeroOrden } = await c.req.json()
+    if (!email || !nombre) return c.json({ error: 'Campos requeridos' }, 400)
+
+    const emailId = await enqueueEmail(
+      email,
+      'Solicitud de Devolución Recibida',
+      `<h2>Hola ${nombre}</h2><p>Hemos recibido tu solicitud de devolución para la orden #${numeroOrden}.</p><p>Motivo: ${razon}</p><p>Nos pondremos en contacto pronto.</p>`,
+    )
+
+    console.log(`📦 Devolución registrada: ${email} (orden: ${numeroOrden})`)
+    return c.json({ ok: true, emailId, message: 'Solicitud de devolución recibida' })
+  } catch (error) {
+    console.error('❌ Devolución error:', error)
+    return c.json({ error: 'Error al procesar devolución' }, 500)
+  }
+})
+
+app.post('/api/b2b/solicitar-credito', async (c) => {
+  try {
+    const { email, empresa, monto, razon } = await c.req.json()
+    if (!email || !empresa) return c.json({ error: 'Campos requeridos' }, 400)
+
+    const emailId = await enqueueEmail(
+      email,
+      'Solicitud de Crédito Recibida',
+      `<h2>Hola ${empresa}</h2><p>Hemos recibido tu solicitud de crédito por ${monto} CLP.</p><p>Razón: ${razon}</p><p>Nuestro equipo evaluará tu solicitud en los próximos 2-3 días hábiles.</p>`,
+    )
+
+    console.log(`💳 Solicitud crédito: ${email} (${empresa})`)
+    return c.json({ ok: true, emailId, message: 'Solicitud de crédito recibida' })
+  } catch (error) {
+    console.error('❌ Crédito error:', error)
+    return c.json({ error: 'Error al procesar solicitud' }, 500)
+  }
+})
+
+app.post('/api/b2b/postventa', async (c) => {
+  try {
+    const { email, empresa, asunto, consulta } = await c.req.json()
+    if (!email || !empresa) return c.json({ error: 'Campos requeridos' }, 400)
+
+    const emailId = await enqueueEmail(
+      email,
+      `Consulta Post-Venta: ${asunto}`,
+      `<h2>Hola ${empresa}</h2><p>Hemos recibido tu consulta: ${asunto}</p><p>Detalle: ${consulta}</p><p>Te responderemos en el plazo de 24 horas.</p>`,
+    )
+
+    console.log(`🛠️ Post-venta: ${email} (${asunto})`)
+    return c.json({ ok: true, emailId, message: 'Consulta post-venta recibida' })
+  } catch (error) {
+    console.error('❌ Post-venta error:', error)
+    return c.json({ error: 'Error al procesar consulta' }, 500)
+  }
+})
+
+app.post('/api/admin/crear-usuario', async (c) => {
+  try {
+    const { email, nombre, rol, password } = await c.req.json()
+    if (!email || !nombre || !password) return c.json({ error: 'Campos requeridos' }, 400)
+
+    const emailId = await enqueueEmail(
+      email,
+      'Tu Cuenta en Seoul Kims Admin ha sido Creada',
+      `<h2>¡Bienvenido ${nombre}!</h2><p>Tu cuenta de administrador ha sido creada.</p><p><strong>Email:</strong> ${email}</p><p><strong>Contraseña:</strong> ${password}</p><p><strong>Rol:</strong> ${rol}</p><p>Por favor, cambia tu contraseña en el primer acceso.</p>`,
+    )
+
+    console.log(`👤 Usuario admin creado: ${email} (${rol})`)
+    return c.json({ ok: true, emailId, message: 'Usuario creado y email enviado' })
+  } catch (error) {
+    console.error('❌ Usuario error:', error)
+    return c.json({ error: 'Error al crear usuario' }, 500)
+  }
+})
+
+// ============================================================================
 // START
 // ============================================================================
 
