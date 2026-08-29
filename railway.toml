@@ -1,7 +1,9 @@
 [build]
-builder = "nixpacks"
-buildCommand = "pnpm install --no-frozen-lockfile && pnpm --filter @seul/api build"
+builder = "dockerfile"
+dockerfile = "Dockerfile"
 
 [deploy]
-startCommand = "pnpm --filter @seul/api start"
 healthcheckPath = "/health"
+healthcheckTimeout = 10
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
