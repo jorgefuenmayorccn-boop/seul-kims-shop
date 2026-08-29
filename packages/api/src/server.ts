@@ -142,7 +142,7 @@ app.post('/api/auth/register', async (c) => {
 
 // GET ME
 app.get('/api/auth/me', authMiddleware, async (c) => {
-  const user = c.get('user')
+  const user = c.get("user") as any; const userData = user as ('user')
   const customer = await db.query.customers.findFirst({ where: eq(schema.customers.id, user.userId) })
   if (customer) return c.json({ ok: true, customer })
 
@@ -217,7 +217,7 @@ app.post('/api/auth/verify-email', async (c) => {
 
 // LOGOUT
 app.post('/api/auth/logout', authMiddleware, async (c) => {
-  const user = c.get('user')
+  const user = c.get("user") as any; const userData = user as ('user')
   await db.delete(schema.customerSessions).where(eq(schema.customerSessions.customerId, user.userId))
   return c.json({ ok: true })
 })
