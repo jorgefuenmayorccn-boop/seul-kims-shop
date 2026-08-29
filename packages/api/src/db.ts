@@ -4,8 +4,7 @@ import postgres from 'postgres'
 // ENV & CONFIG
 // ============================================================================
 
-export const RESEND_KEY = process.env.RESEND_API_KEY
-if (!RESEND_KEY) throw new Error('RESEND_API_KEY required')
+export const RESEND_KEY = process.env.RESEND_API_KEY || ''
 
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@seoulshop.cl'
 export const JWT_SECRET = process.env.JWT_SECRET || 'seul-king-os-secret-dev'
