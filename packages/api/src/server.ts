@@ -14,6 +14,10 @@ import { Resend } from 'resend'
 // SETUP
 // ============================================================================
 
+// Admin emails for notifications
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@seoulshop.cl'
+const CAJERO_EMAIL = process.env.CAJERO_EMAIL || 'cajero.admi@seoulshop.cl'
+
 const app = new Hono()
 const RESEND_KEY = process.env.RESEND_API_KEY
 if (!RESEND_KEY) {
@@ -142,7 +146,7 @@ app.post('/api/auth/register', async (c) => {
     const redirectUrl = process.env.APP_URL ? `${process.env.APP_URL}/verify?token=${verificationToken}` : `http://localhost:3000/verify?token=${verificationToken}`
 
     // P1: Enqueue email to admin with new registration notification
-    const adminEmail = 'jsfuenmayorproductions@gmail.com'
+    const adminEmail = ADMIN_EMAIL
     const emailId = await enqueueEmail(
       adminEmail,
       '✨ Nuevo Usuario Registrado - Seoul Kims',
@@ -247,7 +251,7 @@ app.post('/api/shop/devoluciones', async (c) => {
     const { email, nombre, razon, numeroOrden } = await c.req.json()
     if (!email || !nombre) return c.json({ error: 'Campos requeridos' }, 400)
 
-    const adminEmail = 'jsfuenmayorproductions@gmail.com'
+    const adminEmail = ADMIN_EMAIL
     const emailId = await enqueueEmail(
       adminEmail,
       '🛍️ Solicitud de Devolución - Seoul Kims',
@@ -307,7 +311,7 @@ app.post('/api/b2b/solicitar-credito', async (c) => {
     const { email, empresa, monto, razon } = await c.req.json()
     if (!email || !empresa) return c.json({ error: 'Campos requeridos' }, 400)
 
-    const adminEmail = 'jsfuenmayorproductions@gmail.com'
+    const adminEmail = ADMIN_EMAIL
     const emailId = await enqueueEmail(
       adminEmail,
       '💳 Solicitud de Crédito B2B - Seoul Kims',
@@ -371,7 +375,7 @@ app.post('/api/b2b/postventa', async (c) => {
     const { email, empresa, asunto, consulta } = await c.req.json()
     if (!email || !empresa) return c.json({ error: 'Campos requeridos' }, 400)
 
-    const adminEmail = 'jsfuenmayorproductions@gmail.com'
+    const adminEmail = ADMIN_EMAIL
     const emailId = await enqueueEmail(
       adminEmail,
       `🛠️ Consulta Post-Venta: ${asunto}`,
@@ -434,7 +438,7 @@ app.post('/api/admin/crear-usuario', async (c) => {
     if (!email || !nombre || !password) return c.json({ error: 'Campos requeridos' }, 400)
 
     const roleDisplay = rol === 'owner' ? 'SUPER ADMINISTRADOR' : 'CAJERO'
-    const adminEmail = 'jsfuenmayorproductions@gmail.com'
+    const adminEmail = ADMIN_EMAIL
 
     const emailId = await enqueueEmail(
       adminEmail,
