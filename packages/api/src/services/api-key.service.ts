@@ -1,7 +1,5 @@
 import * as crypto from 'crypto'
-import { db } from '../db'
-import { apiKeys } from '@seul/db/schema'
-import { eq } from 'drizzle-orm'
+import { sql } from '../db'
 
 /**
  * API Key Management Service
@@ -57,29 +55,18 @@ export class ApiKeyService {
     const plainKey = this.generateKey(options?.isTest)
     const keyHash = this.hashKey(plainKey)
 
-    const [apiKey] = await db
-      .insert(apiKeys)
-      .values({
-        userId,
-        keyHash,
-        name,
-        scopes: scopes as any,
-        rateLimit: options?.rateLimit,
-        ipWhitelist: options?.ipWhitelist,
-        expiresAt: options?.expiresAt,
-        metadata: {
-          created_by_ip: 'admin-dashboard', // Can be set from request IP
-          created_at: new Date().toISOString(),
-        },
-      })
-      .returning()
+    const apiKey = await sql`
+      INSERT INTO api_keys (user_id, key_hash, name, scopes, rate_limit, ip_whitelist, expires_at, metadata)
+      VALUES (${userId}, ${keyHash}, ${name}, ${scopes}, ${options?.rateLimit || null}, ${options?.ipWhitelist || null}, ${options?.expiresAt || null}, ${JSON.stringify({ created_by_ip: 'admin-dashboard', created_at: new Date().toISOString() })})
+      RETURNING id, name, scopes, created_at
+    `
 
     return {
-      id: apiKey.id,
-      key: plainKey, // Only returned once at creation
-      name: apiKey.name,
-      scopes: apiKey.scopes,
-      createdAt: apiKey.createdAt,
+      id: apiKey[0].id,
+      key: plainKey,
+      name: apiKey[0].name,
+      scopes: apiKey[0].scopes,
+      createdAt: apiKey[0].created_at,
     }
   }
 
@@ -87,39 +74,30 @@ export class ApiKeyService {
    * Validate an API key and return its details
    */
   static async validateKey(plainKey: string) {
-    // Extract key prefix to determine if test or live
-    const isTest = plainKey.startsWith('seul_test_')
+    try {
+      const allKeys = await sql`SELECT id, user_id, key_hash, name, scopes, rate_limit, ip_whitelist, is_active, expires_at, last_used_at FROM api_keys`
 
-    // Find key by hash (but we can't query by hash easily)
-    // In production, would use a separate table with hashed keys as the key
-    // For now, fetch all keys and verify (not ideal for scale, but works)
-    const allKeys = await db.select().from(apiKeys)
+      for (const storedKey of allKeys) {
+        if (this.verifyKey(plainKey, storedKey.key_hash)) {
+          if (!storedKey.is_active) return null
+          if (storedKey.expires_at && new Date(storedKey.expires_at) < new Date()) return null
 
-    for (const storedKey of allKeys) {
-      if (this.verifyKey(plainKey, storedKey.keyHash)) {
-        // Check if key is active
-        if (!storedKey.isActive) {
-          return null // Key is revoked
-        }
-
-        // Check if key is expired
-        if (storedKey.expiresAt && storedKey.expiresAt < new Date()) {
-          return null // Key is expired
-        }
-
-        return {
-          id: storedKey.id,
-          userId: storedKey.userId,
-          name: storedKey.name,
-          scopes: storedKey.scopes,
-          rateLimit: storedKey.rateLimit,
-          ipWhitelist: storedKey.ipWhitelist,
-          lastUsedAt: storedKey.lastUsedAt,
+          return {
+            id: storedKey.id,
+            userId: storedKey.user_id,
+            name: storedKey.name,
+            scopes: storedKey.scopes,
+            rateLimit: storedKey.rate_limit,
+            ipWhitelist: storedKey.ip_whitelist,
+            lastUsedAt: storedKey.last_used_at,
+          }
         }
       }
+      return null
+    } catch (err) {
+      console.error('API Key validation error:', err)
+      return null
     }
-
-    return null // Key not found or invalid
   }
 
   /**
@@ -146,41 +124,21 @@ export class ApiKeyService {
     })
 
     // Update last used timestamp
-    await db
-      .update(apiKeys)
-      .set({ updatedAt: new Date() })
-      .where(eq(apiKeys.id, keyId))
+    await sql`UPDATE api_keys SET updated_at = NOW() WHERE id = ${keyId}`
   }
 
   /**
    * Revoke an API key
    */
   static async revokeKey(keyId: string) {
-    await db
-      .update(apiKeys)
-      .set({
-        isActive: false,
-        revokedAt: new Date(),
-      })
-      .where(eq(apiKeys.id, keyId))
+    await sql`UPDATE api_keys SET is_active = false, revoked_at = NOW() WHERE id = ${keyId}`
   }
 
   /**
    * Get all keys for a user
    */
   static async getUserKeys(userId: string) {
-    return db
-      .select({
-        id: apiKeys.id,
-        name: apiKeys.name,
-        scopes: apiKeys.scopes,
-        isActive: apiKeys.isActive,
-        lastUsedAt: apiKeys.lastUsedAt,
-        expiresAt: apiKeys.expiresAt,
-        createdAt: apiKeys.createdAt,
-      })
-      .from(apiKeys)
-      .where(eq(apiKeys.userId, userId))
+    return sql`SELECT id, name, scopes, is_active, last_used_at, expires_at, created_at FROM api_keys WHERE user_id = ${userId}`
   }
 }
 
