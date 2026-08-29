@@ -38,7 +38,7 @@ const verifyJWT = (token: string) => {
 }
 
 // Auth middleware
-const authMiddleware = async (c: any, next: any) => {
+const authMiddleware = async (c: any, next: any): Promise<void> => {
   const auth = c.req.header('Authorization')
   if (!auth?.startsWith('Bearer ')) return c.json({ error: 'Unauthorized' }, 401)
   const token = auth.slice(7)
