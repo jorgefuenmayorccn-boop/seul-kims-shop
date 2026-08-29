@@ -9,7 +9,7 @@ import * as schema from '@seul/db/schema'
 import { Resend } from 'resend'
 import * as bcrypt from 'bcryptjs'
 import * as crypto from 'crypto'
-import { sign, verify } from 'jsonwebtoken'
+import jwt from 'jsonwebtoken'
 
 const app = new Hono()
 const resend = new Resend(process.env.RESEND_API_KEY)
@@ -30,8 +30,8 @@ const db = drizzle(sql, { schema })
 const generateToken = () => crypto.randomBytes(32).toString('hex')
 const hashPassword = (pwd: string) => bcrypt.hashSync(pwd, 12)
 const verifyPassword = (pwd: string, hash: string) => bcrypt.compareSync(pwd, hash)
-const createJWT = (userId: string, role: string) => sign({ userId, role }, JWT_SECRET, { expiresIn: '24h' })
-const verifyJWT = (token: string) => { try { return verify(token, JWT_SECRET) } catch { return null } }
+const createJWT = (userId: string, role: string) => jwt.sign({ userId, role }, JWT_SECRET, { expiresIn: '24h' })
+const verifyJWT = (token: string) => { try { return jwt.verify(token, JWT_SECRET) } catch { return null } }
 
 const authMiddleware = async (c: any, next: any) => {
   const auth = c.req.header('Authorization')
