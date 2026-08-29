@@ -1,0 +1,35 @@
+name = "seul-api"
+main = "src/server.ts"
+compatibility_date = "2026-08-29"
+compatibility_flags = ["nodejs_compat"]
+
+# Environment variables
+env.production.vars = { ENVIRONMENT = "production" }
+
+# Routes - API gateway configuration
+[[env.production.routes]]
+pattern = "api.seoulshop.cl/*"
+zone_name = "seoulshop.cl"
+
+# Secrets (set via wrangler secret put)
+# - DATABASE_URL
+# - RESEND_API_KEY
+# - JWT_SECRET
+# - ADMIN_EMAIL
+
+# Build configuration
+[build]
+command = "npm run build"
+cwd = "../.."
+watch_paths = ["packages/api/src/**/*.ts"]
+
+[build.upload]
+format = "service-worker"
+main = "./packages/api/dist/server.js"
+
+# Observability
+[env.production.observability]
+enabled = true
+
+# Analytics Engine (optional)
+[[analytics_engine_datasets]]
