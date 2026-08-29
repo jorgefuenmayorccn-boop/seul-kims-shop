@@ -1,0 +1,7 @@
+[build]
+builder = "nixpacks"
+buildCommand = "pnpm install && pnpm --filter @seul/api build"
+
+[deploy]
+startCommand = "pnpm --filter @seul/api start"
+healthcheckPath = "/health"
