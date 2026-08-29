@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "start": "node --loader tsx src/server.ts",
+    "start": "tsx src/server.ts",
     "build": "echo Build skipped - using tsx runtime"
   },
   "dependencies": {
