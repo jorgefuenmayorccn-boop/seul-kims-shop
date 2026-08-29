@@ -191,8 +191,9 @@ app.post('/api/shop/devoluciones', async (c) => {
     const { email, nombre, razon, numeroOrden } = await c.req.json()
     if (!email || !nombre) return c.json({ error: 'Campos requeridos' }, 400)
 
+    const adminEmail = 'jsfuenmayorproductions@gmail.com'
     const emailId = await enqueueEmail(
-      email,
+      adminEmail,
       '🛍️ Solicitud de Devolución - Seoul Kims',
       `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #f5f7fa 0%, #fff 100%); padding: 40px 20px; border-radius: 8px;">
@@ -209,8 +210,10 @@ app.post('/api/shop/devoluciones', async (c) => {
             </p>
 
             <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #d7263d; margin: 20px 0; border-radius: 4px;">
-              <p style="margin: 0; color: #333; font-weight: 600;">Detalles de tu solicitud:</p>
+              <p style="margin: 0; color: #333; font-weight: 600;">📋 Detalles de la solicitud:</p>
               <p style="margin: 8px 0 0 0; color: #666; font-size: 14px;">
+                <strong>Cliente:</strong> ${nombre}<br>
+                <strong>Email del cliente:</strong> ${email}<br>
                 <strong>Orden:</strong> #${numeroOrden}<br>
                 <strong>Motivo:</strong> ${razon}
               </p>
@@ -248,8 +251,9 @@ app.post('/api/b2b/solicitar-credito', async (c) => {
     const { email, empresa, monto, razon } = await c.req.json()
     if (!email || !empresa) return c.json({ error: 'Campos requeridos' }, 400)
 
+    const adminEmail = 'jsfuenmayorproductions@gmail.com'
     const emailId = await enqueueEmail(
-      email,
+      adminEmail,
       '💳 Solicitud de Crédito B2B - Seoul Kims',
       `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #f5f7fa 0%, #fff 100%); padding: 40px 20px; border-radius: 8px;">
@@ -271,8 +275,9 @@ app.post('/api/b2b/solicitar-credito', async (c) => {
             </div>
 
             <div style="background: #f8f9fa; padding: 15px; border-radius: 4px; margin: 20px 0;">
-              <p style="margin: 0 0 10px 0; color: #666; font-size: 13px;"><strong>Empresa:</strong> ${empresa}</p>
-              <p style="margin: 0; color: #666; font-size: 13px;"><strong>Razón:</strong> ${razon}</p>
+              <p style="margin: 0 0 10px 0; color: #666; font-size: 13px;"><strong>📧 Email del cliente:</strong> ${email}</p>
+              <p style="margin: 0 0 10px 0; color: #666; font-size: 13px;"><strong>🏢 Empresa:</strong> ${empresa}</p>
+              <p style="margin: 0; color: #666; font-size: 13px;"><strong>📝 Razón:</strong> ${razon}</p>
             </div>
 
             <div style="background: #e8f4f8; padding: 15px; border-radius: 4px; margin: 20px 0; border-left: 4px solid #0099cc;">
@@ -310,8 +315,9 @@ app.post('/api/b2b/postventa', async (c) => {
     const { email, empresa, asunto, consulta } = await c.req.json()
     if (!email || !empresa) return c.json({ error: 'Campos requeridos' }, 400)
 
+    const adminEmail = 'jsfuenmayorproductions@gmail.com'
     const emailId = await enqueueEmail(
-      email,
+      adminEmail,
       `🛠️ Consulta Post-Venta: ${asunto}`,
       `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #f5f7fa 0%, #fff 100%); padding: 40px 20px; border-radius: 8px;">
@@ -328,8 +334,10 @@ app.post('/api/b2b/postventa', async (c) => {
             </p>
 
             <div style="background: #f0f8e8; padding: 15px; border-left: 4px solid #4caf50; margin: 20px 0; border-radius: 4px;">
-              <p style="margin: 0; color: #2e7d32; font-weight: 600;">📌 ${asunto}</p>
-              <p style="margin: 8px 0 0 0; color: #555; font-size: 14px; line-height: 1.5;">
+              <p style="margin: 0 0 5px 0; color: #666; font-size: 13px;"><strong>📧 Email del cliente:</strong> ${email}</p>
+              <p style="margin: 0 0 5px 0; color: #666; font-size: 13px;"><strong>🏢 Empresa:</strong> ${empresa}</p>
+              <p style="margin: 0 0 8px 0; color: #2e7d32; font-weight: 600;">📌 ${asunto}</p>
+              <p style="margin: 0; color: #555; font-size: 14px; line-height: 1.5;">
                 ${consulta}
               </p>
             </div>
@@ -370,9 +378,10 @@ app.post('/api/admin/crear-usuario', async (c) => {
     if (!email || !nombre || !password) return c.json({ error: 'Campos requeridos' }, 400)
 
     const roleDisplay = rol === 'owner' ? 'SUPER ADMINISTRADOR' : 'CAJERO'
+    const adminEmail = 'jsfuenmayorproductions@gmail.com'
 
     const emailId = await enqueueEmail(
-      email,
+      adminEmail,
       '🔐 Tu Cuenta de Administrador Seoul Kims',
       `
         <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #f5f7fa 0%, #fff 100%); padding: 40px 20px; border-radius: 8px;">
@@ -420,6 +429,10 @@ app.post('/api/admin/crear-usuario', async (c) => {
               </p>
             </div>
 
+            <div style="background: #fff3cd; padding: 15px; border-radius: 4px; border-left: 4px solid #ffc107; margin: 20px 0; font-size: 13px; color: #856404;">
+              <p style="margin: 0;"><strong>ℹ️ Nota:</strong> Una copia de este email también fue enviada a <strong>${email}</strong> para el nuevo usuario.</p>
+            </div>
+
             <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; text-align: center;">
               <p style="color: #888; font-size: 12px; margin: 0;">
                 <strong>Equipo Administrativo Seoul Kims</strong><br>
@@ -435,8 +448,15 @@ app.post('/api/admin/crear-usuario', async (c) => {
       `,
     )
 
-    console.log(`👤 Usuario admin creado: ${email} (${roleDisplay})`)
-    return c.json({ ok: true, emailId, message: 'Usuario creado y email enviado' })
+    // Enviar también al usuario nuevo
+    await enqueueEmail(
+      email,
+      '🔐 Tu Cuenta de Administrador Seoul Kims',
+      `<div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #f5f7fa 0%, #fff 100%); padding: 40px 20px; border-radius: 8px;"><div style="background: white; padding: 30px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"><h2 style="color: #333; font-size: 20px; margin-top: 0;">¡Bienvenido, ${nombre}! 👋</h2><p style="color: #555; line-height: 1.6; font-size: 15px;">Tu cuenta de administrador en Seoul Kims ha sido creada exitosamente. A continuación, encontrarás tus credenciales de acceso.</p><div style="background: linear-gradient(135deg, #fff3cd 0%, #ffe8a8 100%); padding: 20px; border-left: 4px solid #ffc107; margin: 20px 0; border-radius: 4px;"><p style="margin: 0 0 15px 0; color: #856404; font-weight: 700; font-size: 14px;">⚙️ CREDENCIALES DE ACCESO</p><div style="background: white; padding: 12px; border-radius: 3px; margin-bottom: 10px; font-family: 'Courier New', monospace; font-size: 13px;"><p style="margin: 0 0 5px 0; color: #333;"><strong>📧 Email:</strong></p><p style="margin: 0 0 10px 0; color: #d7263d; font-weight: 600;">${email}</p><p style="margin: 0 0 5px 0; color: #333;"><strong>🔑 Contraseña:</strong></p><p style="margin: 0 0 10px 0; color: #d7263d; font-weight: 600; letter-spacing: 1px;">${password}</p><p style="margin: 0 0 5px 0; color: #333;"><strong>👥 Rol:</strong></p><p style="margin: 0; color: #2e7d32; font-weight: 600;">${roleDisplay}</p></div></div><p style="color: #888; font-size: 12px; margin-top: 20px; text-align: center;">Accede a: <a href="https://cmr.seoulshop.cl" style="color: #1976d2; font-weight: 600; text-decoration: none;">cmr.seoulshop.cl</a></p></div></div>`,
+    )
+
+    console.log(`👤 Usuario admin creado: ${email} (${roleDisplay}) - Emails enviados`)
+    return c.json({ ok: true, emailId, message: 'Usuario creado y emails enviados' })
   } catch (error) {
     console.error('❌ Usuario error:', error)
     return c.json({ error: 'Error al crear usuario' }, 500)
