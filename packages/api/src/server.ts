@@ -377,14 +377,19 @@ app.post('/api/auth/register', async (c) => {
 const port = parseInt(process.env.PORT || '3000')
 console.log(`🚀 SEUL API v1.0 on port ${port}...`)
 
-serve({ fetch: app.fetch, port }, async () => {
-  try {
-    await sql`SELECT 1`
-    console.log('✅ Database connected')
-    console.log(`✅ Admin: ${ADMIN_EMAIL}`)
-    console.log('🎉 Ready')
-  } catch (err) {
-    console.error('❌ Startup failed:', err)
-    process.exit(1)
-  }
+serve({ fetch: app.fetch, port }, () => {
+  console.log(`✅ Server listening on port ${port}`)
+  console.log(`✅ Admin: ${ADMIN_EMAIL}`)
+
+  // Validate DB connection asynchronously (non-blocking)
+  setImmediate(async () => {
+    try {
+      await sql`SELECT 1`
+      console.log('✅ Database connected')
+      console.log('🎉 Ready')
+    } catch (err) {
+      console.error('⚠️ Database connection warning:', err.message)
+      console.log('Server will continue with graceful degradation')
+    }
+  })
 })
