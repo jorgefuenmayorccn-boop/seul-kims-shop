@@ -9,7 +9,7 @@ export function middleware(req: NextRequest) {
   if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) return NextResponse.next()
 
   const token = req.cookies.get(COOKIE_NAME)?.value
-  if (!token || token.length !== 64) {
+  if (!token) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 

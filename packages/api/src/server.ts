@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { setCookie, getCookie } from 'hono/cookie'
+import { serve } from '@hono/node-server'
 import * as crypto from 'crypto'
 import jwt from 'jsonwebtoken'
 import { sql, ADMIN_EMAIL, JWT_SECRET } from './db'
@@ -93,12 +95,22 @@ async function handleLogin(c: any) {
     return c.json({ error: result.error }, result.status || 401)
   }
 
+  // Setear cookie de sesión (httpOnly, Secure, SameSite=Lax)
+  setCookie(c, '__Host-seul_session', result.token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    path: '/',
+    maxAge: 604800, // 7 days
+  })
+
   const response = c.json(result)
 
-  // CORS headers
-  response.headers.set('Access-Control-Allow-Origin', '*')
+  // CORS headers (use actual whitelist, not '*' for credentials)
+  response.headers.set('Access-Control-Allow-Origin', 'https://cmr.seoulshop.cl')
   response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
 
   return response
 }
@@ -125,13 +137,19 @@ app.options('/api/auth/login', (c) => {
 
 // GET /auth/me y /api/auth/me — Get current user
 async function handleGetMe(c: any) {
+  // Try Authorization header first, then fallback to cookie
+  let token: string | undefined
   const authHeader = c.req.header('Authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.slice(7)
+  } else {
+    token = getCookie(c, '__Host-seul_session')
+  }
 
-  if (!authHeader?.startsWith('Bearer ')) {
+  if (!token) {
     return c.json({ error: 'Missing token' }, 401)
   }
 
-  const token = authHeader.slice(7)
   const verified = AuthService.verifyToken(token, JWT_SECRET)
 
   if (!verified.ok) {
@@ -547,15 +565,21 @@ app.post('/api/auth/register', async (c) => {
 })
 
 // ============================================================================
-// EXPORT FOR CLOUDFLARE WORKERS
+// STARTUP
 // ============================================================================
 
-console.log(`🚀 SEUL API v1.0 (Cloudflare Workers)`)
+console.log(`🚀 SEUL API v1.0 (Node.js + Railway)`)
 console.log(`✅ Admin: ${ADMIN_EMAIL}`)
 
 // Validate DB connection on startup (non-blocking)
 sql`SELECT 1`
   .then(() => console.log('✅ Database connected'))
   .catch(err => console.error('⚠️ Database connection warning:', err.message))
+
+// Listen for incoming HTTP requests (Railway/Node)
+const port = Number(process.env.PORT) || 8080
+serve({ fetch: app.fetch, port }, (info) => {
+  console.log(`✅ Listening on http://localhost:${info.port}`)
+})
 
 export default app
