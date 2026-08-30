@@ -22,13 +22,13 @@ const DATABASE_URL = (() => {
   return 'postgresql://localhost/seul_dev'
 })()
 
-// Ultra-stable for Workers + Neon
+// Ultra-stable for Cloudflare Workers + Neon (optimized for HTTP request/response cycles)
 export const sql = postgres(DATABASE_URL, {
   ssl: 'require',
-  max: 2,
-  idle_timeout: 3,
-  max_lifetime: 20,
-  connect_timeout: 3,
-  query_timeout: 5000,
-  statement_timeout: 5000,
+  max: 5,              // Cloudflare Workers: 5-10 optimal
+  idle_timeout: 15,    // 15s before closing idle connections
+  max_lifetime: 60,    // Max 60s per connection
+  connect_timeout: 5,  // 5s to establish connection
+  query_timeout: 8000, // 8s query timeout
+  statement_timeout: 8000, // 8s statement timeout
 })

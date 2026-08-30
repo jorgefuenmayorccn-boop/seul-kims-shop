@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import { sql } from '../db'
+import { PasswordService } from './password.service'
 
 export class AuthService {
   static async login(email: string, password: string, jwtSecret: string) {
@@ -9,7 +10,7 @@ export class AuthService {
 
     try {
       const emailLower = email.toLowerCase()
-      const result = await sql`SELECT id, email, name, role, "isActive" FROM users WHERE email = ${emailLower} LIMIT 1`
+      const result = await sql`SELECT id, email, password_hash, name, role, is_active FROM users WHERE email = ${emailLower} LIMIT 1`
 
       if (!result || result.length === 0) {
         return { ok: false, error: 'Invalid credentials', status: 401 }
@@ -17,8 +18,14 @@ export class AuthService {
 
       const user = result[0]
 
-      if (!user.isActive) {
+      if (!user.is_active) {
         return { ok: false, error: 'User account is disabled', status: 401 }
+      }
+
+      // Validate password against hash
+      const isPasswordValid = PasswordService.verifyPassword(password, user.password_hash)
+      if (!isPasswordValid) {
+        return { ok: false, error: 'Invalid credentials', status: 401 }
       }
 
       const token = jwt.sign(

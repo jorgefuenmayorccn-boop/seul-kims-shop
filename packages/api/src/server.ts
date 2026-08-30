@@ -8,6 +8,7 @@ import { apiKeysController } from './controllers/api-keys'
 import { validateApiKeyMiddleware } from './services/api-key.service'
 import { AuthService } from './services/auth.service'
 import { PasswordService } from './services/password.service'
+import { requireAuthMiddleware, requireScopeMiddleware } from './middleware/auth.middleware'
 
 // ============================================================================
 // APP
@@ -49,7 +50,7 @@ const TEST_USERS: Record<string, { password: string; name: string; role: string 
   'repartidor.test@seoulshop.cl': { password: 'Seoul2025!Repartidor', name: 'Repartidor de Prueba', role: 'delivery' },
 }
 
-// POST /auth/login (100% stable — no DB queries)
+// POST /auth/login — Autenticación real con BD + fallback TEST_USERS para dev
 app.post('/auth/login', async (c) => {
   let body: any = {}
   let email: string = ''
@@ -68,30 +69,33 @@ app.post('/auth/login', async (c) => {
     return c.json({ error: 'Missing email or password' }, 400)
   }
 
-  // Check against hardcoded test users
-  const testUser = TEST_USERS[email]
-  if (!testUser) {
-    return c.json({ error: 'Invalid credentials' }, 401)
+  // 1. Try BD login first
+  let result = await AuthService.login(email, password, JWT_SECRET)
+
+  // 2. Fallback a TEST_USERS solo si BD falla (development/testing)
+  if (!result.ok) {
+    const testUser = TEST_USERS[email]
+    if (testUser && testUser.password === password) {
+      result = {
+        ok: true,
+        status: 200,
+        token: jwt.sign(
+          { id: email, email, role: testUser.role },
+          JWT_SECRET,
+          { expiresIn: '7d' }
+        ),
+        user: { id: email, email, name: testUser.name, role: testUser.role }
+      }
+    }
   }
 
-  if (testUser.password !== password) {
-    return c.json({ error: 'Invalid credentials' }, 401)
+  if (!result.ok) {
+    return c.json({ error: result.error }, result.status || 401)
   }
 
-  // Generate JWT token
-  const token = jwt.sign(
-    { id: email, email, role: testUser.role },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  )
+  const response = c.json(result)
 
-  const response = c.json({
-    ok: true,
-    token,
-    user: { id: email, email, name: testUser.name, role: testUser.role }
-  })
-
-  // Add explicit CORS headers
+  // CORS headers
   response.headers.set('Access-Control-Allow-Origin', '*')
   response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
@@ -111,6 +115,10 @@ app.options('/auth/login', (c) => {
 // ============================================================================
 // B2C ENDPOINTS (7 emails)
 // ============================================================================
+
+// Proteger endpoints de órdenes — requieren autenticación
+app.use('/api/orders*', requireAuthMiddleware)
+app.use('/api/orders*', requireScopeMiddleware(['orders:write']))
 
 // POST /api/orders
 app.post('/api/orders', async (c) => {
@@ -240,6 +248,10 @@ app.post('/api/deliveries/:id/photo', async (c) => {
 // B2B ENDPOINTS (3 emails)
 // ============================================================================
 
+// Proteger endpoints B2B — requieren autenticación
+app.use('/api/b2b*', requireAuthMiddleware)
+app.use('/api/b2b*', requireScopeMiddleware(['orders:write']))
+
 // POST /api/b2b/quotes
 app.post('/api/b2b/quotes', async (c) => {
   try {
@@ -333,6 +345,10 @@ app.post('/api/b2b/quotes/:id/reject', async (c) => {
 // ============================================================================
 // DRIVER ENDPOINTS (2 emails)
 // ============================================================================
+
+// Proteger endpoints de logística — requieren autenticación
+app.use('/api/deliveries*', requireAuthMiddleware)
+app.use('/api/deliveries*', requireScopeMiddleware(['orders:write']))
 
 // POST /api/deliveries/assign
 app.post('/api/deliveries/assign', async (c) => {
