@@ -1,8 +1,8 @@
 import * as crypto from 'crypto'
+import * as bcrypt from 'bcryptjs'
 
 /**
- * Password hashing service — PBKDF2-SHA256 (NIST PKCS#5 compatible)
- * Workers-native, zero external dependencies
+ * Password hashing service — PBKDF2-SHA256 (NIST PKCS#5 compatible) + legacy bcrypt support
  */
 export class PasswordService {
   private static readonly ALGORITHM = 'sha256'
@@ -27,10 +27,16 @@ export class PasswordService {
   }
 
   /**
-   * Verify password against PBKDF2 hash
+   * Verify password against PBKDF2 or bcrypt hash
    */
   static verifyPassword(password: string, hash: string): boolean {
     try {
+      // Support legacy bcrypt hashes from migration period
+      if (this.isBcryptHash(hash)) {
+        return bcrypt.compareSync(password, hash)
+      }
+
+      // PBKDF2-SHA256 verification
       const parts = hash.split('$')
       if (parts[0] !== '' || parts[1] !== 'pbkdf2') return false
 
