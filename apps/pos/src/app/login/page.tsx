@@ -15,7 +15,8 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch(`${API}/auth/login`, {
+      // Try both routes for compatibility (Cloudflare staging)
+      let res = await fetch(`${API}/api/auth/login`, {
         method:      'POST',
         headers:     { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -24,6 +25,19 @@ export default function LoginPage() {
           password: passwordRef.current?.value,
         }),
       })
+
+      // Fallback to /auth/login if /api/auth/login returns 404
+      if (res.status === 404) {
+        res = await fetch(`${API}/auth/login`, {
+          method:      'POST',
+          headers:     { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            email:    emailRef.current?.value.trim(),
+            password: passwordRef.current?.value,
+          }),
+        })
+      }
 
       const data = await res.json() as { ok?: boolean; error?: string }
 
