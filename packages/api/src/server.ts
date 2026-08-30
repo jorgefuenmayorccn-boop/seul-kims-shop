@@ -44,6 +44,19 @@ app.get('/health', async (c) => {
   }
 })
 
+// DIAGNOSTIC - Simple test without DB dependency
+app.get('/diagnostic', (c) => {
+  return c.json({
+    timestamp: new Date().toISOString(),
+    service: 'SEUL KING OS API v1.0',
+    status: 'online',
+    cors: 'enabled',
+    testUser: 'founder@seoulshop.cl',
+    fallbackAuth: 'available',
+    message: 'API is responding. If login fails, it\'s a database issue, not connectivity.'
+  })
+})
+
 // ============================================================================
 // AUTH ENDPOINTS
 // ============================================================================
