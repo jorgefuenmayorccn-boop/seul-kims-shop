@@ -18,23 +18,12 @@ function LoginForm() {
 
     startTransition(async () => {
       try {
-        // Try both routes for compatibility (Cloudflare staging)
-        let res  = await fetch(`${API_URL}/api/auth/login`, {
+        const res  = await fetch(`${API_URL}/auth/login`, {
           method:      'POST',
           headers:     { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ email: fd.get('email'), password: fd.get('password') }),
         })
-
-        // Fallback to /auth/login if /api/auth/login returns 404
-        if (res.status === 404) {
-          res  = await fetch(`${API_URL}/auth/login`, {
-            method:      'POST',
-            headers:     { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ email: fd.get('email'), password: fd.get('password') }),
-          })
-        }
         const data = await res.json() as { ok?: boolean; error?: string }
         if (!res.ok || !data.ok) { setError(data.error ?? 'Error al iniciar sesión'); return }
         router.push(next)
