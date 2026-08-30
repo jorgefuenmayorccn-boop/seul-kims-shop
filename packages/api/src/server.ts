@@ -105,7 +105,7 @@ async function handleLogin(c: any) {
 
 // Register both routes (backward compatibility + NextJS apps)
 app.post('/auth/login', handleLogin)
-app.post('/api/auth/login', handleLogin))
+app.post('/api/auth/login', handleLogin)
 
 // OPTIONS preflight (both routes)
 app.options('/auth/login', (c) => {
