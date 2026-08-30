@@ -245,7 +245,7 @@ importers:
         specifier: ^17.4.2
         version: 17.4.2
       tsx:
-        specifier: ^4.18.2
+        specifier: ^4.23.12
         version: 4.23.12
       typescript:
         specifier: ^5.7.2

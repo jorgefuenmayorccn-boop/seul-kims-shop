@@ -3,16 +3,5 @@ main = "src/server.ts"
 compatibility_date = "2026-08-29"
 compatibility_flags = ["nodejs_compat"]
 
-# Production environment
 [env.production]
-vars = { ENVIRONMENT = "production" }
-
-# Routes for production
-[[env.production.routes]]
-pattern = "api.seoulshop.cl/*"
-zone_name = "seoulshop.cl"
-
-# Build configuration
-[build]
-command = "npm run build"
-cwd = "../.."
+vars = { ENVIRONMENT = "production", ADMIN_EMAIL = "admin@seoulshop.cl", JWT_SECRET = "seul-king-os-jwt-production", DB_HOST = "ep-autumn-poetry-axvcuspa-pooler.c-4.us-east-2.aws.neon.tech", DB_USER = "neondb_owner", DB_PASSWORD = "npg_PltRoX3VBLg0", DB_NAME = "neondb" }

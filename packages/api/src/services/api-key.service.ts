@@ -112,16 +112,10 @@ export class ApiKeyService {
     userAgent?: string,
     error?: string,
   ) {
-    await db.insert(apiKeyLogs).values({
-      keyId,
-      method,
-      endpoint,
-      status,
-      ipAddress,
-      userAgent,
-      error,
-      requestSize: undefined,
-    })
+    await sql`
+      INSERT INTO api_key_logs (key_id, method, endpoint, status, ip_address, user_agent, error)
+      VALUES (${keyId}, ${method}, ${endpoint}, ${status}, ${ipAddress || null}, ${userAgent || null}, ${error || null})
+    `
 
     // Update last used timestamp
     await sql`UPDATE api_keys SET updated_at = NOW() WHERE id = ${keyId}`

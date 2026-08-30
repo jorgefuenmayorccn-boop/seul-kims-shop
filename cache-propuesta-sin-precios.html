@@ -1,0 +1,711 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CACHÉ — Propuesta Técnica Tienda B2B/B2C</title>
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --accent: #dc2626;
+      --bg: #f8fafc;
+      --text: #1e293b;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      padding: 2rem;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      color: var(--primary);
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 2.5rem;
+    }
+
+    h2 {
+      color: var(--primary);
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      font-size: 1.8rem;
+    }
+
+    h3 {
+      color: var(--accent);
+      margin-top: 1.5rem;
+      font-size: 1.2rem;
+    }
+
+    .header {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+      padding: 2rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+    }
+
+    .header h1 {
+      color: white;
+      border: none;
+      font-size: 2rem;
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      margin: 0.5rem 0;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin: 1.5rem 0;
+    }
+
+    .feature {
+      background: white;
+      padding: 1rem;
+      border-left: 4px solid var(--accent);
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .feature strong {
+      color: var(--primary);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    th {
+      background: var(--primary);
+      color: white;
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+    }
+
+    td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #e2e8f0;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    .timeline {
+      background: white;
+      padding: 1.5rem;
+      border-left: 4px solid var(--accent);
+      margin: 1rem 0;
+      border-radius: 4px;
+    }
+
+    .timeline strong {
+      color: var(--primary);
+      display: block;
+      margin-top: 1rem;
+    }
+
+    .timeline:first-child strong {
+      margin-top: 0;
+    }
+
+    .success-metrics {
+      background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+      border-left: 4px solid #10b981;
+      padding: 1.5rem;
+      border-radius: 4px;
+      margin: 1rem 0;
+    }
+
+    .success-metrics li {
+      margin: 0.5rem 0;
+      color: #059669;
+    }
+
+    .qa-box {
+      background: #fef3c7;
+      border-left: 4px solid #f59e0b;
+      padding: 1.5rem;
+      border-radius: 4px;
+      margin: 1rem 0;
+    }
+
+    .qa-box strong {
+      color: #b45309;
+      display: block;
+      margin-top: 1rem;
+    }
+
+    .flow-diagram {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin: 1rem 0;
+      border: 2px solid var(--primary);
+      font-family: monospace;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+
+    .cta {
+      background: var(--accent);
+      color: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin: 2rem 0;
+      text-align: center;
+    }
+
+    .cta a {
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    @media (max-width: 768px) {
+      .feature-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .page-break {
+      page-break-after: always;
+      margin: 2rem 0;
+      border-top: 2px solid #e2e8f0;
+      padding-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🛍️ CACHÉ</h1>
+  <h2 style="color: white; margin: 0.5rem 0 0 0; font-size: 1.5rem;">Tienda de Ropa B2B/B2C</h2>
+  <p><strong>Propuesta técnica</strong></p>
+  <p>Plataforma moderna de comercio electrónico integrada para múltiples canales</p>
+</div>
+
+<h2>📋 Resumen Ejecutivo</h2>
+<p><strong>CACHÉ</strong> es una plataforma de comercio electrónico moderna para una tienda de ropa colombiana que opera en dos canales simultáneamente: B2B (venta al por mayor a distribuidores) y B2C (venta al público directo).</p>
+
+<div class="feature-grid">
+  <div class="feature">✅ Gestión centralizada de inventario compartido</div>
+  <div class="feature">✅ Precios diferenciados por canal</div>
+  <div class="feature">✅ Panel administrativo intuitivo</div>
+  <div class="feature">✅ Experiencia mobile optimizada</div>
+  <div class="feature">✅ Automatización de emails</div>
+  <div class="feature">✅ Integración de pagos</div>
+  <div class="feature">✅ Reportes en tiempo real</div>
+  <div class="feature">✅ Soporte B2B avanzado</div>
+</div>
+
+<div class="page-break"></div>
+
+<h2>🏗️ Arquitectura General</h2>
+
+<h3>Stack Tecnológico</h3>
+
+<table>
+  <tr>
+    <th>Componente</th>
+    <th>Tecnología</th>
+    <th>Razón</th>
+  </tr>
+  <tr>
+    <td><strong>Frontend</strong></td>
+    <td>Next.js 14 + React + TypeScript</td>
+    <td>Renderizado híbrido, SEO nativo, performance</td>
+  </tr>
+  <tr>
+    <td><strong>Estilos</strong></td>
+    <td>TailwindCSS</td>
+    <td>Desarrollo rápido, responsive, utilities-based</td>
+  </tr>
+  <tr>
+    <td><strong>Backend</strong></td>
+    <td>Hono.js + Node.js</td>
+    <td>Ligero, rápido, type-safe con TypeScript</td>
+  </tr>
+  <tr>
+    <td><strong>BD</strong></td>
+    <td>PostgreSQL 16 (Neon)</td>
+    <td>Confiable, escalable, cloud-native</td>
+  </tr>
+  <tr>
+    <td><strong>ORM</strong></td>
+    <td>Drizzle</td>
+    <td>Type-safe queries, zero runtime overhead</td>
+  </tr>
+  <tr>
+    <td><strong>Hosting</strong></td>
+    <td>Vercel + Railway + Cloudflare</td>
+    <td>Global CDN, auto-scaling, infraestructura confiable</td>
+  </tr>
+  <tr>
+    <td><strong>Storage</strong></td>
+    <td>Cloudflare R2</td>
+    <td>S3-compatible, almacenamiento de medios</td>
+  </tr>
+  <tr>
+    <td><strong>Emails</strong></td>
+    <td>Resend</td>
+    <td>Transaccionales confiables, tracking</td>
+  </tr>
+  <tr>
+    <td><strong>Pagos</strong></td>
+    <td>Stripe + Pasarela local</td>
+    <td>Global + métodos locales (PSE/efectivo)</td>
+  </tr>
+</table>
+
+<h2>📱 Canales de Venta</h2>
+
+<h3>1. Tienda B2C (cachero-shop.com)</h3>
+<p><strong>Para clientes individuales</strong></p>
+<ul>
+  <li>Catálogo público con 500+ productos</li>
+  <li>Búsqueda y filtrado avanzado (talla, color, precio)</li>
+  <li>Carrito persistent (guardado en browser + BD)</li>
+  <li>Login social + Email</li>
+  <li>Checkout integrado con Stripe</li>
+  <li>Seguimiento de orden en tiempo real</li>
+  <li>Historial de compras personal</li>
+  <li>Sistema de reviews (cliente puede calificar)</li>
+</ul>
+
+<h3>2. Portal B2B (distribuidores.cachero.com)</h3>
+<p><strong>Para tiendas y distribuidores mayoristas</strong></p>
+<ul>
+  <li>Catálogo con precios mayoristas automáticos</li>
+  <li>Cantidad mínima de compra (configurable por producto)</li>
+  <li>Descuentos por volumen</li>
+  <li>Dashboard personal con saldo y historial</li>
+  <li>Facturación automática (PDF)</li>
+  <li>Sistema de crédito (pago después con términos)</li>
+  <li>Gestor de cuentas asignado</li>
+  <li>Acceso a lookbooks exclusivos</li>
+</ul>
+
+<h3>3. Panel Administrativo (admin.cachero.com)</h3>
+<p><strong>Para dueño y equipo de operaciones</strong></p>
+<ul>
+  <li>✏️ Gestión de catálogo (crear, editar, eliminar)</li>
+  <li>📦 Control de inventario con alertas</li>
+  <li>📋 Visualización de órdenes (B2B + B2C)</li>
+  <li>📊 Reportes de ventas, clientes, margen</li>
+  <li>👥 Gestión de usuarios (staff con permisos)</li>
+  <li>⚙️ Configuración de tienda (precios, impuestos)</li>
+  <li>💬 Panel de soporte/chat con clientes</li>
+  <li>🔐 Auditoría de cambios (quién hizo qué)</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>💳 Flujos de Pago</h2>
+
+<h3>Flujo B2C (Público)</h3>
+<div class="flow-diagram">
+Cliente entra → Navega catálogo → Agrega al carrito
+↓
+Checkout: email + dirección + método pago
+↓
+Pago procesado por Stripe
+↓
+Inventario actualizado
+↓
+Email confirmación → Admin notificado
+↓
+Orden en panel → picking/packing/shipping
+↓
+Cliente recibe tracking
+↓
+Entregado → Encuesta satisfacción
+</div>
+
+<h3>Flujo B2B (Mayorista)</h3>
+<div class="flow-diagram">
+Distribuidor login → Navega catálogo mayorista
+↓
+Precios especiales visibles automáticamente
+↓
+Agrega items (cantidad ≥ mínimo requerido)
+↓
+OPCIÓN A: Pagar ahora (Stripe)
+OPCIÓN B: Solicitar factura a crédito
+↓
+Si crédito aprobado:
+  → Orden entra a queue de fulfillment
+  → Gestor se comunica con distribuidor
+↓
+Mismo proceso que B2C
+↓
+Factura generada → Email
+↓
+Crédito marcado como pagado/vencido en dashboard
+</div>
+
+<h2>📊 Gestión de Inventario</h2>
+
+<h3>Modelo de Stock</h3>
+<p>Cada producto tiene 4 cantidades:</p>
+<ul>
+  <li><strong>Disponible:</strong> puede comprarse ahora</li>
+  <li><strong>Comprometida:</strong> en órdenes sin enviar</li>
+  <li><strong>Reservada:</strong> para VIP o campañas</li>
+  <li><strong>Stock Mínimo:</strong> threshold de alerta</li>
+</ul>
+
+<h3>Alertas Automáticas</h3>
+<ul>
+  <li>🔴 Si stock &lt; mínimo → email urgente</li>
+  <li>📈 Si 3+ órdenes del mismo item en 1 día → tendencia alert</li>
+  <li>⏰ Si tiempo de restock &gt; 30 días → contactar proveedor</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>🤖 Automatizaciones</h2>
+
+<h3>Emails Automáticos</h3>
+<table>
+  <tr>
+    <th>Evento</th>
+    <th>Destinatario</th>
+    <th>Contenido</th>
+  </tr>
+  <tr>
+    <td>Orden confirmada</td>
+    <td>Cliente</td>
+    <td>Detalles, número tracking, políticas retorno</td>
+  </tr>
+  <tr>
+    <td>Orden preparada</td>
+    <td>Cliente</td>
+    <td>Notificación + tracking URL</td>
+  </tr>
+  <tr>
+    <td>En camino</td>
+    <td>Cliente</td>
+    <td>Número guía + link logística</td>
+  </tr>
+  <tr>
+    <td>Entregada</td>
+    <td>Cliente</td>
+    <td>Confirmación + link encuesta</td>
+  </tr>
+  <tr>
+    <td>Carrito abandonado</td>
+    <td>Cliente</td>
+    <td>Reminder después de tiempo + incentivo</td>
+  </tr>
+  <tr>
+    <td>Opinión de compra</td>
+    <td>Cliente</td>
+    <td>Solicitud review, link a producto</td>
+  </tr>
+  <tr>
+    <td>Stock bajo</td>
+    <td>Admin</td>
+    <td>Alert urgente + link reorder</td>
+  </tr>
+  <tr>
+    <td>Nueva orden B2B</td>
+    <td>Gestor de cuentas</td>
+    <td>Detalles + acciones recomendadas</td>
+  </tr>
+</table>
+
+<h3>Reportes Programados</h3>
+<ul>
+  <li><strong>Diario:</strong> ventas, órdenes pendientes, incidencias</li>
+  <li><strong>Semanal:</strong> top productos, clientes nuevos, tasa retorno</li>
+  <li><strong>Mensual:</strong> margen, comparativa, análisis tendencias</li>
+</ul>
+
+<h2>✨ Características Avanzadas B2C</h2>
+
+<h3>Recomendaciones Personalizadas</h3>
+<ul>
+  <li>"Clientes que compraron esto también compraron..."</li>
+  <li>"Basado en tu historial, te recomendamos..."</li>
+  <li>Powered by análisis de datos</li>
+</ul>
+
+<h3>Wishlist & Sostenimiento</h3>
+<ul>
+  <li>Guardá productos favoritos</li>
+  <li>Recibí alerta cuando hay oferta</li>
+  <li>Comparte wishlist con amigos</li>
+</ul>
+
+<h3>Reviews & User-Generated Content</h3>
+<ul>
+  <li>Clientes pueden dejar opiniones (1-5 estrellas)</li>
+  <li>Pueden subir fotos de sus compras</li>
+  <li>Moderación automática + manual</li>
+  <li>Reputación del cliente (earned badges)</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>✨ Características Avanzadas B2B</h2>
+
+<h3>Catálogo Personalizado</h3>
+<ul>
+  <li>Cada distribuidor ve precios/mínimos según su tier</li>
+  <li>Acceso a colecciones exclusivas (si aplica)</li>
+  <li>Lookbook PDF descargable</li>
+</ul>
+
+<h3>Sistema de Crédito</h3>
+<ul>
+  <li>Límite de crédito por distribuidor (configurable)</li>
+  <li>Factura con plazo especificado</li>
+  <li>Reminders automáticos para vencimientos</li>
+  <li>Dashboard: vencimientos próximos + saldo</li>
+</ul>
+
+<h3>Gestión de Cuentas</h3>
+<ul>
+  <li>Gestor asignado por distribuidor</li>
+  <li>Chat integrado en portal</li>
+  <li>Historial completo de comunicación</li>
+  <li>Capacidad de cambiar términos (precios, descuentos)</li>
+</ul>
+
+<h2>🔒 Seguridad & Cumplimiento</h2>
+
+<h3>Datos del Cliente</h3>
+<ul>
+  <li>✅ Encriptación de contraseñas (PBKDF2 + salt)</li>
+  <li>✅ SSL/TLS en todas las conexiones</li>
+  <li>✅ Tokens JWT con expiración</li>
+  <li>✅ Cookies httpOnly (previene XSS)</li>
+  <li>✅ CORS restrictivo (solo dominios autorizados)</li>
+</ul>
+
+<h3>Protección de Datos</h3>
+<ul>
+  <li>✅ GDPR compliance (derecho a olvido, exportación)</li>
+  <li>✅ Backups automáticos (diarios)</li>
+  <li>✅ Auditoría de accesos (quién cambió qué, cuándo)</li>
+  <li>✅ Monitoreo de intentos fallidos de login</li>
+</ul>
+
+<h3>Prevención de Fraude</h3>
+<ul>
+  <li>✅ Validación de tarjeta en Stripe (PCI Level 1)</li>
+  <li>✅ Detección de patrones sospechosos</li>
+  <li>✅ Límite de intentos fallidos (lockout automático)</li>
+  <li>✅ Alertas para compras anómalas</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h2>🔗 Integraciones</h2>
+
+<h3>Pagos</h3>
+<ul>
+  <li><strong>Stripe:</strong> tarjeta de crédito/débito (global)</li>
+  <li><strong>PSE/ACH:</strong> transferencia bancaria directa (Colombia)</li>
+  <li><strong>Efectivo:</strong> recaudo a domicilio en entrega</li>
+</ul>
+
+<h3>Logística (Fase 2)</h3>
+<ul>
+  <li><strong>Rappi:</strong> entregas en ciudades principales</li>
+  <li><strong>DHL/Fedex:</strong> regional e internacional</li>
+  <li>Tracking automático en portales (real-time)</li>
+</ul>
+
+<h3>Herramientas</h3>
+<ul>
+  <li><strong>Google Analytics:</strong> tráfico, comportamiento, funnel</li>
+  <li><strong>Slack:</strong> notificaciones de órdenes críticas</li>
+  <li><strong>Zapier/n8n:</strong> automatizaciones custom (opcional)</li>
+  <li><strong>Sentry:</strong> monitoreo de errores</li>
+</ul>
+
+<h2>📅 Roadmap de Implementación</h2>
+
+<h3>FASE 1: MVP Completo</h3>
+<div class="timeline">
+  <strong>Alcance:</strong> Catálogo (B2C + B2B), Carrito y checkout, Gestión de órdenes, Emails básicos, Reportes iniciales, Testing y deployment
+  <ul>
+    <li>✅ Catálogo (B2C + B2B)</li>
+    <li>✅ Carrito y checkout</li>
+    <li>✅ Gestión de órdenes (admin)</li>
+    <li>✅ Emails básicos</li>
+    <li>✅ Reportes iniciales</li>
+    <li>✅ Testing + deployment</li>
+  </ul>
+  <strong>Timeline:</strong> Período de implementación para MVP
+</div>
+
+<h3>FASE 2: Enhancements</h3>
+<div class="timeline">
+  <strong>Alcance:</strong> Sistema de crédito B2B, Recomendaciones personalizadas, Integración logística, Reviews y ratings, Lookbooks B2B
+  <ul>
+    <li>✅ Sistema de crédito B2B</li>
+    <li>✅ Recomendaciones personalizadas</li>
+    <li>✅ Integración logística</li>
+    <li>✅ Reviews y ratings</li>
+    <li>✅ Lookbooks B2B</li>
+  </ul>
+  <strong>Timeline:</strong> Fase posterior a MVP
+</div>
+
+<h3>FASE 3: AI & Growth</h3>
+<div class="timeline">
+  <strong>Alcance:</strong> Asistente IA, Predicción de tendencias, Optimización de precios dinámicos, Mobile app nativa
+  <ul>
+    <li>✅ Asistente IA (búsqueda, recomendaciones)</li>
+    <li>✅ Predicción de tendencias</li>
+    <li>✅ Optimización de precios dinámicos</li>
+    <li>✅ Mobile app nativa (si aplica)</li>
+  </ul>
+  <strong>Timeline:</strong> Fase de crecimiento y optimización
+</div>
+
+<div class="page-break"></div>
+
+<h2>🎯 Métricas de Éxito</h2>
+
+<h3>Al finalizar FASE 1</h3>
+<div class="success-metrics">
+  <ul>
+    <li>✅ 500+ productos en catálogo</li>
+    <li>✅ 50+ órdenes/mes procesadas</li>
+    <li>✅ 0 bugs críticos en producción</li>
+    <li>✅ Tiempo de respuesta API &lt; 200ms</li>
+    <li>✅ 99.9% uptime</li>
+    <li>✅ Checkout completion rate &gt; 60%</li>
+  </ul>
+</div>
+
+<h3>Al finalizar FASE 2</h3>
+<div class="success-metrics">
+  <ul>
+    <li>✅ 20+ distribuidores activos</li>
+    <li>✅ 2,000+ órdenes mensuales</li>
+    <li>✅ Mejora en márgenes comerciales</li>
+    <li>✅ NPS alto (customer satisfaction)</li>
+    <li>✅ Repeat purchase rate mejorado</li>
+    <li>✅ Average order value incrementado</li>
+  </ul>
+</div>
+
+<div class="page-break"></div>
+
+<h2>🚀 Próximos Pasos</h2>
+
+<ol>
+  <li><strong>Aprobación de propuesta</strong>
+    <ul><li>Revisión de requerimientos técnicos</li></ul>
+  </li>
+  <li><strong>Kick-off técnico</strong>
+    <ul>
+      <li>Definir identidad visual (colores, fuentes)</li>
+      <li>Confirmar productos piloto</li>
+      <li>Acceso a datos actuales (si existen)</li>
+    </ul>
+  </li>
+  <li><strong>Desarrollo</strong>
+    <ul>
+      <li>Sprints regulares con demos</li>
+      <li>Testing en staging (tu acceso)</li>
+      <li>Feedback iterativo</li>
+    </ul>
+  </li>
+  <li><strong>Go-Live</strong>
+    <ul>
+      <li>Migración de datos (si aplica)</li>
+      <li>Training del equipo</li>
+      <li>Soporte intensivo post-launch</li>
+    </ul>
+  </li>
+  <li><strong>Post-Launch</strong>
+    <ul>
+      <li>Análisis de comportamiento</li>
+      <li>Optimizaciones basadas en datos</li>
+      <li>Roadmap FASE 2</li>
+    </ul>
+  </li>
+</ol>
+
+<h2>❓ Preguntas para Confirmación</h2>
+
+<div class="qa-box">
+  <strong>1. Identidad Visual</strong>
+  <ul>
+    <li>¿Tienes logo final aprobado?</li>
+    <li>¿Cuáles son tus colores corporativos?</li>
+    <li>¿Tienes ejemplo de tienda online que te guste?</li>
+  </ul>
+
+  <strong>2. Catálogo Actual</strong>
+  <ul>
+    <li>¿Cuántos productos tienes actualmente?</li>
+    <li>¿En qué formato? (Excel, tienda anterior, fotos sueltas)</li>
+    <li>¿Tienes imágenes de productos? (resolución, cantidad)</li>
+  </ul>
+
+  <strong>3. Operaciones</strong>
+  <ul>
+    <li>¿Quién prepara/empaca órdenes?</li>
+    <li>¿Cuál es tu método de envío actual?</li>
+    <li>¿Horario de atención al cliente?</li>
+  </ul>
+
+  <strong>4. Audiencia</strong>
+  <ul>
+    <li>¿Cuántos clientes B2C estimados en año 1?</li>
+    <li>¿Cuántos distribuidores B2B objetivo?</li>
+    <li>¿Ubicación: Colombia, Latam, mundial?</li>
+  </ul>
+
+  <strong>5. Diferenciación</strong>
+  <ul>
+    <li>¿Qué te hace diferente vs competencia?</li>
+    <li>¿Tienes marca registrada/IP?</li>
+    <li>¿Planes de marketing post-launch?</li>
+  </ul>
+</div>
+
+<div class="cta">
+  <h3>¿Listo para empezar?</h3>
+  <p>Contáctanos para confirmar detalles y hacer el kick-off técnico</p>
+  <p><strong>📧 Jorge Fuenmayor</strong> | jorgefuenmayor.ccn@gmail.com</p>
+</div>
+
+<hr style="margin: 3rem 0; border: none; border-top: 2px solid #e2e8f0;">
+
+<p style="text-align: center; color: #64748b; font-size: 0.9rem;">
+  <strong>CACHÉ Propuesta v1.0</strong> | Agosto 2026<br>
+  Confidencial — Uso exclusivamente para cliente
+</p>
+
+</body>
+</html>
