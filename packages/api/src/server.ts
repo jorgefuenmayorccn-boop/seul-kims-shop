@@ -415,6 +415,45 @@ app.post('/api/admin/api-keys', (c) => apiKeysController.create(c))
 app.get('/api/admin/api-keys', (c) => apiKeysController.list(c))
 app.post('/api/admin/api-keys/:id/revoke', (c) => apiKeysController.revoke(c))
 
+// Admin: Seed test users (development only)
+app.post('/api/admin/seed/users', async (c) => {
+  if (process.env.ENVIRONMENT !== 'development') {
+    return c.json({ error: 'Only available in development' }, 403)
+  }
+
+  const TEST_USERS = [
+    { email: 'founder@seoulshop.cl', password: 'Seoul2025!Founder', name: 'Fundador Seoul Kims', role: 'owner' },
+    { email: 'gerente@seoulshop.cl', password: 'Seoul2025!Gerente', name: 'Gerente Operacional', role: 'admin' },
+    { email: 'repartidor.test@seoulshop.cl', password: 'Seoul2025!Repartidor', name: 'Repartidor de Prueba', role: 'delivery' },
+  ]
+
+  try {
+    const results = []
+    for (const user of TEST_USERS) {
+      const passwordHash = PasswordService.hashPassword(user.password)
+      const existing = await sql`SELECT id FROM users WHERE email = ${user.email}`
+
+      if (existing.length > 0) {
+        results.push({ email: user.email, status: 'exists' })
+        continue
+      }
+
+      const [inserted] = await sql`
+        INSERT INTO users (email, password_hash, name, role, is_active)
+        VALUES (${user.email}, ${passwordHash}, ${user.name}, ${user.role}, true)
+        RETURNING id, email, name, role
+      `
+
+      results.push({ email: inserted.email, status: 'created', id: inserted.id })
+    }
+
+    return c.json({ ok: true, results })
+  } catch (err: any) {
+    console.error('Seed error:', err)
+    return c.json({ error: err.message }, 500)
+  }
+})
+
 // ============================================================================
 // LEGACY ENDPOINTS
 // ============================================================================
