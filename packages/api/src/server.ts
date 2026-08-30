@@ -50,8 +50,8 @@ const TEST_USERS: Record<string, { password: string; name: string; role: string 
   'repartidor.test@seoulshop.cl': { password: 'Seoul2025!Repartidor', name: 'Repartidor de Prueba', role: 'delivery' },
 }
 
-// POST /auth/login — Autenticación real con BD + fallback TEST_USERS para dev
-app.post('/auth/login', async (c) => {
+// POST /api/auth/login — Autenticación real con BD + fallback TEST_USERS para dev
+app.post('/api/auth/login', async (c) => {
   let body: any = {}
   let email: string = ''
   let password: string = ''
@@ -103,13 +103,45 @@ app.post('/auth/login', async (c) => {
   return response
 })
 
-// OPTIONS /auth/login (preflight)
-app.options('/auth/login', (c) => {
+// OPTIONS /api/auth/login (preflight)
+app.options('/api/auth/login', (c) => {
   return c.json(null, 200, {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   })
+})
+
+// GET /api/auth/me — Get current user (if token valid)
+app.get('/api/auth/me', async (c) => {
+  const authHeader = c.req.header('Authorization')
+
+  if (!authHeader?.startsWith('Bearer ')) {
+    return c.json({ error: 'Missing token' }, 401)
+  }
+
+  const token = authHeader.slice(7)
+  const verified = AuthService.verifyToken(token, JWT_SECRET)
+
+  if (!verified.ok) {
+    return c.json({ error: 'Invalid token' }, 401)
+  }
+
+  const decoded = verified.decoded as any
+  return c.json({
+    user: {
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role,
+    }
+  })
+})
+
+// POST /api/auth/logout
+app.post('/api/auth/logout', async (c) => {
+  const response = c.json({ ok: true })
+  response.headers.set('Access-Control-Allow-Origin', '*')
+  return response
 })
 
 // ============================================================================
