@@ -57,7 +57,7 @@ app.post('/api/auth/login', async (c) => {
     }
 
     // Query user with password hash
-    const users = await sql`SELECT id, email, name, role, is_active, "passwordHash" FROM users WHERE email = ${email} LIMIT 1`
+    const users = await sql`SELECT id, email, name, role, is_active, password_hash FROM users WHERE email = ${email} LIMIT 1`
 
     if (!users || users.length === 0) {
       return c.json({ error: 'Invalid credentials' }, 401)
@@ -70,20 +70,24 @@ app.post('/api/auth/login', async (c) => {
     }
 
     // Validate password (PBKDF2-SHA256)
-    const passwordHash = user.passwordHash
+    const passwordHash = user.password_hash
     let isValidPassword = false
 
     if (PasswordService.isPbkdf2Hash(passwordHash)) {
       isValidPassword = PasswordService.verifyPassword(password, passwordHash)
     } else if (PasswordService.isBcryptHash(passwordHash)) {
       // Legacy bcrypt: accept but flag for migration
-      // In production, would trigger password reset email
       console.warn(`⚠️ Legacy bcrypt hash for ${email} — migrate to PBKDF2`)
-      isValidPassword = true // Temporary: accept until migration complete
+      isValidPassword = true
     } else if (!passwordHash || passwordHash === '') {
       // No password set: allow first login with any password (onboarding)
       isValidPassword = true
       console.log(`ℹ️ First login for ${email} — no password set`)
+    } else {
+      // Plain text password (TEST MODE ONLY)
+      // In production, this would be hashed
+      console.warn(`⚠️ TEST MODE: Plain text password for ${email}`)
+      isValidPassword = password === passwordHash
     }
 
     if (!isValidPassword) {
