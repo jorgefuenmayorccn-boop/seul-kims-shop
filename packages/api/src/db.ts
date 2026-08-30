@@ -14,10 +14,13 @@ const DATABASE_URL = (() => {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL
   const dbHost = process.env.DB_HOST
   const dbUser = process.env.DB_USER
-  const dbPass = process.env.DB_PASSWORD || 'npg_PltRoX3VBLg0'
+  const dbPass = process.env.DB_PASSWORD
   const dbName = process.env.DB_NAME || 'neondb'
-  if (dbHost && dbUser) {
+  if (dbHost && dbUser && dbPass) {
     return `postgresql://${dbUser}:${dbPass}@${dbHost}/${dbName}?sslmode=require&channel_binding=require`
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('DATABASE_URL or DB_HOST/DB_USER/DB_PASSWORD must be configured')
   }
   return 'postgresql://localhost/seul_dev'
 })()
