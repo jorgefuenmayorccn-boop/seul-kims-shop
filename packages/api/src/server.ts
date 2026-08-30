@@ -584,7 +584,7 @@ app.post('/api/auth/register', async (c) => {
 // STARTUP
 // ============================================================================
 
-console.log(`🚀 SEUL API v1.0 (Node.js + Railway)`)
+console.log(`🚀 SEUL API v1.0 (Node.js + Railway) — Redeploy after Neon Scale upgrade`)
 console.log(`✅ Admin: ${ADMIN_EMAIL}`)
 
 // Validate DB connection on startup (non-blocking)
