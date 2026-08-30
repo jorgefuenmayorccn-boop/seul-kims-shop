@@ -38,7 +38,7 @@ export function getCurrentUser(): POSUser | null {
 
 export async function fetchCurrentUser(apiUrl: string): Promise<POSUser | null> {
   try {
-    const res = await fetch(`${apiUrl}/api/auth/me`, { credentials: 'include' })
+    const res = await fetch(`${apiUrl}/auth/me`, { credentials: 'include' })
     if (!res.ok) return null
     const data = await res.json() as { user: POSUser }
     setCurrentUser(data.user)
@@ -49,7 +49,7 @@ export async function fetchCurrentUser(apiUrl: string): Promise<POSUser | null> 
 }
 
 export async function logoutUser(apiUrl: string): Promise<void> {
-  await fetch(`${apiUrl}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+  await fetch(`${apiUrl}/auth/logout`, { method: 'POST', credentials: 'include' })
   stopOrderEvents()
   setActiveShift(null)
   setActiveTillSession(null)

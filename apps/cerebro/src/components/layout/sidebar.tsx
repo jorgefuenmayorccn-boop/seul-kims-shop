@@ -81,7 +81,7 @@ export function Sidebar({ user }: Props) {
         <button type="button"
           className="flex items-center gap-2 w-full text-[11px] text-text-muted hover:text-error transition-colors"
           onClick={async () => {
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'}/api/auth/logout`, { method: 'POST', credentials: 'include' })
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'}/auth/logout`, { method: 'POST', credentials: 'include' })
             window.location.href = '/login'
           }}>
           <LogOut size={12} />
