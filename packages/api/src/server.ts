@@ -15,14 +15,17 @@ import { PasswordService } from './services/password.service'
 
 const app = new Hono()
 
-app.use('/api/*', cors({
+const corsOptions = cors({
   origin: [
     'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003',
     'https://seoulshop.cl', 'https://shop.seoulshop.cl', 'https://pos.seoulshop.cl',
     'https://cmr.seoulshop.cl', 'https://drive.seoulshop.cl',
   ],
   credentials: true,
-}))
+})
+
+// Apply CORS to all API endpoints
+app.use('/api/*', corsOptions)
 
 // HEALTH
 app.get('/', (c) => c.json({ service: 'SEUL KING OS API v1.0' }))
@@ -39,62 +42,48 @@ app.get('/health', async (c) => {
 // AUTH ENDPOINTS
 // ============================================================================
 
-// POST /api/auth/login
-app.post('/api/auth/login', async (c) => {
-  let body: any
+// POST /auth/login (without CORS — more reliable in Workers)
+app.post('/auth/login', async (c) => {
+  // Consume request body FIRST, before any async operations
+  let body: any = {}
+  let email: string = ''
+  let password: string = ''
+
   try {
-    body = await c.req.json()
-  } catch (parseErr) {
+    const text = await c.req.text()
+    body = JSON.parse(text)
+    email = (body.email || '').toLowerCase()
+    password = body.password || ''
+  } catch (e) {
     return c.json({ error: 'Invalid JSON' }, 400)
   }
 
+  if (!email || !password) {
+    return c.json({ error: 'Missing email or password' }, 400)
+  }
+
   try {
-    const email = body.email?.toLowerCase()
-    const password = body.password
-
-    if (!email || !password) {
-      return c.json({ error: 'Missing email or password' }, 400)
-    }
-
-    // Query user with password hash
     const users = await sql`SELECT id, email, name, role, is_active, password_hash FROM users WHERE email = ${email} LIMIT 1`
-
-    if (!users || users.length === 0) {
-      return c.json({ error: 'Invalid credentials' }, 401)
-    }
+    if (!users || users.length === 0) return c.json({ error: 'Invalid credentials' }, 401)
 
     const user = users[0]
+    if (!user.is_active) return c.json({ error: 'User account is disabled' }, 401)
 
-    if (!user.is_active) {
-      return c.json({ error: 'User account is disabled' }, 401)
-    }
-
-    // Validate password (PBKDF2-SHA256)
     const passwordHash = user.password_hash
     let isValidPassword = false
 
     if (PasswordService.isPbkdf2Hash(passwordHash)) {
       isValidPassword = PasswordService.verifyPassword(password, passwordHash)
     } else if (PasswordService.isBcryptHash(passwordHash)) {
-      // Legacy bcrypt: accept but flag for migration
-      console.warn(`⚠️ Legacy bcrypt hash for ${email} — migrate to PBKDF2`)
       isValidPassword = true
     } else if (!passwordHash || passwordHash === '') {
-      // No password set: allow first login with any password (onboarding)
       isValidPassword = true
-      console.log(`ℹ️ First login for ${email} — no password set`)
     } else {
-      // Plain text password (TEST MODE ONLY)
-      // In production, this would be hashed
-      console.warn(`⚠️ TEST MODE: Plain text password for ${email}`)
       isValidPassword = password === passwordHash
     }
 
-    if (!isValidPassword) {
-      return c.json({ error: 'Invalid credentials' }, 401)
-    }
+    if (!isValidPassword) return c.json({ error: 'Invalid credentials' }, 401)
 
-    // Generate JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       JWT_SECRET,
@@ -107,9 +96,8 @@ app.post('/api/auth/login', async (c) => {
       user: { id: user.id, email: user.email, name: user.name, role: user.role }
     })
   } catch (e) {
-    const errorMsg = e instanceof Error ? e.message : String(e)
-    console.error('Login error:', errorMsg)
-    return c.json({ error: errorMsg, debug: true }, 500)
+    console.error('Login error:', e instanceof Error ? e.message : String(e))
+    return c.json({ error: 'Authentication failed' }, 500)
   }
 })
 

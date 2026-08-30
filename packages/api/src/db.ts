@@ -22,5 +22,12 @@ const DATABASE_URL = (() => {
   return 'postgresql://localhost/seul_dev'
 })()
 
+// Optimized for Cloudflare Workers + Neon PaaS
 export const sql = postgres(DATABASE_URL,
-  { ssl: 'require', max: 20, idle_timeout: 30, max_lifetime: 3600 })
+  {
+    ssl: 'require',
+    max: 5,
+    idle_timeout: 20,
+    max_lifetime: 120,
+    connect_timeout: 6,
+  })
