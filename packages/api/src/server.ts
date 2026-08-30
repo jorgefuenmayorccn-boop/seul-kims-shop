@@ -23,8 +23,11 @@ const corsOptions = cors({
     'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003',
     'https://seoulshop.cl', 'https://shop.seoulshop.cl', 'https://pos.seoulshop.cl',
     'https://cmr.seoulshop.cl', 'https://drive.seoulshop.cl',
+    'https://seul-kims-shop.vercel.app', // Vercel preview URLs
   ],
   credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 })
 
 // Apply CORS to all API endpoints
