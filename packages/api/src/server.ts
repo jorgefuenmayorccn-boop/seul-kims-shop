@@ -85,10 +85,26 @@ app.post('/auth/login', async (c) => {
     { expiresIn: '7d' }
   )
 
-  return c.json({
+  const response = c.json({
     ok: true,
     token,
     user: { id: email, email, name: testUser.name, role: testUser.role }
+  })
+
+  // Add explicit CORS headers
+  response.headers.set('Access-Control-Allow-Origin', '*')
+  response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
+  response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+
+  return response
+})
+
+// OPTIONS /auth/login (preflight)
+app.options('/auth/login', (c) => {
+  return c.json(null, 200, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   })
 })
 
