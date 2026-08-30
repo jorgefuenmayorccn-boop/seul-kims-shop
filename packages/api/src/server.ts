@@ -50,8 +50,8 @@ const TEST_USERS: Record<string, { password: string; name: string; role: string 
   'repartidor.test@seoulshop.cl': { password: 'Seoul2025!Repartidor', name: 'Repartidor de Prueba', role: 'delivery' },
 }
 
-// POST /api/auth/login — Autenticación real con BD + fallback TEST_USERS para dev
-app.post('/api/auth/login', async (c) => {
+// AUTH LOGIN HANDLER (shared by both /auth/login and /api/auth/login)
+async function handleLogin(c: any) {
   let body: any = {}
   let email: string = ''
   let password: string = ''
@@ -101,9 +101,20 @@ app.post('/api/auth/login', async (c) => {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
 
   return response
-})
+}
 
-// OPTIONS /api/auth/login (preflight)
+// Register both routes (backward compatibility + NextJS apps)
+app.post('/auth/login', handleLogin)
+app.post('/api/auth/login', handleLogin))
+
+// OPTIONS preflight (both routes)
+app.options('/auth/login', (c) => {
+  return c.json(null, 200, {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  })
+})
 app.options('/api/auth/login', (c) => {
   return c.json(null, 200, {
     'Access-Control-Allow-Origin': '*',
@@ -112,8 +123,8 @@ app.options('/api/auth/login', (c) => {
   })
 })
 
-// GET /api/auth/me — Get current user (if token valid)
-app.get('/api/auth/me', async (c) => {
+// GET /auth/me y /api/auth/me — Get current user
+async function handleGetMe(c: any) {
   const authHeader = c.req.header('Authorization')
 
   if (!authHeader?.startsWith('Bearer ')) {
@@ -135,14 +146,20 @@ app.get('/api/auth/me', async (c) => {
       role: decoded.role,
     }
   })
-})
+}
 
-// POST /api/auth/logout
-app.post('/api/auth/logout', async (c) => {
+app.get('/auth/me', handleGetMe)
+app.get('/api/auth/me', handleGetMe)
+
+// POST /auth/logout y /api/auth/logout
+async function handleLogout(c: any) {
   const response = c.json({ ok: true })
   response.headers.set('Access-Control-Allow-Origin', '*')
   return response
-})
+}
+
+app.post('/auth/logout', handleLogout)
+app.post('/api/auth/logout', handleLogout)
 
 // ============================================================================
 // B2C ENDPOINTS (7 emails)
