@@ -61,6 +61,49 @@ app.get('/diagnostic', (c) => {
 // AUTH ENDPOINTS
 // ============================================================================
 
+// Auto-run migrations on startup
+async function runMigrationsIfNeeded() {
+  try {
+    // Check if must_change_password column exists
+    const result = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'must_change_password'
+    `
+
+    if (result.length === 0) {
+      console.log('🔄 Running migration 0014...')
+
+      await sql`
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN NOT NULL DEFAULT true
+      `
+      await sql`
+        ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP
+      `
+      await sql`
+        CREATE TABLE IF NOT EXISTS staff_password_reset_tokens (
+          id TEXT PRIMARY KEY,
+          user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          token TEXT NOT NULL UNIQUE,
+          expires_at TIMESTAMP NOT NULL,
+          used_at TIMESTAMP,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+      await sql`
+        CREATE INDEX IF NOT EXISTS staff_pwd_reset_user_idx ON staff_password_reset_tokens(user_id)
+      `
+      await sql`
+        CREATE INDEX IF NOT EXISTS staff_pwd_reset_token_idx ON staff_password_reset_tokens(token)
+      `
+      console.log('✅ Migration 0014 applied')
+    }
+  } catch (e) {
+    console.warn('⚠️  Migration check failed (OK if already applied):', e)
+  }
+}
+
 // Hardcoded test users (bypass DB for Workers stability)
 const TEST_USERS: Record<string, { password: string; name: string; role: string }> = {
   'founder@seoulshop.cl': { password: 'Seoul2025!Founder', name: 'Fundador Seoul Kims', role: 'owner' },
@@ -722,6 +765,9 @@ console.log(`✅ Admin: ${ADMIN_EMAIL}`)
 sql`SELECT 1`
   .then(() => console.log('✅ Database connected'))
   .catch(err => console.error('⚠️ Database connection warning:', err.message))
+
+// Run migrations
+runMigrationsIfNeeded().catch(e => console.error('⚠️ Migration error:', e))
 
 // Listen for incoming HTTP requests (Railway/Node)
 const port = Number(process.env.PORT) || 8080
