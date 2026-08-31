@@ -117,14 +117,12 @@ async function seedRealUsersIfNeeded() {
     const existing = await sql`SELECT email FROM users WHERE email IN ${sql(REAL_USERS.map(u => u.email))}`
 
     if (existing.length < REAL_USERS.length) {
-      console.log('🔄 Seeding real users...')
+      console.log('🔄 Seeding real users and sending initial credentials...')
 
       // Clean old test users first
       await sql`DELETE FROM users WHERE email IN ('founder@seoulshop.cl', 'gerente@seoulshop.cl', 'repartidor.test@seoulshop.cl')`
 
       // Seed real users with temporary passwords
-      const tempPasswords = new Map<string, string>()
-
       for (const user of REAL_USERS) {
         const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
         const passwordHash = PasswordService.hashPassword(tempPassword)
@@ -135,11 +133,26 @@ async function seedRealUsersIfNeeded() {
           ON CONFLICT (email) DO NOTHING
         `
 
-        tempPasswords.set(user.email, tempPassword)
-        console.log(`  ✓ ${user.email}`)
+        // Send initial credentials email
+        try {
+          await enqueueEmail(
+            user.email,
+            '🎉 ¡Bienvenido a SEUL KING OS v1.0!',
+            templates.initialCredentials({
+              email: user.email,
+              password: tempPassword,
+              name: user.name,
+              role: user.role,
+            }),
+            'initial-credentials'
+          )
+          console.log(`  ✓ ${user.email} — Email enviado`)
+        } catch (emailError) {
+          console.error(`  ⚠️  ${user.email} — Email error:`, emailError)
+        }
       }
 
-      console.log('\n📧 Real users seeded. Temporary passwords generated.')
+      console.log('\n📧 Usuarios seeded + emails enviados')
     }
   } catch (e) {
     console.warn('⚠️  User seed check failed (OK if already seeded):', e)
