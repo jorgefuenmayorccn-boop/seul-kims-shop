@@ -235,6 +235,13 @@ async function handleLogin(c: any) {
   let password: string = ''
   const debug = c.req.header('x-debug-auth') === 'seul-debug-2026-temp'
   const dbg: any = {}
+  if (debug) {
+    const rawDbUrl = process.env.DATABASE_URL || ''
+    dbg.dbHost = rawDbUrl.replace(/^.*@/, '').split('/')[0]
+    dbg.dbUrlLength = rawDbUrl.length
+    dbg.pid = process.pid
+    dbg.uptimeSec = Math.round(process.uptime())
+  }
 
   try {
     const text = await c.req.text()
