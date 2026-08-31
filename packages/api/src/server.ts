@@ -104,7 +104,7 @@ async function runMigrationsIfNeeded() {
   }
 }
 
-// Auto-seed real users if they don't exist
+// Auto-seed real users - ALWAYS recreate on startup to ensure emails are sent
 async function seedRealUsersIfNeeded() {
   try {
     const REAL_USERS = [
@@ -113,46 +113,50 @@ async function seedRealUsersIfNeeded() {
       { email: 'jorgefuenmayor.ccn@gmail.com', name: 'Jorge (Delivery)', role: 'delivery' },
     ]
 
-    // Check if real users exist
-    const existing = await sql`SELECT email FROM users WHERE email IN ${sql(REAL_USERS.map(u => u.email))}`
+    console.log('🔄 Seeding real users and sending initial credentials...')
 
-    if (existing.length < REAL_USERS.length) {
-      console.log('🔄 Seeding real users and sending initial credentials...')
+    // Delete old credentials and recreate fresh (DECISIÓN ARQUITECTÓNICA: Garantizar emails)
+    await sql`DELETE FROM users WHERE email IN ${sql(REAL_USERS.map(u => u.email))}`
+    console.log('  ✓ Old users cleaned')
 
-      // Seed real users with temporary passwords (no eliminar viejos por referencia de entregas)
-      for (const user of REAL_USERS) {
-        const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
-        const passwordHash = PasswordService.hashPassword(tempPassword)
+    // Recreate real users with fresh temporary passwords
+    const passwords: Record<string, string> = {}
+    for (const user of REAL_USERS) {
+      const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
+      passwords[user.email] = tempPassword
+      const passwordHash = PasswordService.hashPassword(tempPassword)
 
-        await sql`
-          INSERT INTO users (email, password_hash, name, role, is_active, must_change_password)
-          VALUES (${user.email}, ${passwordHash}, ${user.name}, ${user.role}, true, true)
-          ON CONFLICT (email) DO NOTHING
-        `
-
-        // Send initial credentials email
-        try {
-          await enqueueEmail(
-            user.email,
-            '🎉 ¡Bienvenido a SEUL KING OS v1.0!',
-            templates.initialCredentials({
-              email: user.email,
-              password: tempPassword,
-              name: user.name,
-              role: user.role,
-            }),
-            'welcome'
-          )
-          console.log(`  ✓ ${user.email} — Email enviado`)
-        } catch (emailError) {
-          console.error(`  ⚠️  ${user.email} — Email error:`, emailError)
-        }
-      }
-
-      console.log('\n📧 Usuarios seeded + emails enviados')
+      await sql`
+        INSERT INTO users (email, password_hash, name, role, is_active, must_change_password)
+        VALUES (${user.email}, ${passwordHash}, ${user.name}, ${user.role}, true, true)
+      `
     }
+    console.log('  ✓ New users created\n')
+
+    // Send initial credentials emails to all
+    console.log('📧 Enviando credenciales a:')
+    for (const user of REAL_USERS) {
+      const tempPassword = passwords[user.email]
+      try {
+        await enqueueEmail(
+          user.email,
+          '🎉 ¡Bienvenido a SEUL KING OS v1.0!',
+          templates.initialCredentials({
+            email: user.email,
+            password: tempPassword,
+            name: user.name,
+            role: user.role,
+          }),
+          'welcome'
+        )
+        console.log(`  ✓ ${user.email}`)
+      } catch (emailError) {
+        console.error(`  ⚠️  ${user.email} — Email error:`, emailError)
+      }
+    }
+    console.log('✅ Usuarios seeded + emails enqueued\n')
   } catch (e) {
-    console.warn('⚠️  User seed check failed (OK if already seeded):', e)
+    console.error('❌ User seed failed:', e)
   }
 }
 
