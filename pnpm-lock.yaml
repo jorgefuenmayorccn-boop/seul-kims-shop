@@ -26,6 +26,9 @@ importers:
       '@seul/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@seul/icons':
+        specifier: workspace:*
+        version: link:../../packages/icons
       '@seul/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
