@@ -280,6 +280,15 @@ async function handleLogin(c: any) {
         hashLen: manualRows[0]?.password_hash?.length,
         manualCompare: manualRows[0] ? PasswordService.verifyPassword(password, manualRows[0].password_hash) : null,
       }
+      // Raw bcryptjs call, bypassing PasswordService, to isolate the failure point
+      try {
+        const bcryptjs = await import('bcryptjs')
+        const isBcryptHashCheck = manualRows[0]?.password_hash?.startsWith('$2a$')
+        const rawCompare = bcryptjs.compareSync(password, manualRows[0].password_hash)
+        dbg.rawBcrypt = { isBcryptHashCheck, rawCompare, bcryptjsKeys: Object.keys(bcryptjs) }
+      } catch (bErr: any) {
+        dbg.rawBcrypt = { threw: true, message: String(bErr?.message || bErr), stack: String(bErr?.stack || '').split('\n').slice(0, 3) }
+      }
     } catch (e: any) {
       dbg.manualQuery = { error: String(e?.message || e) }
     }
