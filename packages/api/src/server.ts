@@ -141,7 +141,7 @@ async function seedRealUsersIfNeeded() {
               name: user.name,
               role: user.role,
             }),
-            'initial-credentials'
+            'welcome'
           )
           console.log(`  ✓ ${user.email} — Email enviado`)
         } catch (emailError) {
@@ -405,7 +405,7 @@ async function handleChangePassword(c: any) {
         email: user.email,
         timestamp: new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })
       }),
-      'password-changed'
+      'password-reset'
     )
 
     return c.json({
