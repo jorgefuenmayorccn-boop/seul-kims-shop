@@ -33,3 +33,5 @@ storybook-static/
 # Credentials & secrets
 CREDENCIALES_*
 logs-*.txt
+.env.local
+CREDENCIALES_*.md
