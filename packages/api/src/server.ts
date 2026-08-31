@@ -313,21 +313,29 @@ async function handleLogin(c: any) {
 app.post('/auth/login', handleLogin)
 app.post('/api/auth/login', handleLogin)
 
-// OPTIONS preflight (both routes)
-app.options('/auth/login', (c) => {
-  return c.json(null, 200, {
-    'Access-Control-Allow-Origin': '*',
+// OPTIONS preflight (both routes) — MUST reflect real origin, not '*',
+// because the login fetch uses credentials: 'include'. Per CORS spec,
+// Allow-Origin: '*' combined with credentials is rejected by browsers,
+// causing the fetch to fail silently (or hang) before the POST is even sent.
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003',
+  'https://seoulshop.cl', 'https://shop.seoulshop.cl', 'https://pos.seoulshop.cl',
+  'https://cmr.seoulshop.cl', 'https://drive.seoulshop.cl',
+  'https://seul-kims-shop.vercel.app',
+]
+function loginPreflightHeaders(c: any) {
+  const origin = c.req.header('Origin')
+  const allowOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[7]
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  })
-})
-app.options('/api/auth/login', (c) => {
-  return c.json(null, 200, {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  })
-})
+    'Access-Control-Allow-Credentials': 'true',
+    'Vary': 'Origin',
+  }
+}
+app.options('/auth/login', (c) => c.json(null, 200, loginPreflightHeaders(c)))
+app.options('/api/auth/login', (c) => c.json(null, 200, loginPreflightHeaders(c)))
 
 // GET /auth/me y /api/auth/me — Get current user
 async function handleGetMe(c: any) {
