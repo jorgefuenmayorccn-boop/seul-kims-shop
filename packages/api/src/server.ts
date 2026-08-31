@@ -129,7 +129,9 @@ async function runMigrationsIfNeeded() {
   }
 }
 
-// Auto-seed real users - ALWAYS recreate on startup to ensure emails are sent
+// Auto-seed real users - IDEMPOTENT: only create + email users that don't exist yet.
+// IMPORTANT: Once a user exists, redeploys must NOT touch their password.
+// Recreating on every startup invalidates credentials the user already received by email.
 async function seedRealUsersIfNeeded() {
   try {
     const REAL_USERS = [
@@ -138,30 +140,26 @@ async function seedRealUsersIfNeeded() {
       { email: 'jorgefuenmayor.ccn@gmail.com', name: 'Jorge (Delivery)', role: 'delivery' },
     ]
 
-    console.log('🔄 Seeding real users and sending initial credentials...')
+    const existing = await sql`SELECT email FROM users WHERE email IN ${sql(REAL_USERS.map(u => u.email))}`
+    const existingEmails = new Set(existing.map((r: any) => r.email))
+    const missingUsers = REAL_USERS.filter(u => !existingEmails.has(u.email))
 
-    // Delete old credentials and recreate fresh (DECISIÓN ARQUITECTÓNICA: Garantizar emails)
-    await sql`DELETE FROM users WHERE email IN ${sql(REAL_USERS.map(u => u.email))}`
-    console.log('  ✓ Old users cleaned')
+    if (missingUsers.length === 0) {
+      return // All users already exist - never touch their credentials on redeploy
+    }
 
-    // Recreate real users with fresh temporary passwords
-    const passwords: Record<string, string> = {}
-    for (const user of REAL_USERS) {
+    console.log('🔄 Seeding missing users and sending initial credentials...')
+
+    for (const user of missingUsers) {
       const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
-      passwords[user.email] = tempPassword
       const passwordHash = PasswordService.hashPassword(tempPassword)
 
       await sql`
         INSERT INTO users (email, password_hash, name, role, is_active, must_change_password)
         VALUES (${user.email}, ${passwordHash}, ${user.name}, ${user.role}, true, true)
+        ON CONFLICT (email) DO NOTHING
       `
-    }
-    console.log('  ✓ New users created\n')
 
-    // Send initial credentials emails to all
-    console.log('📧 Enviando credenciales a:')
-    for (const user of REAL_USERS) {
-      const tempPassword = passwords[user.email]
       try {
         await enqueueEmail(
           user.email,
@@ -179,7 +177,7 @@ async function seedRealUsersIfNeeded() {
         console.error(`  ⚠️  ${user.email} — Email error:`, emailError)
       }
     }
-    console.log('✅ Usuarios seeded + emails enqueued\n')
+    console.log('✅ Missing users seeded + emails enqueued\n')
   } catch (e) {
     console.error('❌ User seed failed:', e)
   }
