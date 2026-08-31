@@ -33,6 +33,7 @@ export class AuthService {
           id: user.id,
           email: user.email,
           role: user.role,
+          name: user.name,
         },
         jwtSecret,
         { expiresIn: '7d' }

@@ -71,17 +71,17 @@ export function Sidebar({ user }: Props) {
         <div className="flex items-center gap-2 mb-3">
           <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold"
             style={{ background: 'var(--color-brand)', color: '#fff' }}>
-            {user.name.charAt(0).toUpperCase()}
+            {(user.name || user.email || '?').charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-text font-body truncate">{user.name}</p>
+            <p className="text-xs font-semibold text-text font-body truncate">{user.name || user.email}</p>
             <p className="text-[10px] text-text-muted font-mono capitalize">{user.role}</p>
           </div>
         </div>
         <button type="button"
           className="flex items-center gap-2 w-full text-[11px] text-text-muted hover:text-error transition-colors"
           onClick={async () => {
-            await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'}/auth/logout`, { method: 'POST', credentials: 'include' })
+            await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'}/api/auth/logout`, { method: 'POST', credentials: 'include' })
             window.location.href = '/login'
           }}>
           <LogOut size={12} />

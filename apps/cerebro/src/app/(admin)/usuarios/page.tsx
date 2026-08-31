@@ -203,7 +203,7 @@ export default function UsuariosPage() {
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
                       style={{ background: 'var(--color-brand)', color: '#fff', opacity: user.isActive ? 1 : 0.4 }}>
-                      {user.name.charAt(0).toUpperCase()}
+                      {(user.name || user.email || '?').charAt(0).toUpperCase()}
                     </div>
                     <div>
                       <p className="font-medium text-text">{user.name}</p>
