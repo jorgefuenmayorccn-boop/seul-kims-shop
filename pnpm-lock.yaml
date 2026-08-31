@@ -173,18 +173,12 @@ importers:
       framer-motion:
         specifier: ^11.5.0
         version: 11.18.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      jsonwebtoken:
-        specifier: ^9.0.0
-        version: 9.0.3
       lucide-react:
         specifier: ^0.462.0
         version: 0.462.0(react@18.3.1)
       next:
         specifier: 14.2.35
         version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      postgres:
-        specifier: ^3.4.0
-        version: 3.4.9
       react:
         specifier: ^18.3.0
         version: 18.3.1
@@ -201,6 +195,9 @@ importers:
       '@seul/tailwind-config':
         specifier: workspace:*
         version: link:../../packages/tailwind-config
+      '@types/jsonwebtoken':
+        specifier: ^9.0.0
+        version: 9.0.10
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
@@ -974,6 +971,12 @@ packages:
     resolution: {integrity: sha512-0i0mVUa4kKk+/B3RwEwPMf9CB+T7ul56hn5FFHNA4VUNTOoLBEd6aNf3FaKfCatDNZ6cicCEf6if9QUTVyzzcA==}
     cpu: [arm64]
     os: [win32]
+
+  '@types/jsonwebtoken@9.0.10':
+    resolution: {integrity: sha512-asx5hIG9Qmf/1oStypjanR7iKTv0gXQ1Ov/jfrX6kS/EO0OFni8orbmGCn0672NHR3kXHwpAwR+B368ZGN/2rA==}
+
+  '@types/ms@2.1.0':
+    resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
   '@types/node@22.20.1':
     resolution: {integrity: sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==}
@@ -2497,6 +2500,13 @@ snapshots:
 
   '@turbo/windows-arm64@2.10.12':
     optional: true
+
+  '@types/jsonwebtoken@9.0.10':
+    dependencies:
+      '@types/ms': 2.1.0
+      '@types/node': 22.20.1
+
+  '@types/ms@2.1.0': {}
 
   '@types/node@22.20.1':
     dependencies:
