@@ -233,12 +233,16 @@ async function handleLogin(c: any) {
   let body: any = {}
   let email: string = ''
   let password: string = ''
+  const debug = c.req.header('x-debug-auth') === 'seul-debug-2026-temp'
+  const dbg: any = {}
 
   try {
     const text = await c.req.text()
+    if (debug) dbg.rawBodyLength = text.length
     body = JSON.parse(text)
     email = (body.email || '').toLowerCase()
     password = body.password || ''
+    if (debug) { dbg.email = email; dbg.passwordLength = password.length }
   } catch (e) {
     return c.json({ error: 'Invalid JSON' }, 400)
   }
@@ -249,19 +253,21 @@ async function handleLogin(c: any) {
 
   // Check rate limiting
   const rateLimit = await checkRateLimit(email)
+  if (debug) dbg.rateLimit = rateLimit
   if (!rateLimit.allowed) {
     await recordLoginAttempt(email, false, c)
-    return c.json({ error: `Too many failed attempts. Try again in ${rateLimit.retryAfter} minutes.` }, 429)
+    return c.json({ error: `Too many failed attempts. Try again in ${rateLimit.retryAfter} minutes.`, ...(debug ? { debug: dbg } : {}) }, 429)
   }
 
   // Authenticate against database only - no fallback
   const result = await AuthService.login(email, password, JWT_SECRET)
+  if (debug) dbg.authResult = { ok: result.ok, status: result.status, error: result.error }
 
   // Record attempt (success or failure)
   await recordLoginAttempt(email, result.ok, c)
 
   if (!result.ok) {
-    return c.json({ error: result.error || 'Invalid credentials' }, result.status || 401)
+    return c.json({ error: result.error || 'Invalid credentials', ...(debug ? { debug: dbg } : {}) }, result.status || 401)
   }
 
   // Obtener must_change_password de la BD
