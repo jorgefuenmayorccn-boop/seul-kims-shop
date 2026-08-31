@@ -99,6 +99,31 @@ async function runMigrationsIfNeeded() {
       `
       console.log('✅ Migration 0014 applied')
     }
+
+    // 0015: Rate limiting table
+    const rateLimitTableExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'login_attempts' AND column_name = 'email'
+    `
+
+    if (rateLimitTableExists.length === 0) {
+      console.log('🔄 Running migration 0015 (rate limiting)...')
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS login_attempts (
+          id SERIAL PRIMARY KEY,
+          email VARCHAR(255) NOT NULL,
+          success BOOLEAN NOT NULL,
+          attempted_at TIMESTAMP DEFAULT NOW(),
+          ip_address VARCHAR(45),
+          user_agent TEXT
+        )
+      `
+      await sql`
+        CREATE INDEX IF NOT EXISTS login_attempts_email_idx ON login_attempts(email, attempted_at DESC)
+      `
+      console.log('✅ Migration 0015 applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -160,11 +185,44 @@ async function seedRealUsersIfNeeded() {
   }
 }
 
-// Hardcoded test users (bypass DB for Workers stability)
-const TEST_USERS: Record<string, { password: string; name: string; role: string }> = {
-  'founder@seoulshop.cl': { password: 'Seoul2025!Founder', name: 'Fundador Seoul Kims', role: 'owner' },
-  'gerente@seoulshop.cl': { password: 'Seoul2025!Gerente', name: 'Gerente Operacional', role: 'admin' },
-  'repartidor.test@seoulshop.cl': { password: 'Seoul2025!Repartidor', name: 'Repartidor de Prueba', role: 'delivery' },
+// DEPRECATED: Hardcoded test users removed for security
+// If DB fails, login fails - no fallback authentication (correct behavior)
+// Use seedRealUsersIfNeeded() instead to create test users
+
+// Rate limiting helper: check if user is blocked
+async function checkRateLimit(email: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+  try {
+    // Get last 5 login attempts in last 15 minutes
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000)
+    const attempts = await sql`
+      SELECT success FROM login_attempts
+      WHERE email = ${email} AND attempted_at > ${fifteenMinutesAgo}
+      ORDER BY attempted_at DESC LIMIT 5
+    `
+
+    // Block if 5+ failed attempts
+    const failedCount = attempts.filter((a: any) => !a.success).length
+    if (failedCount >= 5) {
+      return { allowed: false, retryAfter: 15 }
+    }
+
+    return { allowed: true }
+  } catch (e) {
+    // If rate limit table doesn't exist yet, allow login
+    return { allowed: true }
+  }
+}
+
+// Record login attempt
+async function recordLoginAttempt(email: string, success: boolean, c: any) {
+  try {
+    await sql`
+      INSERT INTO login_attempts (email, success, ip_address, user_agent)
+      VALUES (${email}, ${success}, ${c.req.header('x-forwarded-for') || c.req.header('cf-connecting-ip')}, ${c.req.header('user-agent')})
+    `
+  } catch (e) {
+    // Silently fail - don't break login if logging fails
+  }
 }
 
 // AUTH LOGIN HANDLER (shared by both /auth/login and /api/auth/login)
@@ -186,28 +244,21 @@ async function handleLogin(c: any) {
     return c.json({ error: 'Missing email or password' }, 400)
   }
 
-  // 1. Try BD login first
-  let result = await AuthService.login(email, password, JWT_SECRET)
-
-  // 2. Fallback a TEST_USERS solo si BD falla (development/testing)
-  if (!result.ok) {
-    const testUser = TEST_USERS[email]
-    if (testUser && testUser.password === password) {
-      result = {
-        ok: true,
-        status: 200,
-        token: jwt.sign(
-          { id: email, email, role: testUser.role },
-          JWT_SECRET,
-          { expiresIn: '7d' }
-        ),
-        user: { id: email, email, name: testUser.name, role: testUser.role }
-      }
-    }
+  // Check rate limiting
+  const rateLimit = await checkRateLimit(email)
+  if (!rateLimit.allowed) {
+    await recordLoginAttempt(email, false, c)
+    return c.json({ error: `Too many failed attempts. Try again in ${rateLimit.retryAfter} minutes.` }, 429)
   }
 
+  // Authenticate against database only - no fallback
+  const result = await AuthService.login(email, password, JWT_SECRET)
+
+  // Record attempt (success or failure)
+  await recordLoginAttempt(email, result.ok, c)
+
   if (!result.ok) {
-    return c.json({ error: result.error }, result.status || 401)
+    return c.json({ error: result.error || 'Invalid credentials' }, result.status || 401)
   }
 
   // Obtener must_change_password de la BD
