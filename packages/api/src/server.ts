@@ -270,6 +270,21 @@ async function handleLogin(c: any) {
   const result = await AuthService.login(email, password, JWT_SECRET)
   if (debug) dbg.authResult = { ok: result.ok, status: result.status, error: result.error }
 
+  if (debug) {
+    try {
+      const manualRows = await sql`SELECT id, email, password_hash, is_active FROM users WHERE email = ${email} LIMIT 1`
+      dbg.manualQuery = {
+        rowCount: manualRows.length,
+        isActive: manualRows[0]?.is_active,
+        hashPrefix: manualRows[0]?.password_hash?.slice(0, 15),
+        hashLen: manualRows[0]?.password_hash?.length,
+        manualCompare: manualRows[0] ? PasswordService.verifyPassword(password, manualRows[0].password_hash) : null,
+      }
+    } catch (e: any) {
+      dbg.manualQuery = { error: String(e?.message || e) }
+    }
+  }
+
   // Record attempt (success or failure)
   await recordLoginAttempt(email, result.ok, c)
 
