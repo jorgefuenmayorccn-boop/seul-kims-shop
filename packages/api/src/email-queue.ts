@@ -244,4 +244,76 @@ export const templates = {
       <p style="color: #888; font-size: 12px;">Seoul Shop - Caja</p>
     </div>
   `,
+
+  // EMAIL: Credenciales iniciales (primer login)
+  initialCredentials: ({ email, password, name, role }) => `
+    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+      <div style="background: white; padding: 30px; border-radius: 8px;">
+        <h1 style="color: #333; margin-top: 0;">🎉 ¡Bienvenido a SEUL KING OS!</h1>
+
+        <p style="color: #555; line-height: 1.6;">
+          Hola <strong>${name}</strong>,<br>
+          Has sido agregado como <strong>${role.toUpperCase()}</strong> al sistema SEUL KING OS v1.0.
+        </p>
+
+        <div style="background: #f0f0f0; padding: 20px; border-radius: 6px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0; color: #888;"><small>Tus credenciales de acceso:</small></p>
+          <p style="margin: 5px 0; font-family: monospace; font-size: 14px;"><strong>Email:</strong> ${email}</p>
+          <p style="margin: 5px 0; font-family: monospace; font-size: 14px;"><strong>Contraseña temporal:</strong> ${password}</p>
+        </div>
+
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="margin: 0; color: #856404;"><strong>⚠️ Importante:</strong></p>
+          <p style="margin: 5px 0 0 0; color: #856404; font-size: 13px;">
+            En tu primer login, el sistema te pedirá que cambies esta contraseña temporal por una contraseña personalizada.
+          </p>
+        </div>
+
+        <div style="margin: 30px 0;">
+          <a href="https://cmr.seoulshop.cl/login" style="display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Acceder al Sistema →
+          </a>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+        <p style="color: #888; font-size: 12px; text-align: center;">
+          SEUL KING OS v1.0 | Sistema de Gestión Seoul Kims<br>
+          Si no solicicitaste este acceso, contáctanos inmediatamente.
+        </p>
+      </div>
+    </div>
+  `,
+
+  // EMAIL: Confirmación de cambio de contraseña
+  passwordChangedSuccess: ({ name, email, timestamp }) => `
+    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: white; padding: 30px; border-radius: 8px; border-top: 4px solid #28a745;">
+        <h1 style="color: #28a745; margin-top: 0;">✅ Contraseña Cambiada con Éxito</h1>
+
+        <p style="color: #555; line-height: 1.6;">
+          Hola <strong>${name}</strong>,<br>
+          Tu contraseña ha sido cambiada exitosamente.
+        </p>
+
+        <div style="background: #f0f0f0; padding: 15px; border-radius: 6px; margin: 20px 0;">
+          <p style="margin: 0; color: #666; font-size: 13px;">
+            <strong>Email:</strong> ${email}<br>
+            <strong>Cambio realizado:</strong> ${timestamp}
+          </p>
+        </div>
+
+        <div style="background: #e8f5e9; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="margin: 0; color: #1b5e20;"><strong>✓ Tu acceso es seguro</strong></p>
+          <p style="margin: 5px 0 0 0; color: #1b5e20; font-size: 13px;">
+            Tu cuenta está protegida con tu nueva contraseña. Ya puedes usar el sistema normalmente.
+          </p>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+        <p style="color: #888; font-size: 12px; text-align: center;">
+          SEUL KING OS v1.0 | Si no realizaste este cambio, contáctanos inmediatamente.
+        </p>
+      </div>
+    </div>
+  `,
 }

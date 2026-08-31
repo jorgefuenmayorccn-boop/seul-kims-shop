@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@seul/db": "workspace:*",
+    "@seul/icons": "workspace:*",
     "@seul/tokens": "workspace:*",
     "@seul/ui": "workspace:*",
     "lucide-react": "^0.462.0",

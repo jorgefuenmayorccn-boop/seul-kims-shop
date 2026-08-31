@@ -1,14 +1,16 @@
 'use client'
 import { Suspense, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Eye, EyeOff } from '@seul/icons'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
 function LoginForm() {
-  const router  = useRouter()
-  const params  = useSearchParams()
-  const next    = params.get('next') ?? '/dashboard'
-  const [error, setError]            = useState('')
+  const router = useRouter()
+  const params = useSearchParams()
+  const next = params.get('next') ?? '/dashboard'
+  const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -18,17 +20,31 @@ function LoginForm() {
 
     startTransition(async () => {
       try {
-        const res  = await fetch(`${API_URL}/auth/login`, {
-          method:      'POST',
-          headers:     { 'Content-Type': 'application/json' },
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify({ email: fd.get('email'), password: fd.get('password') }),
         })
-        const data = await res.json() as { ok?: boolean; error?: string }
-        if (!res.ok || !data.ok) { setError(data.error ?? 'Error al iniciar sesión'); return }
+        const data = await res.json() as { ok?: boolean; error?: string; mustChangePassword?: boolean }
+
+        if (!res.ok || !data.ok) {
+          setError(data.error ?? 'Error al iniciar sesión')
+          return
+        }
+
+        // Si debe cambiar contraseña, redirigir a /cambiar-password
+        if (data.mustChangePassword) {
+          router.push('/cambiar-password')
+          router.refresh()
+          return
+        }
+
+        // Login exitoso, ir a dashboard
         router.push(next)
         router.refresh()
-      } catch {
+      } catch (err) {
+        console.error('Login error:', err)
         setError('No se pudo conectar con el servidor')
       }
     })
@@ -40,18 +56,45 @@ function LoginForm() {
         <label className="block text-xs font-semibold font-body mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
           Correo electrónico
         </label>
-        <input name="email" type="email" required autoComplete="email"
+        <input
+          name="email"
+          type="email"
+          required
+          autoComplete="email"
+          placeholder="tu@email.com"
           className="w-full px-3 py-2.5 rounded text-sm font-body focus:outline-none"
-          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }} />
+          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+        />
       </div>
 
       <div>
         <label className="block text-xs font-semibold font-body mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
           Contraseña
         </label>
-        <input name="password" type="password" required autoComplete="current-password"
-          className="w-full px-3 py-2.5 rounded text-sm font-body focus:outline-none"
-          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }} />
+        <div className="relative">
+          <input
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            required
+            autoComplete="current-password"
+            placeholder="••••••••"
+            className="w-full px-3 py-2.5 pr-10 rounded text-sm font-body focus:outline-none"
+            style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm focus:outline-none"
+            style={{ color: 'var(--color-text-muted)' }}
+            aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+          >
+            {showPassword ? (
+              <EyeOff size={18} />
+            ) : (
+              <Eye size={18} />
+            )}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -60,9 +103,12 @@ function LoginForm() {
         </p>
       )}
 
-      <button type="submit" disabled={isPending}
+      <button
+        type="submit"
+        disabled={isPending}
         className="w-full py-2.5 rounded font-headline font-bold text-sm transition-opacity disabled:opacity-50"
-        style={{ background: 'var(--color-brand)', color: '#fff' }}>
+        style={{ background: 'var(--color-brand)', color: '#fff' }}
+      >
         {isPending ? 'Ingresando…' : 'Ingresar'}
       </button>
     </form>

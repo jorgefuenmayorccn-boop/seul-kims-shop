@@ -111,6 +111,20 @@ async function handleLogin(c: any) {
     return c.json({ error: result.error }, result.status || 401)
   }
 
+  // Obtener must_change_password de la BD
+  let mustChangePassword = false
+  try {
+    const userRows = await sql`
+      SELECT must_change_password FROM users WHERE email = ${email}
+    `
+    if (userRows && userRows.length > 0) {
+      mustChangePassword = userRows[0].must_change_password || false
+    }
+  } catch (e) {
+    // Si falla, asumir false
+    mustChangePassword = false
+  }
+
   // Setear cookie de sesión (httpOnly, Secure, SameSite=Lax)
   setCookie(c, '__Host-seul_session', result.token, {
     httpOnly: true,
@@ -120,10 +134,21 @@ async function handleLogin(c: any) {
     maxAge: 604800, // 7 days
   })
 
-  const response = c.json(result)
+  const response = c.json({
+    ...result,
+    mustChangePassword,
+  })
 
-  // CORS headers (use actual whitelist, not '*' for credentials)
-  response.headers.set('Access-Control-Allow-Origin', 'https://cmr.seoulshop.cl')
+  // CORS headers: reflect origin if in whitelist, else use first origin
+  const origin = c.req.header('Origin') || 'https://cmr.seoulshop.cl'
+  const allowedOrigins = [
+    'http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:3003',
+    'https://seoulshop.cl', 'https://shop.seoulshop.cl', 'https://pos.seoulshop.cl',
+    'https://cmr.seoulshop.cl', 'https://drive.seoulshop.cl',
+    'https://seul-kims-shop.vercel.app',
+  ]
+  const responseOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[3]
+  response.headers.set('Access-Control-Allow-Origin', responseOrigin)
   response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   response.headers.set('Access-Control-Allow-Credentials', 'true')
@@ -194,6 +219,112 @@ async function handleLogout(c: any) {
 
 app.post('/auth/logout', handleLogout)
 app.post('/api/auth/logout', handleLogout)
+
+// POST /api/auth/change-password — Cambiar contraseña (autenticado, primer-login obligatorio)
+async function handleChangePassword(c: any) {
+  // 1. Verificar autenticación
+  let token: string | undefined
+  const authHeader = c.req.header('Authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.slice(7)
+  } else {
+    token = getCookie(c, '__Host-seul_session')
+  }
+
+  if (!token) {
+    return c.json({ error: 'Not authenticated' }, 401)
+  }
+
+  const verified = AuthService.verifyToken(token, JWT_SECRET)
+  if (!verified.ok) {
+    return c.json({ error: 'Invalid token' }, 401)
+  }
+
+  const decoded = verified.decoded as any
+  const userId = decoded.email // Usamos email como ID
+
+  // 2. Parsear body
+  let body: any = {}
+  try {
+    const text = await c.req.text()
+    body = JSON.parse(text)
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const { oldPassword, newPassword, confirmPassword } = body
+  if (!oldPassword || !newPassword || !confirmPassword) {
+    return c.json({ error: 'Missing password fields' }, 400)
+  }
+
+  if (newPassword !== confirmPassword) {
+    return c.json({ error: 'Passwords do not match' }, 400)
+  }
+
+  // 3. Validar complejidad de nueva contraseña (mín. 8 chars, 1 mayúscula, 1 número)
+  if (newPassword.length < 8) {
+    return c.json({ error: 'Password must be at least 8 characters' }, 400)
+  }
+  if (!/[A-Z]/.test(newPassword)) {
+    return c.json({ error: 'Password must contain uppercase letter' }, 400)
+  }
+  if (!/[0-9]/.test(newPassword)) {
+    return c.json({ error: 'Password must contain number' }, 400)
+  }
+
+  try {
+    // 4. Obtener usuario y verificar contraseña anterior
+    const rows = await sql`
+      SELECT id, password_hash, email, name FROM users WHERE email = ${userId}
+    `
+
+    if (!rows || rows.length === 0) {
+      return c.json({ error: 'User not found' }, 404)
+    }
+
+    const user = rows[0]
+    const isOldPasswordValid = PasswordService.verifyPassword(oldPassword, user.password_hash)
+
+    if (!isOldPasswordValid) {
+      return c.json({ error: 'Current password is incorrect' }, 401)
+    }
+
+    // 5. Hashear nueva contraseña
+    const newPasswordHash = PasswordService.hashPassword(newPassword)
+
+    // 6. Actualizar en BD
+    await sql`
+      UPDATE users
+      SET password_hash = ${newPasswordHash},
+          password_changed_at = NOW(),
+          must_change_password = false
+      WHERE email = ${userId}
+    `
+
+    // 7. Enviar email de confirmación
+    await enqueueEmail(
+      user.email,
+      '✅ Contraseña Cambiada con Éxito',
+      templates.passwordChangedSuccess({
+        name: user.name,
+        email: user.email,
+        timestamp: new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' })
+      }),
+      'password-changed'
+    )
+
+    return c.json({
+      ok: true,
+      message: 'Password changed successfully. Confirmation email sent.',
+      user: { email: user.email, name: user.name }
+    })
+  } catch (error: any) {
+    console.error('❌ Error en change-password:', error)
+    return c.json({ error: error.message || 'Failed to change password' }, 500)
+  }
+}
+
+app.post('/api/auth/change-password', handleChangePassword)
 
 // ============================================================================
 // B2C ENDPOINTS (7 emails)
