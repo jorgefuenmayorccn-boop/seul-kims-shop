@@ -134,8 +134,13 @@ async function runMigrationsIfNeeded() {
 // Recreating on every startup invalidates credentials the user already received by email.
 async function seedRealUsersIfNeeded() {
   try {
+    // One-time cleanup: wrong email domain used in earlier seed (ceojorge@gmail.com
+    // should have been ceojorge@verticeproductions.com). Remove the incorrect record
+    // so the idempotent seed below creates the correct one fresh.
+    await sql`DELETE FROM users WHERE email = 'ceojorge@gmail.com'`
+
     const REAL_USERS = [
-      { email: 'ceojorge@gmail.com', name: 'Jorge Fuenmayor', role: 'owner' },
+      { email: 'ceojorge@verticeproductions.com', name: 'Jorge Fuenmayor', role: 'owner' },
       { email: 'marioulloa22@verticeproductions.com', name: 'Mario Ulloa', role: 'staff' },
       { email: 'jorgefuenmayor.ccn@gmail.com', name: 'Jorge (Delivery)', role: 'delivery' },
     ]
