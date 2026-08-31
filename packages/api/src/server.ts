@@ -104,6 +104,48 @@ async function runMigrationsIfNeeded() {
   }
 }
 
+// Auto-seed real users if they don't exist
+async function seedRealUsersIfNeeded() {
+  try {
+    const REAL_USERS = [
+      { email: 'ceojorge@gmail.com', name: 'Jorge Fuenmayor', role: 'owner' },
+      { email: 'marioulloa22@verticeproductions.com', name: 'Mario Ulloa', role: 'staff' },
+      { email: 'jorgefuenmayor.ccn@gmail.com', name: 'Jorge (Delivery)', role: 'delivery' },
+    ]
+
+    // Check if real users exist
+    const existing = await sql`SELECT email FROM users WHERE email IN ${sql(REAL_USERS.map(u => u.email))}`
+
+    if (existing.length < REAL_USERS.length) {
+      console.log('🔄 Seeding real users...')
+
+      // Clean old test users first
+      await sql`DELETE FROM users WHERE email IN ('founder@seoulshop.cl', 'gerente@seoulshop.cl', 'repartidor.test@seoulshop.cl')`
+
+      // Seed real users with temporary passwords
+      const tempPasswords = new Map<string, string>()
+
+      for (const user of REAL_USERS) {
+        const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
+        const passwordHash = PasswordService.hashPassword(tempPassword)
+
+        await sql`
+          INSERT INTO users (email, password_hash, name, role, is_active, must_change_password)
+          VALUES (${user.email}, ${passwordHash}, ${user.name}, ${user.role}, true, true)
+          ON CONFLICT (email) DO NOTHING
+        `
+
+        tempPasswords.set(user.email, tempPassword)
+        console.log(`  ✓ ${user.email}`)
+      }
+
+      console.log('\n📧 Real users seeded. Temporary passwords generated.')
+    }
+  } catch (e) {
+    console.warn('⚠️  User seed check failed (OK if already seeded):', e)
+  }
+}
+
 // Hardcoded test users (bypass DB for Workers stability)
 const TEST_USERS: Record<string, { password: string; name: string; role: string }> = {
   'founder@seoulshop.cl': { password: 'Seoul2025!Founder', name: 'Fundador Seoul Kims', role: 'owner' },
@@ -766,8 +808,11 @@ sql`SELECT 1`
   .then(() => console.log('✅ Database connected'))
   .catch(err => console.error('⚠️ Database connection warning:', err.message))
 
-// Run migrations
-runMigrationsIfNeeded().catch(e => console.error('⚠️ Migration error:', e))
+// Run migrations and seed users
+Promise.all([
+  runMigrationsIfNeeded(),
+  seedRealUsersIfNeeded(),
+]).catch(e => console.error('⚠️ Startup initialization error:', e))
 
 // Listen for incoming HTTP requests (Railway/Node)
 const port = Number(process.env.PORT) || 8080
