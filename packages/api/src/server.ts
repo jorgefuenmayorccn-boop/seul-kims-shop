@@ -119,10 +119,7 @@ async function seedRealUsersIfNeeded() {
     if (existing.length < REAL_USERS.length) {
       console.log('🔄 Seeding real users and sending initial credentials...')
 
-      // Clean old test users first
-      await sql`DELETE FROM users WHERE email IN ('founder@seoulshop.cl', 'gerente@seoulshop.cl', 'repartidor.test@seoulshop.cl')`
-
-      // Seed real users with temporary passwords
+      // Seed real users with temporary passwords (no eliminar viejos por referencia de entregas)
       for (const user of REAL_USERS) {
         const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
         const passwordHash = PasswordService.hashPassword(tempPassword)
