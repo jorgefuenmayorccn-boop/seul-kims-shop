@@ -2,7 +2,7 @@ import { cookies } from 'next/headers'
 import type { ProductListItem, ProductDetail, Category } from './types'
 
 const API_URL     = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
-const COOKIE_NAME = '__Host-seul_session'
+const COOKIE_NAME = 'seul_session'
 const TIMEOUT_MS  = 6_000
 
 async function serverFetch<T>(path: string, init?: RequestInit): Promise<T> {

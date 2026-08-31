@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
-import { setCookie, getCookie } from 'hono/cookie'
+import { setCookie, getCookie, deleteCookie } from 'hono/cookie'
 import { serve } from '@hono/node-server'
 import * as crypto from 'crypto'
 import jwt from 'jsonwebtoken'
@@ -11,6 +11,26 @@ import { validateApiKeyMiddleware } from './services/api-key.service'
 import { AuthService } from './services/auth.service'
 import { PasswordService } from './services/password.service'
 import { requireAuthMiddleware, requireScopeMiddleware } from './middleware/auth.middleware'
+
+// ============================================================================
+// SESSION COOKIE
+// ============================================================================
+// IMPORTANT: this cookie must be readable by the Next.js middleware running on
+// EVERY frontend subdomain (cmr.seoulshop.cl, pos.seoulshop.cl, drive.seoulshop.cl,
+// seoulshop.cl) even though it is only ever *set* by this API on api.seoulshop.cl.
+// A "__Host-" prefixed cookie is strictly host-only per spec — it can never carry
+// a Domain attribute, so it would only ever be visible to api.seoulshop.cl itself
+// and never reach the other subdomains' own server-side session checks (this was
+// the root cause of the "login succeeds but the app loops back to /login" bug).
+// Using a plain name + an explicit parent-domain Domain attribute shares the
+// cookie across every *.seoulshop.cl subdomain instead.
+const SESSION_COOKIE_NAME = 'seul_session'
+function sessionCookieDomain(c: any): string | undefined {
+  const origin = c.req.header('Origin') || c.req.header('Referer') || ''
+  // Only scope the cookie to the apex domain in production (seoulshop.cl and its
+  // subdomains). Local dev (localhost) must NOT set Domain or browsers reject the cookie.
+  return origin.includes('seoulshop.cl') ? '.seoulshop.cl' : undefined
+}
 
 // ============================================================================
 // APP
@@ -233,23 +253,12 @@ async function handleLogin(c: any) {
   let body: any = {}
   let email: string = ''
   let password: string = ''
-  const debug = c.req.header('x-debug-auth') === 'seul-debug-2026-temp'
-  const dbg: any = {}
-  if (debug) {
-    const rawDbUrl = process.env.DATABASE_URL || ''
-    dbg.dbHost = rawDbUrl.replace(/^.*@/, '').split('/')[0]
-    dbg.dbUrlLength = rawDbUrl.length
-    dbg.pid = process.pid
-    dbg.uptimeSec = Math.round(process.uptime())
-  }
 
   try {
     const text = await c.req.text()
-    if (debug) dbg.rawBodyLength = text.length
     body = JSON.parse(text)
     email = (body.email || '').toLowerCase()
     password = body.password || ''
-    if (debug) { dbg.email = email; dbg.passwordLength = password.length }
   } catch (e) {
     return c.json({ error: 'Invalid JSON' }, 400)
   }
@@ -260,45 +269,19 @@ async function handleLogin(c: any) {
 
   // Check rate limiting
   const rateLimit = await checkRateLimit(email)
-  if (debug) dbg.rateLimit = rateLimit
   if (!rateLimit.allowed) {
     await recordLoginAttempt(email, false, c)
-    return c.json({ error: `Too many failed attempts. Try again in ${rateLimit.retryAfter} minutes.`, ...(debug ? { debug: dbg } : {}) }, 429)
+    return c.json({ error: `Too many failed attempts. Try again in ${rateLimit.retryAfter} minutes.` }, 429)
   }
 
   // Authenticate against database only - no fallback
   const result = await AuthService.login(email, password, JWT_SECRET)
-  if (debug) dbg.authResult = { ok: result.ok, status: result.status, error: result.error }
-
-  if (debug) {
-    try {
-      const manualRows = await sql`SELECT id, email, password_hash, is_active FROM users WHERE email = ${email} LIMIT 1`
-      dbg.manualQuery = {
-        rowCount: manualRows.length,
-        isActive: manualRows[0]?.is_active,
-        hashPrefix: manualRows[0]?.password_hash?.slice(0, 15),
-        hashLen: manualRows[0]?.password_hash?.length,
-        manualCompare: manualRows[0] ? PasswordService.verifyPassword(password, manualRows[0].password_hash) : null,
-      }
-      // Raw bcryptjs call, bypassing PasswordService, to isolate the failure point
-      try {
-        const bcryptjs = await import('bcryptjs')
-        const isBcryptHashCheck = manualRows[0]?.password_hash?.startsWith('$2a$')
-        const rawCompare = bcryptjs.compareSync(password, manualRows[0].password_hash)
-        dbg.rawBcrypt = { isBcryptHashCheck, rawCompare, bcryptjsKeys: Object.keys(bcryptjs) }
-      } catch (bErr: any) {
-        dbg.rawBcrypt = { threw: true, message: String(bErr?.message || bErr), stack: String(bErr?.stack || '').split('\n').slice(0, 3) }
-      }
-    } catch (e: any) {
-      dbg.manualQuery = { error: String(e?.message || e) }
-    }
-  }
 
   // Record attempt (success or failure)
   await recordLoginAttempt(email, result.ok, c)
 
   if (!result.ok) {
-    return c.json({ error: result.error || 'Invalid credentials', ...(debug ? { debug: dbg } : {}) }, result.status || 401)
+    return c.json({ error: result.error || 'Invalid credentials' }, result.status || 401)
   }
 
   // Obtener must_change_password de la BD
@@ -315,13 +298,14 @@ async function handleLogin(c: any) {
     mustChangePassword = false
   }
 
-  // Setear cookie de sesión (httpOnly, Secure, SameSite=Lax)
-  setCookie(c, '__Host-seul_session', result.token, {
+  // Setear cookie de sesión (httpOnly, Secure, SameSite=Lax, compartida en *.seoulshop.cl)
+  setCookie(c, SESSION_COOKIE_NAME, result.token, {
     httpOnly: true,
     secure: true,
     sameSite: 'Lax',
     path: '/',
     maxAge: 604800, // 7 days
+    domain: sessionCookieDomain(c),
   })
 
   const response = c.json({
@@ -382,7 +366,7 @@ async function handleGetMe(c: any) {
   if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.slice(7)
   } else {
-    token = getCookie(c, '__Host-seul_session')
+    token = getCookie(c, SESSION_COOKIE_NAME)
   }
 
   if (!token) {
@@ -410,8 +394,14 @@ app.get('/api/auth/me', handleGetMe)
 
 // POST /auth/logout y /api/auth/logout
 async function handleLogout(c: any) {
+  deleteCookie(c, SESSION_COOKIE_NAME, {
+    path: '/',
+    domain: sessionCookieDomain(c),
+  })
   const response = c.json({ ok: true })
-  response.headers.set('Access-Control-Allow-Origin', '*')
+  const origin = c.req.header('Origin')
+  response.headers.set('Access-Control-Allow-Origin', origin || 'https://cmr.seoulshop.cl')
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
   return response
 }
 
@@ -426,7 +416,7 @@ async function handleChangePassword(c: any) {
   if (authHeader?.startsWith('Bearer ')) {
     token = authHeader.slice(7)
   } else {
-    token = getCookie(c, '__Host-seul_session')
+    token = getCookie(c, SESSION_COOKIE_NAME)
   }
 
   if (!token) {

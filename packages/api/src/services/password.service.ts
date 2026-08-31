@@ -1,5 +1,11 @@
 import * as crypto from 'crypto'
-import * as bcrypt from 'bcryptjs'
+// NOTE: must be a default import, not `import * as bcrypt`. This package.json has
+// "type": "module", and bcryptjs is a CJS module whose named exports are not
+// statically analyzable — a namespace import (`import * as bcrypt`) resolves at
+// runtime with `bcrypt.compareSync` undefined, silently breaking every legacy
+// bcrypt-hash login (swallowed by the try/catch below, always returning false).
+// The default import correctly binds to the whole CJS `module.exports` object.
+import bcrypt from 'bcryptjs'
 
 /**
  * Password hashing service — PBKDF2-SHA256 (NIST PKCS#5 compatible) + legacy bcrypt support

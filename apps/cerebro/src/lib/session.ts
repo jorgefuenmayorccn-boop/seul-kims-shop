@@ -6,7 +6,7 @@ import type { SessionUser } from './types'
 export type { SessionUser }
 
 const API_URL     = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
-const COOKIE_NAME = '__Host-seul_session'
+const COOKIE_NAME = 'seul_session'
 
 export async function getServerSession(): Promise<SessionUser | null> {
   const cookieStore = await cookies()

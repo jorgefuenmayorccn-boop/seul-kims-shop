@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
-const COOKIE_NAME = '__Host-seul_session'
+const COOKIE_NAME = 'seul_session'
 const PUBLIC_PATHS = ['/login']
 
 export function middleware(req: NextRequest) {
