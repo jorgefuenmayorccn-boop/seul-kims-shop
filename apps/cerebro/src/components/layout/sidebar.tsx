@@ -5,18 +5,26 @@ import { LayoutDashboard, Tag, Package, ClipboardList, Shield, Settings, LogOut,
 import { cn } from '@seul/ui'
 import type { SessionUser } from '@/lib/types'
 
-const nav = [
-  { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard },
-  { href: '/products',   label: 'Productos',  icon: Tag },
-  { href: '/inventory',  label: 'Inventario', icon: Package },
-  { href: '/comandas',   label: 'Comandas',   icon: ClipboardList },
-  { href: '/clientes',   label: 'Clientes',   icon: Users2 },
-  { href: '/despacho',   label: 'Despacho',   icon: Truck },
-  { href: '/turnos',     label: 'Turnos',     icon: Clock },
-  { href: '/b2b/solicitudes', label: 'B2B Crédito', icon: Building2 },
-  { href: '/usuarios',   label: 'Usuarios',   icon: Users },
-  { href: '/seguridad',  label: 'Seguridad',  icon: Shield },
-  { href: '/ajustes',    label: 'Ajustes',    icon: Settings },
+// RBAC matrix (PLAN_MAESTRO_SEUL_KING_OS.md sección 6.1, S02):
+//   owner: todo · admin: todo excepto Usuarios/Seguridad ·
+//   staff: solo Comandas/Despacho/Turnos/Clientes · viewer: solo lectura Dashboard/Reportes.
+// `delivery` never reaches this sidebar — apps/cerebro's own layout already
+// gates the whole (admin) route group to ['owner','admin','staff'] before
+// this component renders (see src/app/(admin)/layout.tsx).
+type Role = SessionUser['role']
+
+const nav: { href: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
+  { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, roles: ['owner', 'admin', 'viewer'] },
+  { href: '/products',   label: 'Productos',  icon: Tag,             roles: ['owner', 'admin'] },
+  { href: '/inventory',  label: 'Inventario', icon: Package,         roles: ['owner', 'admin'] },
+  { href: '/comandas',   label: 'Comandas',   icon: ClipboardList,   roles: ['owner', 'admin', 'staff'] },
+  { href: '/clientes',   label: 'Clientes',   icon: Users2,          roles: ['owner', 'admin', 'staff'] },
+  { href: '/despacho',   label: 'Despacho',   icon: Truck,           roles: ['owner', 'admin', 'staff'] },
+  { href: '/turnos',     label: 'Turnos',     icon: Clock,           roles: ['owner', 'admin', 'staff'] },
+  { href: '/b2b/solicitudes', label: 'B2B Crédito', icon: Building2, roles: ['owner', 'admin'] },
+  { href: '/usuarios',   label: 'Usuarios',   icon: Users,           roles: ['owner'] },
+  { href: '/seguridad',  label: 'Seguridad',  icon: Shield,          roles: ['owner'] },
+  { href: '/ajustes',    label: 'Ajustes',    icon: Settings,        roles: ['owner', 'admin'] },
 ]
 
 const externalNav = [
@@ -39,7 +47,7 @@ export function Sidebar({ user }: Props) {
       </div>
 
       <nav className="flex-1 py-3 overflow-y-auto">
-        {nav.map(({ href, label, icon: Icon }) => {
+        {nav.filter(item => item.roles.includes(user.role)).map(({ href, label, icon: Icon }) => {
           const active = path === href || path.startsWith(href + '/')
           return (
             <Link key={href} href={href}
