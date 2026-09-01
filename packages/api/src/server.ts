@@ -1812,6 +1812,122 @@ app.get('/api/products/meta/categories', async (c) => {
   }
 })
 
+// Usado por el escáner de código de barras del POS (apps/pos/src/app/page.tsx,
+// handleScan). También matchea por SKU como fallback — el mismo criterio que ya
+// usa el POS contra su caché local de productos antes de llamar a este endpoint.
+app.get('/api/products/barcode/:code', async (c) => {
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
+
+  const code = c.req.param('code')
+
+  try {
+    const [p] = await sql`
+      SELECT
+        p.id, p.sku, p.barcode, p.name, p.name_ko, p.slug, p.brand,
+        p.cost_price, p.price_retail, p.price_web, p.price_pos, p.price_b2b,
+        p.discount_web_pct, p.discount_pos_pct, p.discount_b2b_pct,
+        p.is_baes_eligible, p.cold_chain, p.is_weighable, p.status, p.image_url,
+        p.category_id, cat.name AS category_name,
+        stock.qty_total AS stock_total
+      FROM products p
+      LEFT JOIN categories cat ON cat.id = p.category_id
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(i.quantity), 0) AS qty_total
+        FROM inventory i
+        WHERE i.product_id = p.id
+      ) stock ON true
+      WHERE p.barcode = ${code} OR p.sku = ${code}
+      LIMIT 1
+    `
+
+    if (!p) return c.json({ error: 'Producto no encontrado' }, 404)
+
+    return c.json({
+      product: {
+        id: p.id, sku: p.sku, barcode: p.barcode, name: p.name, nameKo: p.name_ko,
+        slug: p.slug, brand: p.brand,
+        costPrice: p.cost_price, priceRetail: p.price_retail, priceWeb: p.price_web,
+        pricePOS: p.price_pos, priceB2B: p.price_b2b,
+        discountWebPct: p.discount_web_pct, discountPOSPct: p.discount_pos_pct, discountB2BPct: p.discount_b2b_pct,
+        isBaesEligible: p.is_baes_eligible, coldChain: p.cold_chain, isWeighable: p.is_weighable,
+        status: p.status, imageUrl: p.image_url,
+        categoryId: p.category_id, categoryName: p.category_name,
+        stockTotal: Number(p.stock_total ?? 0),
+      },
+    })
+  } catch (err) {
+    console.error('Barcode lookup error:', err)
+    return c.json({ error: 'Error al buscar producto' }, 500)
+  }
+})
+
+// Detalle completo — usado por cerebro en /products/[id]/edit (getProductById).
+// Incluye sellos "Alto En" (Ley 20.606, product_sellos) y galería de imágenes
+// (product_images, R2). product_images está vacía en producción hoy (nunca se
+// construyó el endpoint de upload) — el campo `url` queda null sin R2_PUBLIC_URL
+// configurado, listo para cuando exista.
+app.get('/api/products/id/:id', async (c) => {
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
+
+  const id = c.req.param('id')
+
+  try {
+    const [p] = await sql`
+      SELECT
+        p.id, p.sku, p.barcode, p.name, p.name_ko, p.slug, p.description, p.brand,
+        p.cost_price, p.price_retail, p.price_web, p.price_pos, p.price_b2b,
+        p.discount_web_pct, p.discount_pos_pct, p.discount_b2b_pct,
+        p.weight_grams, p.is_weighable, p.is_baes_eligible, p.cold_chain, p.status, p.image_url,
+        p.category_id, cat.name AS category_name,
+        stock.qty_total AS stock_total, stock.next_expiry
+      FROM products p
+      LEFT JOIN categories cat ON cat.id = p.category_id
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(SUM(i.quantity), 0) AS qty_total,
+          MIN(i.expires_at) FILTER (WHERE i.quantity > 0 AND i.expires_at IS NOT NULL) AS next_expiry
+        FROM inventory i
+        WHERE i.product_id = p.id
+      ) stock ON true
+      WHERE p.id = ${id}
+      LIMIT 1
+    `
+
+    if (!p) return c.json({ error: 'Producto no encontrado' }, 404)
+
+    const [sellos, images] = await Promise.all([
+      sql`SELECT sello FROM product_sellos WHERE product_id = ${id}`,
+      sql`SELECT id, r2_key, sort_order FROM product_images WHERE product_id = ${id} ORDER BY sort_order ASC`,
+    ])
+
+    const r2PublicUrl = process.env.R2_PUBLIC_URL || ''
+
+    return c.json({
+      id: p.id, sku: p.sku, barcode: p.barcode, name: p.name, nameKo: p.name_ko,
+      slug: p.slug, description: p.description, brand: p.brand,
+      costPrice: p.cost_price, priceRetail: p.price_retail, priceWeb: p.price_web,
+      pricePOS: p.price_pos, priceB2B: p.price_b2b,
+      discountWebPct: p.discount_web_pct, discountPOSPct: p.discount_pos_pct, discountB2BPct: p.discount_b2b_pct,
+      weightGrams: p.weight_grams, isWeighable: p.is_weighable, isBaesEligible: p.is_baes_eligible,
+      coldChain: p.cold_chain, status: p.status, imageUrl: p.image_url,
+      categoryId: p.category_id, categoryName: p.category_name,
+      stockTotal: Number(p.stock_total ?? 0), nextExpiry: p.next_expiry,
+      sellos: sellos.map((s: any) => s.sello),
+      images: images.map((im: any) => ({
+        id: im.id,
+        url: r2PublicUrl ? `${r2PublicUrl}/${im.r2_key}` : null,
+        r2Key: im.r2_key,
+        sortOrder: im.sort_order,
+      })),
+    })
+  } catch (err) {
+    console.error('Product detail error:', err)
+    return c.json({ error: 'Error al obtener producto' }, 500)
+  }
+})
+
 // ============================================================================
 // STARTUP
 // ============================================================================
