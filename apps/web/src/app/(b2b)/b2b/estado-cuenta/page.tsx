@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { formatCLP } from '@seul/ui'
 import { Loader2 } from 'lucide-react'
 
@@ -25,31 +26,50 @@ interface LedgerRow {
 const TYPE_LABELS = { credit: 'Crédito acreditado', debit: 'Débito', adjustment: 'Ajuste' }
 const TYPE_COLORS = { credit: 'text-green-700', debit: 'text-red-700', adjustment: 'text-amber-700' }
 
+// Empresa se resuelve SIEMPRE de la sesión activa (seul_customer_session) —
+// nunca de un ID tecleado a mano. Antes esta pantalla dejaba que cualquier
+// visitante escribiera un UUID de empresa ajeno; ahora carga automáticamente
+// la propia (GET /api/b2b/empresa/me → GET /api/b2b/wallet/:id con ese id), y
+// el backend además verifica que el :id coincida con la empresa de la sesión.
 export default function EstadoCuentaPage() {
-  const [companyId, setCompanyId] = useState('')
+  const router = useRouter()
   const [empresa,   setEmpresa]   = useState<Empresa | null>(null)
   const [ledger,    setLedger]    = useState<LedgerRow[]>([])
-  const [loading,   setLoading]   = useState(false)
+  const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState<string | null>(null)
 
-  async function load() {
-    if (!companyId.trim()) return
-    setLoading(true); setError(null)
-    try {
-      const res = await fetch(`${API}/api/b2b/wallet/${companyId.trim()}`)
-      if (!res.ok) { const d = await res.json() as { error?: string }; setError(d.error ?? 'No encontrado'); return }
-      const data = await res.json() as { empresa: Empresa; ledger: LedgerRow[] }
-      setEmpresa(data.empresa)
-      setLedger(data.ledger)
-    } catch {
-      setError('Error de conexión')
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    async function load() {
+      try {
+        const meRes = await fetch(`${API}/api/b2b/empresa/me`, { credentials: 'include' })
+        if (meRes.status === 401 || meRes.status === 403) { router.replace('/b2b/login'); return }
+        const me = await meRes.json() as { id?: string; error?: string }
+        if (!meRes.ok || !me.id) { setError(me.error ?? 'No se pudo cargar tu cuenta'); return }
+
+        const res = await fetch(`${API}/api/b2b/wallet/${me.id}`, { credentials: 'include' })
+        if (!res.ok) { const d = await res.json() as { error?: string }; setError(d.error ?? 'No encontrado'); return }
+        const data = await res.json() as { empresa: Empresa; ledger: LedgerRow[] }
+        setEmpresa(data.empresa)
+        setLedger(data.ledger)
+      } catch {
+        setError('Error de conexión')
+      } finally {
+        setLoading(false)
+      }
     }
-  }
+    load()
+  }, [router])
 
   function fmt(iso: string) {
     return new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <Loader2 className="size-6 animate-spin text-[var(--color-brand)]" />
+      </div>
+    )
   }
 
   return (
@@ -58,21 +78,6 @@ export default function EstadoCuentaPage() {
       <p className="text-sm text-[var(--color-text-secondary)] mb-6">
         Consulta tu wallet B2B y el historial de movimientos.
       </p>
-
-      <div className="flex gap-3 mb-8">
-        <input
-          value={companyId}
-          onChange={e => setCompanyId(e.target.value)}
-          placeholder="ID de empresa"
-          className="flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)]"
-          onKeyDown={e => { if (e.key === 'Enter') load() }}
-        />
-        <button onClick={load} disabled={loading}
-          className="px-4 py-2.5 rounded-lg font-semibold text-sm disabled:opacity-50"
-          style={{ background: 'var(--color-brand)', color: '#fff' }}>
-          {loading ? <Loader2 className="size-4 animate-spin" /> : 'Consultar'}
-        </button>
-      </div>
 
       {error && (
         <p className="mb-4 px-3 py-2 text-sm bg-red-50 text-red-700 border border-red-200 rounded-lg">{error}</p>

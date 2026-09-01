@@ -1,20 +1,33 @@
 'use client'
-import { useState } from 'react'
-import { Loader2, CheckCircle2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
 export default function SolicitudCreditoPage() {
-  const [companyId, setCompanyId] = useState('')
+  const router = useRouter()
+  const [checkingSession, setCheckingSession] = useState(true)
   const [amountClp, setAmountClp] = useState('')
   const [reason,    setReason]    = useState('')
   const [loading,   setLoading]   = useState(false)
   const [error,     setError]     = useState<string | null>(null)
   const [sent,      setSent]      = useState(false)
 
+  // Empresa se resuelve SIEMPRE de la sesión activa (seul_customer_session) —
+  // nunca de un campo tecleado a mano. GET /api/b2b/empresa/me ya identifica
+  // la empresa dueña de la sesión; el backend también ignora cualquier
+  // companyId que llegara en el body, así que ni siquiera hace falta pedirlo.
+  useEffect(() => {
+    fetch(`${API}/api/b2b/empresa/me`, { credentials: 'include' })
+      .then(r => { if (r.status === 401 || r.status === 403) { router.replace('/b2b/login'); return null } return r.json() })
+      .then(() => setCheckingSession(false))
+      .catch(() => { setError('No se pudo verificar tu sesión.'); setCheckingSession(false) })
+  }, [router])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!companyId.trim() || !amountClp || !reason.trim()) {
+    if (!amountClp || !reason.trim()) {
       setError('Completa todos los campos')
       return
     }
@@ -22,7 +35,8 @@ export default function SolicitudCreditoPage() {
     try {
       const res = await fetch(`${API}/api/b2b/credit-request`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyId: companyId.trim(), amountClp: parseInt(amountClp), reason }),
+        credentials: 'include',
+        body: JSON.stringify({ amountClp: parseInt(amountClp), reason }),
       })
       const data = await res.json() as { ok?: boolean; error?: string }
       if (!res.ok) { setError(data.error ?? 'Error al enviar solicitud'); return }
@@ -32,6 +46,14 @@ export default function SolicitudCreditoPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <div className="flex items-center justify-center min-h-[40vh]">
+        <Loader2 className="size-6 animate-spin text-[var(--color-brand)]" />
+      </div>
+    )
   }
 
   if (sent) {
@@ -55,15 +77,6 @@ export default function SolicitudCreditoPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1.5">ID de tu empresa</label>
-          <input
-            required value={companyId}
-            onChange={e => setCompanyId(e.target.value)}
-            placeholder="UUID de la empresa"
-            className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-sm outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-[var(--color-brand)]"
-          />
-        </div>
-        <div>
           <label className="block text-sm font-medium mb-1.5">Monto solicitado (CLP)</label>
           <input
             required type="number" min="1000" step="1000" value={amountClp}
@@ -83,7 +96,10 @@ export default function SolicitudCreditoPage() {
         </div>
 
         {error && (
-          <p className="text-sm px-3 py-2 rounded bg-red-50 text-red-700 border border-red-200">{error}</p>
+          <p className="flex items-start gap-2 text-sm px-3 py-2 rounded bg-red-50 text-red-700 border border-red-200">
+            <AlertCircle className="mt-0.5 size-4 shrink-0" />
+            {error}
+          </p>
         )}
 
         <button type="submit" disabled={loading}

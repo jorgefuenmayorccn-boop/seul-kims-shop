@@ -1,21 +1,66 @@
 import { Suspense } from 'react'
-import { Search } from 'lucide-react'
+import { cookies } from 'next/headers'
+import { Search, Lock } from 'lucide-react'
 import { B2BPricingTable } from '@seul/ui/b2b/b2b-pricing-table'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
+// Debe coincidir con CUSTOMER_SESSION_COOKIE_NAME de packages/api/src/server.ts.
+const CUSTOMER_COOKIE = 'seul_customer_session'
 
-async function getCatalog(q?: string) {
+// El catálogo B2B (precios netos mayoristas) SOLO se muestra a una empresa
+// autenticada — nunca a un visitante anónimo ni a un cliente B2C normal
+// (requisito explícito de esta sesión). Como esta página es un Server
+// Component, reenvía la cookie de sesión a mano en el fetch server-to-server
+// — mismo patrón exacto que serverFetch en apps/cerebro/src/lib/api.ts, no
+// una excepción nueva. GET /api/b2b/catalogo devuelve 401 (sin sesión) o 403
+// (sesión de cliente B2C sin empresa asociada) — ambos casos se resuelven acá
+// como "sin acceso", mostrando un estado bloqueado con CTA a login/registro
+// en vez de una tabla vacía o un crash.
+async function getCatalog(q?: string): Promise<{ status: 'ok'; products: unknown[] } | { status: 'locked' }> {
+  const jar = await cookies()
+  const token = jar.get(CUSTOMER_COOKIE)?.value
+  if (!token) return { status: 'locked' }
+
   const url = new URL(`${API}/api/b2b/catalogo`)
   if (q) url.searchParams.set('q', q)
 
-  const res = await fetch(url.toString(), { next: { revalidate: 60 } })
-  if (!res.ok) return []
+  const res = await fetch(url.toString(), {
+    headers: { Cookie: `${CUSTOMER_COOKIE}=${token}` },
+    cache: 'no-store',
+  })
+  if (res.status === 401 || res.status === 403) return { status: 'locked' }
+  if (!res.ok) return { status: 'ok', products: [] }
   const data = await res.json() as { products: unknown[] }
-  return data.products as Parameters<typeof B2BPricingTable>[0]['products']
+  return { status: 'ok', products: data.products }
+}
+
+function LockedCatalog() {
+  return (
+    <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-16 text-center">
+      <Lock className="mx-auto size-8 text-[var(--color-text-secondary)]" />
+      <h2 className="mt-4 text-lg font-bold">Catálogo exclusivo para empresas mayoristas</h2>
+      <p className="mx-auto mt-2 max-w-md text-sm text-[var(--color-text-secondary)]">
+        Los precios netos sin IVA solo se muestran a cuentas B2B aprobadas. Inicia sesión con tu
+        cuenta mayorista o solicita acceso si aún no tienes una.
+      </p>
+      <div className="mt-6 flex justify-center gap-3">
+        <a href="/b2b/login" className="rounded-lg border border-[var(--color-border)] px-4 py-2 text-sm font-medium hover:bg-[var(--color-surface-raised)]">
+          Iniciar sesión
+        </a>
+        <a href="/b2b/registro" className="rounded-lg bg-[var(--color-brand)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+          Solicitar cuenta
+        </a>
+      </div>
+    </div>
+  )
 }
 
 async function CatalogContent({ q }: { q?: string }) {
-  const products = await getCatalog(q)
+  const result = await getCatalog(q)
+
+  if (result.status === 'locked') return <LockedCatalog />
+
+  const products = result.products as Parameters<typeof B2BPricingTable>[0]['products']
 
   return (
     <div>
@@ -41,7 +86,7 @@ export default function CatalogoB2BPage({
         <div>
           <h1 className="text-2xl font-bold">Catálogo mayorista</h1>
           <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-            Precios netos · Actualizado cada 60 s
+            Precios netos · Solo cuentas B2B
           </p>
         </div>
 
