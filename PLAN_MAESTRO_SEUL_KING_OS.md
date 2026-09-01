@@ -59,7 +59,7 @@ Fase 0 Seguridad y Estabilización (S01-02, 16h, 🔴 BLOQUEADORA) → Fase 1 N�
 | Módulo | App(s) | Backend | Estado |
 |---|---|---|---|
 | Auth staff (login/logout/me/change-password) | cerebro, pos, repartidor | ✅ completo | Verificado en navegador real las 3 apps |
-| Usuarios (listar/crear/editar/desactivar) | cerebro | 🟡 sin commitear | GET/PUT/DELETE recién escritos, falta commit + prueba end-to-end |
+| Usuarios (listar/crear/editar/desactivar) | cerebro | ✅ completo + RBAC | Commiteado (S01), RBAC server-side owner-only en editar/desactivar/crear (S02), verificado end-to-end contra producción |
 | Dashboard (stats, alertas) | cerebro | ❌ falta | Banner "API no disponible" confirmado en captura |
 | Productos + categorías | cerebro, web | ❌ falta | Schema listo (`products.ts`), sin rutas |
 | Inventario | cerebro | ❌ falta | Schema listo (`inventory.ts`), sin rutas |
@@ -84,7 +84,7 @@ Fase 0 Seguridad y Estabilización (S01-02, 16h, 🔴 BLOQUEADORA) → Fase 1 N�
 
 ### 6.1 Matriz de roles → secciones visibles (definida en S01, implementada en S02)
 
-Documentación únicamente — **no implementar todavía**. La implementación real (ocultar secciones en el `Sidebar` de `apps/cerebro` según `role`, más validación server-side por endpoint) es tarea de S02, no de S01. Los 5 roles ya existen en `VALID_ROLES` (`packages/api/src/server.ts`, handler de `/api/auth/register`): `owner`, `admin`, `staff`, `delivery`, `viewer`.
+Los 5 roles ya existen en `VALID_ROLES` (`packages/api/src/server.ts`, handler de `/api/auth/register`): `owner`, `admin`, `staff`, `delivery`, `viewer`.
 
 | Rol | Acceso |
 |---|---|
@@ -94,9 +94,20 @@ Documentación únicamente — **no implementar todavía**. La implementación r
 | `delivery` | Solo el módulo de repartidor (app `apps/repartidor`) — sin acceso a `cerebro`. |
 | `viewer` | Solo lectura de **Dashboard** y **Reportes** — ninguna acción de escritura. |
 
-Notas para S02:
-- Backend: cada endpoint que un rol no debería poder alcanzar debe validar `role` server-side (no solo confiar en que el Sidebar oculte el link) — usar `requireSession(c, roles)` (ver `packages/api/src/middleware/auth.middleware.ts`, agregado en S01) pasando la lista de roles permitidos.
-- Frontend: `apps/cerebro/src/components/layout/sidebar.tsx` hoy muestra el mismo menú completo a todos los roles — ahí es donde se filtra la lista de items visibles según esta tabla.
+**Estado S02 (implementado y verificado en producción, 31-ago/1-sep-2026):**
+
+- **Frontend** (`apps/cerebro/src/components/layout/sidebar.tsx`): cada item del `nav[]` ahora lleva un array `roles` y la lista se filtra con `nav.filter(item => item.roles.includes(user.role))` antes de renderizar. Verificado con Playwright contra `cmr.seoulshop.cl` real: una cuenta `staff` desechable solo ve Comandas/Clientes/Despacho/Turnos (+ POS Caja/Tienda Web externos); una cuenta `owner` desechable ve las 11 secciones incluyendo Usuarios y Seguridad. Screenshots verificados visualmente.
+  - Nota: `delivery` nunca llega a este componente porque `apps/cerebro/src/app/(admin)/layout.tsx` ya gatea todo el route group a `['owner','admin','staff']` — pero eso también bloquea a `viewer`, que según la matriz debería poder entrar solo a Dashboard/Reportes. Es un gap preexistente (no introducido en S02) que queda documentado como deuda, no bloqueante — no hay hoy ninguna cuenta `viewer` real en producción.
+  - También sigue pendiente: la página `/usuarios` (y las demás rutas ocultas del Sidebar) no tiene guard de ruta a nivel de página — un `staff` que navegue directo a la URL no ve el link pero tampoco es redirigido. El backend sí bloquea las acciones reales (ver abajo), así que no hay fuga de datos, solo una pantalla que renderizaría vacía/con 403 en sus fetch. Deuda documentada, no bloqueante para S02.
+
+- **Backend** — migrados a `requireSession(c, roles)` con validación de rol real en S02:
+  - `GET /api/auth/users` → `['owner','admin','staff']` (no owner-only: también alimenta el selector de repartidor de Despacho, al que staff/admin tienen acceso legítimo — restringirlo a owner habría regresionado esa pantalla).
+  - `PUT /api/auth/users/:id` → `['owner']`
+  - `DELETE /api/auth/users/:id` → `['owner']`
+  - `POST /api/auth/register` → `['owner']`
+  - `PUT /api/delivery/assignments/:id/assign` → `['owner','admin','staff']`
+  - Los 5 endpoints anteriores verificados con curl contra producción usando cuentas `qa-test-*@example.test` desechables (creadas y borradas en la misma sesión): `staff` recibe 403 en PUT/DELETE users y en register, 200/404 (no 403) en GET users y en delivery/assign; `owner` recibe 200/404 en todo.
+  - **Deuda pendiente (no bloqueante, sesiones futuras):** el resto de endpoints de hoy siguen solo con `getAuthUser()` → "¿hay sesión?" sin validar rol: `POST /api/shifts/open`, `POST /api/shifts/:id/close`, `POST/GET /api/till-sessions/*`, `PUT /api/tienda-config/:key`, `POST /api/deliveries/assign` (legacy), `POST /api/deliveries/:id/status`, `POST /api/deliveries/:id/photo`, `POST /api/orders/:id/status`. Ninguno de estos está marcado como restringido-por-rol en la matriz de arriba salvo por pertenecer a secciones ya ocultas en el Sidebar (Turnos, Ajustes, Despacho) — el riesgo real es bajo (todos exigen sesión válida) pero no hay defensa en profundidad por rol todavía.
 
 ## 7. Gap completo de endpoints (auditado 31-ago-2026)
 
@@ -133,10 +144,12 @@ No se avanza a Fase 1 sin cerrar esto: es la base sobre la que se construyen ~25
 - Crear `requireSession(c, roles?)` único en `middleware/auth.middleware.ts` que reemplace el patrón copy-pasted de `getAuthUser` (bloqueador P0 #2). Migrar los endpoints existentes a usarlo.
 - Definir la matriz de roles → secciones visibles (owner: todo · admin: todo menos Usuarios/Seguridad · staff: Comandas/Despacho/Turnos/Clientes · delivery: solo repartidor · viewer: solo lectura Dashboard/Reportes). Documentarla en este archivo (sección 6 se actualiza con esto).
 
-**S02 (8h):**
-- Implementar RBAC en `Sidebar` de cerebro (ocultar secciones según `role`) y server-side en cada endpoint nuevo desde acá en adelante.
-- Rate limiter genérico (reemplazar el TODO de `auth.middleware.ts:75`) aplicado a `/api/orders`, `/api/b2b/quotes`, `/api/auth/register`.
-- **Gate de fase:** smoke test de las 4 apps en navegador real (login + RBAC visible correctamente por rol) antes de avanzar.
+**S02 (8h) — ✅ COMPLETA (1-sep-2026):**
+- ✅ RBAC en `Sidebar` de cerebro (ocultar secciones según `role`) — ver detalle y deuda pendiente en sección 6.1.
+- ✅ RBAC server-side con `requireSession(c, roles)` en los 5 endpoints más sensibles de hoy (Usuarios GET/PUT/DELETE, register, delivery/assign) — ver sección 6.1 para la lista completa migrada vs. deuda pendiente.
+- ✅ Rate limiter genérico en Postgres (tabla `rate_limit_events`, migración 0016, función `checkAndRecordRateLimit` en `server.ts`) — reemplaza el TODO de KV en `auth.middleware.ts:160`. Aplicado a `POST /api/orders`, `POST /api/b2b/quotes`, `POST /api/auth/register` (20 req / 5 min por usuario o IP). Verificado en producción: 20 requests pasan, el 21° responde `429` con `{"error":"Demasiadas solicitudes. Intenta de nuevo en 5 minutos."}`.
+- ✅ **Gate de fase:** smoke test con Playwright contra producción real (`cmr.seoulshop.cl`, `pos.seoulshop.cl`, `drive.seoulshop.cl`) usando cuentas `qa-test-*@example.test` desechables (creadas directo en Neon, nunca vía email real, borradas al cerrar la sesión junto con toda la data de prueba que generaron — órdenes, cotización, email_queue/email_log, rate_limit_events). Login OK en las 3 apps. RBAC del Sidebar confirmado: `staff` ve solo Comandas/Clientes/Despacho/Turnos, `owner` ve las 11 secciones. `/health` en 200 después de cada push.
+- Commits: `9c0adfe` (Sidebar RBAC), `6084177` (RBAC server-side), `10da8d9` (rate limiter genérico) — pusheados a `main`, auto-deploy Railway confirmado.
 
 ## FASE 1 — Núcleo de Operación Interna: Panel Admin + POS (S03-06, 64h)
 
