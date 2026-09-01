@@ -648,6 +648,358 @@ app.delete('/api/auth/users/:id', async (c) => {
 })
 
 // ============================================================================
+// SHIFTS & TILL SESSIONS (POS caja) — two distinct, already-modeled concepts:
+//   shift        = one cashier's workday on a device (table `shifts`)
+//   till_session = one cash-drawer session nested inside a shift, FK'd via
+//                  shift_id (table `till_sessions`) — a shift can span
+//                  multiple till sessions if the till is closed/reopened.
+// Both tables + `cash_movements` already existed in the DB (Drizzle schema
+// in packages/db/src/schema/{shifts,till-sessions}.ts predates this work);
+// only the HTTP layer was missing. Both enforce "one open per device" via a
+// partial unique index, so races surface as a friendly 409 (pg code 23505).
+// ============================================================================
+
+const ZREPORT_METHODS = ['cash', 'debit', 'credit', 'baes', 'qr', 'transfer'] as const
+
+async function computeTillZReport(tillId: string): Promise<any | null> {
+  const [till] = await sql`
+    SELECT ts.id, ts.session_number, ts.shift_id, ts.opening_float, ts.opened_at, ts.closed_at,
+           s.shift_number, u.name AS cashier_name
+    FROM till_sessions ts
+    JOIN shifts s ON s.id = ts.shift_id
+    JOIN users u ON u.id = ts.opened_by
+    WHERE ts.id = ${tillId}
+  `
+  if (!till) return null
+
+  const [agg] = await sql`
+    SELECT
+      count(*) FILTER (WHERE status != 'cancelada') AS ticket_count,
+      count(*) FILTER (WHERE status = 'cancelada')  AS void_count,
+      COALESCE(sum(total) FILTER (WHERE status != 'cancelada'), 0) AS gross_total
+    FROM orders WHERE till_session_id = ${tillId}
+  `
+
+  const methodRows = await sql`
+    SELECT op.method, COALESCE(sum(op.amount), 0) AS amount
+    FROM order_payments op
+    JOIN orders o ON o.id = op.order_id
+    WHERE o.till_session_id = ${tillId} AND o.status != 'cancelada'
+    GROUP BY op.method
+  `
+
+  const [refundAgg] = await sql`
+    SELECT count(*) AS refund_count, COALESCE(sum(r.refund_amount_clp), 0) AS refund_total
+    FROM returns r
+    JOIN orders o ON o.id = r.order_id
+    WHERE o.till_session_id = ${tillId} AND r.status = 'processed'
+  `
+
+  const byMethod: Record<string, number> = Object.fromEntries(ZREPORT_METHODS.map(m => [m, 0]))
+  for (const row of methodRows) {
+    byMethod[row.method] = (byMethod[row.method] ?? 0) + Number(row.amount)
+  }
+
+  const grossTotal = Number(agg.gross_total)
+  const refundTotal = Number(refundAgg.refund_total)
+  const openingFloat = Number(till.opening_float)
+
+  return {
+    tillId: till.id,
+    tillSessionNumber: till.session_number,
+    shiftId: till.shift_id,
+    shiftNumber: till.shift_number,
+    cashierName: till.cashier_name,
+    openedAt: till.opened_at,
+    closedAt: till.closed_at,
+    openingFloat,
+    ticketCount: Number(agg.ticket_count),
+    voidCount: Number(agg.void_count),
+    refundCount: Number(refundAgg.refund_count),
+    grossTotal,
+    refundTotal,
+    netTotal: grossTotal - refundTotal,
+    byMethod,
+    expectedCash: openingFloat + (byMethod.cash ?? 0),
+  }
+}
+
+async function computeMasterZReport(shiftId: string): Promise<any | null> {
+  const [shift] = await sql`SELECT id, shift_number, opened_at, closed_at FROM shifts WHERE id = ${shiftId}`
+  if (!shift) return null
+
+  const tillRows = await sql`SELECT id FROM till_sessions WHERE shift_id = ${shiftId} ORDER BY session_number ASC`
+  const tillReports: any[] = []
+  for (const t of tillRows) {
+    const r = await computeTillZReport(t.id)
+    if (r) tillReports.push(r)
+  }
+
+  const byMethod: Record<string, number> = Object.fromEntries(ZREPORT_METHODS.map(m => [m, 0]))
+  for (const r of tillReports) {
+    for (const [method, amount] of Object.entries(r.byMethod as Record<string, number>)) {
+      byMethod[method] = (byMethod[method] ?? 0) + Number(amount)
+    }
+  }
+
+  const grossTotal = tillReports.reduce((s, r) => s + r.grossTotal, 0)
+  const refundTotal = tillReports.reduce((s, r) => s + r.refundTotal, 0)
+
+  return {
+    shiftId: shift.id,
+    shiftNumber: shift.shift_number,
+    openedAt: shift.opened_at,
+    closedAt: shift.closed_at,
+    tillCount: tillReports.length,
+    totalTickets: tillReports.reduce((s, r) => s + r.ticketCount, 0),
+    totalVoids: tillReports.reduce((s, r) => s + r.voidCount, 0),
+    totalRefunds: tillReports.reduce((s, r) => s + r.refundCount, 0),
+    grossTotal,
+    refundTotal,
+    netTotal: grossTotal - refundTotal,
+    byMethod,
+    tills: tillReports.map(r => ({
+      tillId: r.tillId,
+      tillSessionNumber: r.tillSessionNumber,
+      cashierName: r.cashierName,
+      openedAt: r.openedAt,
+      closedAt: r.closedAt,
+      openingFloat: r.openingFloat,
+      ticketCount: r.ticketCount,
+      netTotal: r.netTotal,
+      byMethod: r.byMethod,
+    })),
+  }
+}
+
+// --- Shifts ---
+
+app.post('/api/shifts/open', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const deviceId = body.device_id
+  const openingFloat = Number(body.opening_float_clp) || 0
+  if (!deviceId) return c.json({ error: 'Missing device_id' }, 400)
+
+  try {
+    const [shift] = await sql`
+      INSERT INTO shifts (opened_by, device_id, opening_float)
+      VALUES (${authUser.id}, ${deviceId}, ${openingFloat})
+      RETURNING id, shift_number, opened_at, opening_float, device_id
+    `
+    return c.json({
+      shift: {
+        id: shift.id, shiftNumber: shift.shift_number, openedAt: shift.opened_at,
+        openingFloat: shift.opening_float, deviceId: shift.device_id,
+      },
+    })
+  } catch (err: any) {
+    if (err?.code === '23505') return c.json({ error: 'Ya hay un turno abierto en este dispositivo' }, 409)
+    console.error('Open shift error:', err)
+    return c.json({ error: err.message || 'Error al abrir turno' }, 500)
+  }
+})
+
+app.get('/api/shifts/active', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const deviceId = c.req.query('device_id')
+  if (!deviceId) return c.json({ error: 'Missing device_id' }, 400)
+
+  try {
+    const [shift] = await sql`
+      SELECT id, shift_number, opened_at, opening_float, device_id
+      FROM shifts WHERE device_id = ${deviceId} AND status = 'open'
+    `
+    return c.json({
+      shift: shift ? {
+        id: shift.id, shiftNumber: shift.shift_number, openedAt: shift.opened_at,
+        openingFloat: shift.opening_float, deviceId: shift.device_id,
+      } : null,
+    })
+  } catch (err) {
+    console.error('Active shift error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+app.get('/api/shifts/history', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '30', 10) || 30, 1), 100)
+
+  try {
+    const rows = await sql`
+      SELECT s.id, s.shift_number, s.device_id, s.status, s.opened_at, s.closed_at,
+             s.opening_float, s.closing_summary, u.name AS cashier_name, u.email AS cashier_email
+      FROM shifts s
+      JOIN users u ON u.id = s.opened_by
+      ORDER BY s.opened_at DESC
+      LIMIT ${limit}
+    `
+    return c.json({
+      shifts: rows.map((r: any) => ({
+        id: r.id, shiftNumber: r.shift_number, deviceId: r.device_id, status: r.status,
+        openedAt: r.opened_at, closedAt: r.closed_at, openingFloat: r.opening_float,
+        cashierName: r.cashier_name, cashierEmail: r.cashier_email,
+        closingSummary: r.closing_summary,
+      })),
+    })
+  } catch (err) {
+    console.error('Shift history error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+app.get('/api/shifts/:id/z-report', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  try {
+    const masterReport = await computeMasterZReport(c.req.param('id'))
+    if (!masterReport) return c.json({ error: 'Shift not found' }, 404)
+    return c.json({ masterReport })
+  } catch (err) {
+    console.error('Master z-report error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+app.post('/api/shifts/:id/close', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const id = c.req.param('id')
+  try {
+    const [shift] = await sql`SELECT id FROM shifts WHERE id = ${id}`
+    if (!shift) return c.json({ error: 'Shift not found' }, 404)
+
+    const openTills = await sql`SELECT id FROM till_sessions WHERE shift_id = ${id} AND status = 'open'`
+    if (openTills.length > 0) {
+      return c.json({
+        error: 'Hay una caja abierta en este turno. Ciérrala antes de cerrar el turno.',
+        openTillIds: openTills.map((t: any) => t.id),
+      }, 409)
+    }
+
+    const masterReport = await computeMasterZReport(id)
+    await sql`
+      UPDATE shifts SET status = 'closed', closed_at = NOW(), closing_summary = ${masterReport}
+      WHERE id = ${id}
+    `
+    return c.json({ masterReport })
+  } catch (err) {
+    console.error('Close shift error:', err)
+    return c.json({ error: 'Error al cerrar turno' }, 500)
+  }
+})
+
+// --- Till sessions ---
+
+app.post('/api/till-sessions/open', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const shiftId = body.shift_id
+  const deviceId = body.device_id
+  const openingFloat = Number(body.opening_float_clp) || 0
+  if (!shiftId || !deviceId) return c.json({ error: 'Missing shift_id or device_id' }, 400)
+
+  try {
+    const [shift] = await sql`SELECT id, status FROM shifts WHERE id = ${shiftId}`
+    if (!shift) return c.json({ error: 'Shift not found' }, 404)
+    if (shift.status !== 'open') return c.json({ error: 'El turno no está abierto' }, 409)
+
+    const [till] = await sql`
+      INSERT INTO till_sessions (shift_id, opened_by, device_id, opening_float)
+      VALUES (${shiftId}, ${authUser.id}, ${deviceId}, ${openingFloat})
+      RETURNING id, session_number, shift_id, opened_at, opening_float, device_id
+    `
+    return c.json({
+      tillSession: {
+        id: till.id, sessionNumber: till.session_number, shiftId: till.shift_id,
+        openedAt: till.opened_at, openingFloat: till.opening_float, deviceId: till.device_id,
+        openedByName: authUser.name,
+      },
+    })
+  } catch (err: any) {
+    if (err?.code === '23505') return c.json({ error: 'Ya hay una caja abierta en este dispositivo' }, 409)
+    console.error('Open till error:', err)
+    return c.json({ error: err.message || 'Error al abrir caja' }, 500)
+  }
+})
+
+app.get('/api/till-sessions/active', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const deviceId = c.req.query('device_id')
+  if (!deviceId) return c.json({ error: 'Missing device_id' }, 400)
+
+  try {
+    const [till] = await sql`
+      SELECT ts.id, ts.session_number, ts.shift_id, ts.opened_at, ts.opening_float, ts.device_id,
+             u.name AS opened_by_name
+      FROM till_sessions ts
+      JOIN users u ON u.id = ts.opened_by
+      WHERE ts.device_id = ${deviceId} AND ts.status = 'open'
+    `
+    return c.json({
+      tillSession: till ? {
+        id: till.id, sessionNumber: till.session_number, shiftId: till.shift_id,
+        openedAt: till.opened_at, openingFloat: till.opening_float, deviceId: till.device_id,
+        openedByName: till.opened_by_name,
+      } : null,
+    })
+  } catch (err) {
+    console.error('Active till error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+app.get('/api/till-sessions/:id/z-report', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  try {
+    const zReport = await computeTillZReport(c.req.param('id'))
+    if (!zReport) return c.json({ error: 'Till session not found' }, 404)
+    return c.json({ zReport })
+  } catch (err) {
+    console.error('Till z-report error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+app.post('/api/till-sessions/:id/close', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const id = c.req.param('id')
+  try {
+    const [till] = await sql`SELECT id FROM till_sessions WHERE id = ${id}`
+    if (!till) return c.json({ error: 'Till session not found' }, 404)
+
+    const zReport = await computeTillZReport(id)
+    await sql`
+      UPDATE till_sessions SET status = 'closed', closed_at = NOW(), closing_summary = ${zReport}
+      WHERE id = ${id}
+    `
+    return c.json({ zReport })
+  } catch (err) {
+    console.error('Close till error:', err)
+    return c.json({ error: 'Error al cerrar caja' }, 500)
+  }
+})
+
+// ============================================================================
 // B2C ENDPOINTS (7 emails)
 // ============================================================================
 
