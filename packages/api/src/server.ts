@@ -2081,6 +2081,44 @@ app.get('/api/orders', async (c) => {
   }
 })
 
+// GET /api/orders/comandas — vista Kanban de Comandas (cerebro): pedidos activos
+// (nueva/preparando/lista — NO incluye en_ruta/entregada/cancelada) agrupados por
+// columna. Roles: owner/admin/staff (matriz de sección 6.1 — viewer no ve Comandas).
+app.get('/api/orders/comandas', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const rows = await sql`
+      SELECT
+        o.id, o.number, o.channel, o.status, o.delivery_mode,
+        o.metro_station, o.metro_slot, o.total, o.dte_status, o.created_at,
+        COUNT(oi.id) AS item_count
+      FROM orders o
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      WHERE o.status IN ('nueva', 'preparando', 'lista')
+      GROUP BY o.id
+      ORDER BY o.created_at ASC
+    `
+
+    const comandas = rows.map((r: any) => ({
+      id: r.id, number: r.number, channel: r.channel, status: r.status,
+      deliveryMode: r.delivery_mode, metroStation: r.metro_station, metroSlot: r.metro_slot,
+      total: r.total, dteStatus: r.dte_status, createdAt: r.created_at,
+      itemCount: Number(r.item_count ?? 0),
+    }))
+
+    return c.json({
+      nueva:      comandas.filter((o: any) => o.status === 'nueva'),
+      preparando: comandas.filter((o: any) => o.status === 'preparando'),
+      lista:      comandas.filter((o: any) => o.status === 'lista'),
+    })
+  } catch (err) {
+    console.error('Comandas error:', err)
+    return c.json({ error: 'Error al listar comandas' }, 500)
+  }
+})
+
 // ============================================================================
 // STARTUP
 // ============================================================================
