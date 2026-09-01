@@ -630,6 +630,37 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
+// Validación de RUT chileno (dígito verificador) — usada por POST /api/b2b/registro
+// (S11, Fase 3). El frontend (apps/web/.../b2b/registro/page.tsx, formatRUTInput)
+// solo agrupa dígitos visualmente, no valida el DV — esta es la única validación
+// real que existe hoy, igual que documenta CLAUDE.md ("validar dígito verificador
+// en el frontend antes de enviar" — el frontend no lo hace, así que el backend
+// es la línea de defensa real).
+function isValidRUT(rutRaw: string): boolean {
+  const clean = (rutRaw || '').replace(/[^0-9kK]/g, '').toUpperCase()
+  if (clean.length < 2) return false
+  const body = clean.slice(0, -1)
+  const dv = clean.slice(-1)
+  if (!/^\d+$/.test(body)) return false
+  let sum = 0
+  let mul = 2
+  for (let i = body.length - 1; i >= 0; i--) {
+    sum += parseInt(body[i], 10) * mul
+    mul = mul === 7 ? 2 : mul + 1
+  }
+  const res = 11 - (sum % 11)
+  const expectedDv = res === 11 ? '0' : res === 10 ? 'K' : String(res)
+  return expectedDv === dv
+}
+
+function normalizeRUT(rutRaw: string): string {
+  const clean = (rutRaw || '').replace(/[^0-9kK]/g, '').toUpperCase()
+  const body = clean.slice(0, -1)
+  const dv = clean.slice(-1)
+  const grouped = body.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  return `${grouped}-${dv}`
+}
+
 // POST /api/customer/register — crea cuenta de cliente final. El formulario
 // (apps/web/.../cuenta/registro/page.tsx) NO pide contraseña — igual que el
 // onboarding de staff (seedRealUsersIfNeeded/initialCredentials arriba), se
@@ -1954,8 +1985,19 @@ app.post('/api/deliveries/:id/photo', async (c) => {
 // ============================================================================
 
 // Proteger endpoints B2B — requieren autenticación
-app.use('/api/b2b*', requireAuthMiddleware)
-app.use('/api/b2b*', requireScopeMiddleware(['orders:write']))
+// NOTA (S11, Fase 3): estrechado de '/api/b2b*' a '/api/b2b/quotes*'. El wildcard
+// original protegía correctamente las 3 rutas que existían hasta hoy (todas bajo
+// /api/b2b/quotes) exigiendo API key con scope orders:write o sesión STAFF — pero
+// como Hono compone TODOS los middlewares cuyo patrón matchea la ruta de la
+// request (sin importar en qué orden del archivo se registran los handlers
+// específicos), ese wildcard habría bloqueado con 401 cualquier ruta nueva bajo
+// /api/b2b/* añadida más abajo (registro público, catálogo/empresa/wallet con
+// sesión de CLIENTE, no de staff) antes de que sus propios handlers pudieran
+// siquiera evaluar la sesión de cliente. Estrechar el patrón no cambia el
+// comportamiento de ninguna ruta que ya funcionaba (las 3 de /quotes siguen
+// exactamente igual de protegidas) — cero regresión.
+app.use('/api/b2b/quotes*', requireAuthMiddleware)
+app.use('/api/b2b/quotes*', requireScopeMiddleware(['orders:write']))
 
 // POST /api/b2b/quotes
 app.post('/api/b2b/quotes', async (c) => {
@@ -2050,6 +2092,556 @@ app.post('/api/b2b/quotes/:id/reject', async (c) => {
     return c.json({ ok: true, queue_id })
   } catch (err) {
     return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// ============================================================================
+// PORTAL B2B — empresa mayorista (S11, Fase 3)
+// ============================================================================
+// DECISIÓN DE ARQUITECTURA (verificada contra el modelo de datos antes de
+// escribir código): el portal B2B usa EXACTAMENTE la misma sesión de cliente
+// que B2C (`seul_customer_session` / requireCustomerSession) — NO existe un
+// login ni una cookie propios para empresas. `b2b_companies.customer_id` es
+// NOT NULL y apunta a una sola fila de `customers` (un dueño/contacto por
+// empresa, no varios usuarios por empresa — packages/db/src/schema/customers.ts).
+// Confirma la decisión: apps/web/.../b2b/login/page.tsx (escrito antes de esta
+// sesión) ya llama /api/customer/login + /api/customer/me, y el comentario de
+// CUSTOMER AUTH ENDPOINTS más arriba (línea ~608) ya decía "tienda B2C y portal
+// B2B comparten la misma tabla customers / mismo login" — esta sesión solo
+// construye el backend que faltaba, no inventa el diseño.
+//
+// requireB2BCompany(c) es el "requireB2BSession" del brief: llama a
+// requireCustomerSession y resuelve la empresa asociada a ese customerId. Un
+// cliente B2C normal (sesión de cliente válida, pero sin empresa) recibe 403 —
+// así nunca puede alcanzar precios/datos B2B con su propia sesión, que es el
+// requisito de aislamiento explícito de esta sesión.
+async function requireB2BCompany(c: any): Promise<
+  | { customer: { customerId: string; email: string; name: string }; company: any }
+  | Response
+> {
+  const customer = await requireCustomerSession(c)
+  if (customer instanceof Response) return customer
+
+  const [company] = await sql`
+    SELECT id, customer_id, razon_social, rut, giro, address, tier, status,
+           credit_limit_clp, credit_used_clp, wallet_balance_clp, payment_days,
+           created_at, approved_at
+    FROM b2b_companies
+    WHERE customer_id = ${customer.customerId}
+    ORDER BY created_at ASC
+    LIMIT 1
+  `
+  if (!company) {
+    return c.json({ error: 'Tu cuenta no tiene una empresa B2B asociada.' }, 403)
+  }
+  return { customer, company }
+}
+
+// POST /api/b2b/registro — solicitud de cuenta mayorista, PÚBLICA (sin sesión)
+// — apps/web/.../b2b/registro/page.tsx. Mismo patrón "reclamar cliente
+// fantasma" que POST /api/customer/register (S09): customers.email es UNIQUE.
+//
+// DECISIÓN: a diferencia del registro B2C (donde reclamar un fantasma sin
+// password es el único caso), aquí hay 3 casos posibles para el email
+// recibido: (1) no existe → se crea con password temporal; (2) existe pero SIN
+// password (fantasma de POS/checkout invitado) → se reclama con password
+// temporal, igual que S09; (3) existe CON password (ya es cliente B2C activo)
+// → NO se pisa su password (lo dejaría fuera de su cuenta actual), solo se le
+// asocia la empresa nueva a su customer_id existente. En los 3 casos la cuenta
+// queda logueable de inmediato — no existe hoy una pantalla en cerebro para
+// "aprobar" el registro de una EMPRESA nueva (solo existe para solicitudes de
+// CRÉDITO, ver /api/b2b/solicitudes más abajo, confirmado por grep antes de
+// escribir esto), así que gatear el login detrás de una aprobación que ningún
+// botón puede otorgar dejaría a todo registrante bloqueado para siempre.
+// `status` de la empresa queda en 'pending' igual — el copy del formulario
+// ("te contactaremos… para activar tu cuenta") se entiende como activar el
+// CANAL DE PEDIDOS por WhatsApp, no el acceso al portal. Documentado como
+// decisión de esta sesión, no como bug.
+app.post('/api/b2b/registro', async (c) => {
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ ok: false, error: 'JSON inválido' }, 400)
+  }
+
+  const razonSocial = String(body.razonSocial || '').trim()
+  const rutRaw = String(body.rut || '').trim()
+  const giro = String(body.giro || '').trim()
+  const address = String(body.address || '').trim()
+  const name = String(body.name || '').trim()
+  const email = String(body.email || '').trim().toLowerCase()
+  const phone = body.phone ? String(body.phone).trim() : null
+
+  if (!razonSocial || !rutRaw || !giro || !address || !name || !email) {
+    return c.json({ ok: false, error: 'Completa todos los campos obligatorios.' }, 400)
+  }
+  if (!isValidEmail(email)) {
+    return c.json({ ok: false, error: 'Correo electrónico inválido.' }, 400)
+  }
+  if (!isValidRUT(rutRaw)) {
+    return c.json({ ok: false, error: 'RUT de empresa inválido.' }, 400)
+  }
+  const rut = normalizeRUT(rutRaw)
+
+  const rl = await checkAndRecordRateLimit(c, 'b2b:registro', { limit: 20, windowMinutes: 5 })
+  if (!rl.allowed) {
+    return c.json({ ok: false, error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  try {
+    const [existingCompany] = await sql`SELECT id FROM b2b_companies WHERE rut = ${rut} LIMIT 1`
+    if (existingCompany) {
+      return c.json({ ok: false, error: 'Ya existe una empresa registrada con ese RUT.' }, 409)
+    }
+
+    const existing = await sql`
+      SELECT id, password_hash FROM customers WHERE lower(email) = ${email} AND deleted_at IS NULL LIMIT 1
+    `
+
+    if (existing.length > 0) {
+      const [ownedCompany] = await sql`SELECT id FROM b2b_companies WHERE customer_id = ${existing[0].id} LIMIT 1`
+      if (ownedCompany) {
+        return c.json({ ok: false, error: 'Ya existe una cuenta B2B con este correo.' }, 409)
+      }
+    }
+
+    let customerId: string
+    let tempPassword: string | null = null
+
+    if (existing.length > 0 && existing[0].password_hash) {
+      // Caso 3: ya es cliente activo (B2C) — no se toca su password.
+      customerId = existing[0].id
+    } else if (existing.length > 0) {
+      // Caso 2: fantasma sin password — reclamar, mismo criterio que S09.
+      customerId = existing[0].id
+      tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
+      const passwordHash = PasswordService.hashPassword(tempPassword)
+      await sql`
+        UPDATE customers
+        SET name = ${name}, phone = COALESCE(${phone}, phone),
+            password_hash = ${passwordHash}, must_change_password = true
+        WHERE id = ${customerId}
+      `
+    } else {
+      // Caso 1: nuevo.
+      tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
+      const passwordHash = PasswordService.hashPassword(tempPassword)
+      const [created] = await sql`
+        INSERT INTO customers (email, name, phone, password_hash, must_change_password, email_verified, created_channel)
+        VALUES (${email}, ${name}, ${phone}, ${passwordHash}, true, false, 'b2b')
+        RETURNING id
+      `
+      customerId = created.id
+    }
+
+    await sql`
+      INSERT INTO b2b_companies (customer_id, razon_social, rut, giro, address, status, tier)
+      VALUES (${customerId}, ${razonSocial}, ${rut}, ${giro}, ${address}, 'pending', 'hoobae')
+    `
+
+    const credentialsBlock = tempPassword
+      ? `<div style="background: #f0f0f0; padding: 20px; border-radius: 6px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0; color: #888;"><small>Ya puedes entrar a tu Portal Mayorista con estas credenciales:</small></p>
+          <p style="margin: 5px 0; font-family: monospace; font-size: 14px;"><strong>Email:</strong> ${email}</p>
+          <p style="margin: 5px 0; font-family: monospace; font-size: 14px;"><strong>Contraseña temporal:</strong> ${tempPassword}</p>
+        </div>`
+      : `<p style="color: #555;">Ya puedes entrar al Portal Mayorista con tu correo y contraseña habituales.</p>`
+
+    await enqueueEmail(
+      email,
+      '¡Solicitud recibida! — Portal Mayorista Seoul Shop',
+      `<div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+        <div style="background: white; padding: 30px; border-radius: 8px; border-top: 4px solid #d7263d;">
+          <h1 style="color: #d7263d; margin-top: 0;">¡Solicitud recibida!</h1>
+          <p style="color: #555; line-height: 1.6;">Hola <strong>${name}</strong>, tu solicitud de cuenta mayorista para <strong>${razonSocial}</strong> fue recibida. Te contactaremos por WhatsApp en 24–48 horas hábiles.</p>
+          ${credentialsBlock}
+          <div style="margin: 30px 0;">
+            <a href="${CUSTOMER_WEB_URL}/b2b/login" style="display: inline-block; background: #d7263d; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Ir al Portal Mayorista →</a>
+          </div>
+        </div>
+      </div>`,
+      'welcome'
+    )
+
+    await enqueueEmail(
+      ADMIN_EMAIL,
+      `🏢 Nueva solicitud B2B — ${razonSocial}`,
+      `<p>Nueva empresa mayorista registrada: <strong>${razonSocial}</strong> (${rut}). Contacto: ${name} · ${email}${phone ? ' · ' + phone : ''}.</p>`,
+      'contact-form-reply'
+    )
+
+    return c.json({ ok: true })
+  } catch (err: any) {
+    console.error('B2B registro error:', err)
+    if (err?.code === '23505') {
+      return c.json({ ok: false, error: 'Ya existe una empresa o cuenta con esos datos.' }, 409)
+    }
+    return c.json({ ok: false, error: 'No se pudo enviar la solicitud.' }, 500)
+  }
+})
+
+// GET /api/b2b/empresa/me — apps/web/.../b2b/dashboard/page.tsx
+app.get('/api/b2b/empresa/me', async (c) => {
+  const session = await requireB2BCompany(c)
+  if (session instanceof Response) return session
+  const { company } = session
+
+  const limit = Number(company.credit_limit_clp ?? 0)
+  const used = Number(company.credit_used_clp ?? 0)
+  const creditPct = limit > 0 ? Math.round((used / limit) * 100) : 0
+
+  return c.json({
+    id: company.id,
+    razonSocial: company.razon_social,
+    rut: company.rut,
+    giro: company.giro,
+    address: company.address,
+    tier: company.tier,
+    status: company.status,
+    creditLimitClp: limit,
+    creditUsedClp: used,
+    walletBalanceClp: Number(company.wallet_balance_clp ?? 0),
+    paymentDays: Number(company.payment_days ?? 0),
+    customerId: company.customer_id,
+    creditPct,
+  })
+})
+
+// GET /api/b2b/catalogo — precios netos mayoristas. SOLO empresa autenticada
+// (nunca público anónimo, nunca cliente B2C normal — requisito explícito de
+// esta sesión). apps/web/.../b2b/catalogo/page.tsx corre como Server Component
+// y reenvía la cookie de sesión a mano (mismo patrón que serverFetch de
+// apps/cerebro/src/lib/api.ts — no una excepción nueva).
+app.get('/api/b2b/catalogo', async (c) => {
+  const session = await requireB2BCompany(c)
+  if (session instanceof Response) return session
+
+  const q = c.req.query('q')?.trim()
+  const qCond = q
+    ? sql`AND (p.name ILIKE ${'%' + q + '%'} OR p.sku ILIKE ${'%' + q + '%'} OR p.brand ILIKE ${'%' + q + '%'})`
+    : sql``
+
+  try {
+    const rows = await sql`
+      SELECT p.id, p.sku, p.name, p.brand, p.price_retail, p.price_b2b,
+             p.cold_chain, p.is_baes_eligible, p.weight_grams,
+             COALESCE(stock.qty_total, 0) AS stock_total
+      FROM products p
+      LEFT JOIN LATERAL (
+        SELECT COALESCE(SUM(i.quantity), 0) AS qty_total FROM inventory i WHERE i.product_id = p.id
+      ) stock ON true
+      WHERE p.status = 'active' AND p.price_b2b IS NOT NULL ${qCond}
+      ORDER BY p.name ASC
+      LIMIT 500
+    `
+
+    return c.json({
+      products: rows.map((r: any) => ({
+        id: r.id, sku: r.sku, name: r.name, brand: r.brand,
+        priceRetail: Number(r.price_retail), priceB2B: Number(r.price_b2b),
+        coldChain: r.cold_chain, isBaesEligible: r.is_baes_eligible,
+        weightGrams: r.weight_grams, stock: Number(r.stock_total),
+      })),
+    })
+  } catch (err) {
+    console.error('B2B catálogo error:', err)
+    return c.json({ error: 'Error al listar catálogo B2B' }, 500)
+  }
+})
+
+// POST /api/b2b/credit-request — apps/web/.../b2b/credito/page.tsx. company_id
+// SIEMPRE de la sesión (nunca del body) — mismo criterio que S10 con
+// customerId en /api/public/orders: una empresa no puede solicitar crédito a
+// nombre de otra adivinando su UUID. (El frontend anterior a esta sesión
+// mandaba un companyId tecleado a mano en un input de texto — se corrigió en
+// el mismo commit, ver apps/web/.../b2b/credito/page.tsx).
+app.post('/api/b2b/credit-request', async (c) => {
+  const session = await requireB2BCompany(c)
+  if (session instanceof Response) return session
+  const { company } = session
+
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ ok: false, error: 'JSON inválido' }, 400)
+  }
+
+  const amountClp = parseInt(body.amountClp, 10)
+  const reason = body.reason ? String(body.reason).trim() : null
+
+  if (!amountClp || amountClp <= 0) {
+    return c.json({ ok: false, error: 'Monto inválido.' }, 400)
+  }
+
+  const rl = await checkAndRecordRateLimit(c, 'b2b:credit-request', { limit: 20, windowMinutes: 5 }, company.id)
+  if (!rl.allowed) {
+    return c.json({ ok: false, error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  try {
+    const [created] = await sql`
+      INSERT INTO b2b_credit_requests (company_id, amount_clp, reason, status)
+      VALUES (${company.id}, ${amountClp}, ${reason}, 'pending')
+      RETURNING id
+    `
+
+    await enqueueEmail(
+      ADMIN_EMAIL,
+      `💳 Solicitud de crédito B2B — ${company.razon_social}`,
+      `<p><strong>${company.razon_social}</strong> (${company.rut}) solicitó ${amountClp.toLocaleString('es-CL')} CLP de crédito. Motivo: ${reason || 'No especificado'}.</p>`,
+      'contact-form-reply'
+    )
+
+    return c.json({ ok: true, id: created.id })
+  } catch (err) {
+    console.error('B2B credit-request error:', err)
+    return c.json({ ok: false, error: 'No se pudo enviar la solicitud.' }, 500)
+  }
+})
+
+// GET /api/b2b/credit-requests/:id — detalle de una solicitud. Accesible por
+// la empresa dueña (sesión B2B) o por staff owner/admin (mismo consumidor
+// potencial que /api/b2b/solicitudes, aunque hoy ningún frontend llama este
+// endpoint puntual — se construye igual porque el plan lo pide explícitamente
+// y GET /api/b2b/wallet/:id ya establece el mismo criterio de :id-vs-sesión).
+app.get('/api/b2b/credit-requests/:id', async (c) => {
+  const id = c.req.param('id')
+
+  const staffUser = await getOptionalSession(c)
+  if (staffUser && ['owner', 'admin'].includes(staffUser.role)) {
+    const [row] = await sql`
+      SELECT cr.id, cr.company_id, cr.amount_clp, cr.reason, cr.status,
+             cr.reviewed_at, cr.reviewer_note, cr.created_at,
+             comp.razon_social, comp.rut
+      FROM b2b_credit_requests cr
+      JOIN b2b_companies comp ON comp.id = cr.company_id
+      WHERE cr.id = ${id}
+      LIMIT 1
+    `
+    if (!row) return c.json({ error: 'Solicitud no encontrada' }, 404)
+    return c.json({
+      id: row.id, companyId: row.company_id, amountClp: Number(row.amount_clp),
+      reason: row.reason, status: row.status, reviewedAt: row.reviewed_at,
+      reviewerNote: row.reviewer_note, createdAt: row.created_at,
+      razonSocial: row.razon_social, rut: row.rut,
+    })
+  }
+
+  const session = await requireB2BCompany(c)
+  if (session instanceof Response) return session
+  const { company } = session
+
+  const [row] = await sql`
+    SELECT id, company_id, amount_clp, reason, status, reviewed_at, reviewer_note, created_at
+    FROM b2b_credit_requests
+    WHERE id = ${id} AND company_id = ${company.id}
+    LIMIT 1
+  `
+  if (!row) return c.json({ error: 'Solicitud no encontrada' }, 404)
+  return c.json({
+    id: row.id, companyId: row.company_id, amountClp: Number(row.amount_clp),
+    reason: row.reason, status: row.status, reviewedAt: row.reviewed_at,
+    reviewerNote: row.reviewer_note, createdAt: row.created_at,
+  })
+})
+
+// PATCH /api/b2b/credit-requests/:id/review — STAFF (owner/admin) —
+// apps/cerebro/.../b2b/solicitudes/page.tsx (botones Aprobar/Rechazar). NO
+// listado explícitamente en el brief de esta sesión bajo ese nombre exacto,
+// pero es el endpoint real que ese componente YA construido llama (confirmado
+// por grep antes de escribir código) — sin esto, "GET /api/b2b/solicitudes" no
+// tendría ninguna acción posible desde cerebro. Al aprobar, acredita el monto
+// en la wallet de la empresa (b2b_wallet_ledger + b2b_companies.wallet_balance_clp)
+// — es el único lugar del sistema que escribe en el ledger hoy. Una solicitud
+// ya revisada no se puede volver a revisar (409).
+app.patch('/api/b2b/credit-requests/:id/review', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  const id = c.req.param('id')
+  let body: any = {}
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  const status = body.status
+  const reviewerNote = body.reviewerNote ? String(body.reviewerNote).trim() : null
+
+  if (!['approved', 'rejected'].includes(status)) {
+    return c.json({ error: 'status debe ser approved o rejected' }, 400)
+  }
+
+  try {
+    const [reqRow] = await sql`
+      SELECT cr.id, cr.company_id, cr.amount_clp, cr.status, comp.razon_social, comp.customer_id
+      FROM b2b_credit_requests cr
+      JOIN b2b_companies comp ON comp.id = cr.company_id
+      WHERE cr.id = ${id}
+      LIMIT 1
+    `
+    if (!reqRow) return c.json({ error: 'Solicitud no encontrada' }, 404)
+    if (reqRow.status !== 'pending') {
+      return c.json({ error: 'Esta solicitud ya fue revisada' }, 409)
+    }
+
+    await sql`
+      UPDATE b2b_credit_requests
+      SET status = ${status}, reviewed_by = ${authUser.id}, reviewed_at = NOW(),
+          reviewer_note = ${reviewerNote}, updated_at = NOW()
+      WHERE id = ${id}
+    `
+
+    if (status === 'approved') {
+      const [comp] = await sql`SELECT wallet_balance_clp FROM b2b_companies WHERE id = ${reqRow.company_id}`
+      const newBalance = Number(comp.wallet_balance_clp) + Number(reqRow.amount_clp)
+
+      await sql`UPDATE b2b_companies SET wallet_balance_clp = ${newBalance} WHERE id = ${reqRow.company_id}`
+      await sql`
+        INSERT INTO b2b_wallet_ledger (company_id, type, amount_clp, balance_after, reference_id, reference_type, notes, created_by)
+        VALUES (${reqRow.company_id}, 'credit', ${reqRow.amount_clp}, ${newBalance}, ${reqRow.id}, 'credit_request', ${reviewerNote}, ${authUser.id})
+      `
+    }
+
+    const [customerRow] = await sql`SELECT email FROM customers WHERE id = ${reqRow.customer_id}`
+    const contactEmail = customerRow?.email ?? null
+
+    if (contactEmail) {
+      const label = status === 'approved' ? '✅ Aprobada' : '❌ Rechazada'
+      await enqueueEmail(
+        contactEmail,
+        `${label} — Solicitud de crédito ${reqRow.razon_social}`,
+        `<p>Tu solicitud de crédito por ${Number(reqRow.amount_clp).toLocaleString('es-CL')} CLP fue ${status === 'approved' ? 'aprobada' : 'rechazada'}.${reviewerNote ? ' Nota: ' + reviewerNote : ''}</p>`,
+        status === 'approved' ? 'quote-accepted' : 'quote-rejected'
+      )
+    }
+
+    return c.json({ ok: true })
+  } catch (err) {
+    console.error('B2B credit review error:', err)
+    return c.json({ error: 'Error al revisar solicitud' }, 500)
+  }
+})
+
+// GET /api/b2b/solicitudes — STAFF (owner/admin), apps/cerebro/.../b2b/solicitudes/page.tsx.
+// Pese al nombre ("solicitudes"), es específicamente el listado de solicitudes
+// de CRÉDITO (b2b_credit_requests) — no hay una pantalla de aprobación de
+// registro de EMPRESA nueva en cerebro hoy (ver decisión documentada en
+// POST /api/b2b/registro arriba). Confirmado leyendo el componente ya
+// existente antes de escribir esta ruta (grep, lección explícita de esta
+// sesión: verificar shape/consumidor real antes de construir).
+app.get('/api/b2b/solicitudes', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  const status = c.req.query('status')
+  const statusCond = status && ['pending', 'approved', 'rejected'].includes(status)
+    ? sql`WHERE cr.status = ${status}`
+    : sql``
+
+  try {
+    const rows = await sql`
+      SELECT cr.id, cr.company_id, cr.amount_clp, cr.reason, cr.status,
+             cr.reviewed_at, cr.reviewer_note, cr.created_at,
+             comp.razon_social, comp.rut, comp.tier
+      FROM b2b_credit_requests cr
+      JOIN b2b_companies comp ON comp.id = cr.company_id
+      ${statusCond}
+      ORDER BY cr.created_at DESC
+      LIMIT 200
+    `
+    return c.json({
+      solicitudes: rows.map((r: any) => ({
+        id: r.id, companyId: r.company_id, amountClp: Number(r.amount_clp),
+        reason: r.reason, status: r.status, reviewedAt: r.reviewed_at,
+        reviewerNote: r.reviewer_note, createdAt: r.created_at,
+        razonSocial: r.razon_social, rut: r.rut, tier: r.tier,
+      })),
+    })
+  } catch (err) {
+    console.error('B2B solicitudes error:', err)
+    return c.json({ error: 'Error al listar solicitudes' }, 500)
+  }
+})
+
+// GET /api/b2b/pedidos/:id — apps/web/.../b2b/dashboard/page.tsx. :id es el id
+// de la EMPRESA (empresa.id, no de un pedido) — confirmado leyendo el
+// componente (`fetch(.../b2b/pedidos/${data.id})` justo después de cargar
+// /empresa/me). El :id del param se verifica contra la empresa de la sesión —
+// 403 si no coincide (una empresa no puede leer los pedidos de otra
+// adivinando su UUID). Los pedidos B2B no tienen columna propia en `orders`
+// (no existe orders.company_id) — se resuelven por customer_id = el dueño de
+// la empresa + channel = 'b2b', el mismo criterio que ya usa el enum
+// order_channel (packages/db/src/schema/orders.ts).
+app.get('/api/b2b/pedidos/:id', async (c) => {
+  const session = await requireB2BCompany(c)
+  if (session instanceof Response) return session
+  const { company } = session
+
+  const id = c.req.param('id')
+  if (id !== company.id) {
+    return c.json({ error: 'No autorizado para ver los pedidos de esta empresa' }, 403)
+  }
+
+  try {
+    const rows = await sql`
+      SELECT id, number, total, status, dte_status, dte_folio, created_at
+      FROM orders
+      WHERE customer_id = ${company.customer_id} AND channel = 'b2b'
+      ORDER BY created_at DESC
+      LIMIT 50
+    `
+    return c.json({
+      pedidos: rows.map((r: any) => ({
+        id: r.id, number: r.number, total: r.total, status: r.status,
+        dteStatus: r.dte_status, dteFolio: r.dte_folio, createdAt: r.created_at,
+      })),
+    })
+  } catch (err) {
+    console.error('B2B pedidos error:', err)
+    return c.json({ error: 'Error al listar pedidos' }, 500)
+  }
+})
+
+// GET /api/b2b/wallet/:id — apps/web/.../b2b/estado-cuenta/page.tsx. Mismo
+// criterio de verificación de :id que /pedidos/:id arriba.
+app.get('/api/b2b/wallet/:id', async (c) => {
+  const session = await requireB2BCompany(c)
+  if (session instanceof Response) return session
+  const { company } = session
+
+  const id = c.req.param('id')
+  if (id !== company.id) {
+    return c.json({ error: 'No autorizado para ver la wallet de esta empresa' }, 403)
+  }
+
+  try {
+    const ledger = await sql`
+      SELECT id, type, amount_clp, balance_after, notes, created_at
+      FROM b2b_wallet_ledger
+      WHERE company_id = ${company.id}
+      ORDER BY created_at DESC
+      LIMIT 100
+    `
+    return c.json({
+      empresa: {
+        id: company.id,
+        razonSocial: company.razon_social,
+        walletBalanceClp: Number(company.wallet_balance_clp ?? 0),
+        creditLimitClp: Number(company.credit_limit_clp ?? 0),
+        creditUsedClp: Number(company.credit_used_clp ?? 0),
+      },
+      ledger: ledger.map((r: any) => ({
+        id: r.id, type: r.type, amountClp: Number(r.amount_clp),
+        balanceAfter: Number(r.balance_after), notes: r.notes, createdAt: r.created_at,
+      })),
+    })
+  } catch (err) {
+    console.error('B2B wallet error:', err)
+    return c.json({ error: 'Error al obtener wallet' }, 500)
   }
 })
 
