@@ -2,11 +2,19 @@ import { Context, Next } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { ApiKeyService } from '../services/api-key.service'
 import { AuthService } from '../services/auth.service'
-import { JWT_SECRET } from '../db'
+import { JWT_SECRET, CUSTOMER_JWT_SECRET } from '../db'
 
 // Must match SESSION_COOKIE_NAME in server.ts. There's no shared constants module
 // between server.ts and middleware/ today, so this is kept in sync manually.
 const SESSION_COOKIE_NAME = 'seul_session'
+
+// Customer-facing session cookie (S09, Fase 3) — deliberately a DIFFERENT name
+// from SESSION_COOKIE_NAME above so it can never collide with (or be confused
+// for) the staff cookie, and signed with CUSTOMER_JWT_SECRET (a distinct key
+// derived in db.ts) so a customer session can never be replayed against a
+// staff-only endpoint via Authorization: Bearer, or vice versa. Must match the
+// constant of the same name in server.ts (same manual-sync situation as above).
+const CUSTOMER_SESSION_COOKIE_NAME = 'seul_customer_session'
 
 /**
  * Middleware para validar Bearer token (JWT) o API Key
@@ -110,6 +118,46 @@ export async function requireSession(
   }
 
   return user
+}
+
+/**
+ * requireCustomerSession — S09 (Fase 3) counterpart to `requireSession` above,
+ * but for END CUSTOMERS (apps/web — tienda B2C/B2B), a completely separate
+ * auth system from staff (owner/admin/staff/delivery). Do NOT merge these two:
+ * separate cookie name, separate signing secret (CUSTOMER_JWT_SECRET), separate
+ * payload shape (`customerId`, not `id`; a `type: 'customer'` discriminator
+ * checked explicitly below so a customer token can never be mistaken for a
+ * staff one even if some future refactor makes the payloads look similar).
+ *
+ * Usage (identical calling convention to requireSession, no roles — customers
+ * have no role system, just "authenticated as this customer or not"):
+ *
+ *   const customer = await requireCustomerSession(c)
+ *   if (customer instanceof Response) return customer
+ *   // customer is now { customerId, email, name }
+ */
+export async function requireCustomerSession(
+  c: Context
+): Promise<{ customerId: string; email: string; name: string } | Response> {
+  const authHeader = c.req.header('Authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+  const token = bearerToken || getCookie(c, CUSTOMER_SESSION_COOKIE_NAME)
+
+  if (!token) {
+    return c.json({ error: 'Not authenticated' }, 401)
+  }
+
+  const verified = AuthService.verifyToken(token, CUSTOMER_JWT_SECRET)
+  if (!verified.ok) {
+    return c.json({ error: 'Not authenticated' }, 401)
+  }
+
+  const decoded = verified.decoded as any
+  if (decoded.type !== 'customer' || !decoded.customerId) {
+    return c.json({ error: 'Not authenticated' }, 401)
+  }
+
+  return { customerId: decoded.customerId, email: decoded.email, name: decoded.name }
 }
 
 // Like requireSession, but never fails: returns the authenticated user if a

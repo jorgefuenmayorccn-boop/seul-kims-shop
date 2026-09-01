@@ -316,4 +316,105 @@ export const templates = {
       </div>
     </div>
   `,
+
+  // ==========================================================================
+  // CLIENTE FINAL (apps/web, tienda B2C/B2B) — S09, Fase 3. Separadas de las
+  // plantillas de STAFF de arriba (initialCredentials/passwordChangedSuccess)
+  // a propósito: distinto branding (Seoul Shop, no "SEUL KING OS"), distinto
+  // link de destino (seoulshop.cl, no cmr.seoulshop.cl).
+  // ==========================================================================
+
+  // EMAIL: Credenciales iniciales de cliente (tras registro en /cuenta/registro)
+  customerInitialCredentials: ({ email, password, name }: { email: string; password: string; name: string }) => `
+    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: white; padding: 30px; border-radius: 8px; border-top: 4px solid #d7263d;">
+        <h1 style="color: #d7263d; margin-top: 0;">¡Bienvenido a Seoul Shop!</h1>
+
+        <p style="color: #555; line-height: 1.6;">
+          Hola <strong>${name}</strong>,<br>
+          Tu cuenta en Seoul Shop Viña del Mar ha sido creada.
+        </p>
+
+        <div style="background: #f0f0f0; padding: 20px; border-radius: 6px; margin: 20px 0;">
+          <p style="margin: 0 0 10px 0; color: #888;"><small>Tus credenciales de acceso:</small></p>
+          <p style="margin: 5px 0; font-family: monospace; font-size: 14px;"><strong>Email:</strong> ${email}</p>
+          <p style="margin: 5px 0; font-family: monospace; font-size: 14px;"><strong>Contraseña temporal:</strong> ${password}</p>
+        </div>
+
+        <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;">
+          <p style="margin: 0; color: #856404;"><strong>Importante:</strong></p>
+          <p style="margin: 5px 0 0 0; color: #856404; font-size: 13px;">
+            En tu primer inicio de sesión te pediremos cambiar esta contraseña temporal por una tuya.
+          </p>
+        </div>
+
+        <div style="margin: 30px 0;">
+          <a href="https://seoulshop.cl/cuenta/login" style="display: inline-block; background: #d7263d; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Iniciar sesión →
+          </a>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+        <p style="color: #888; font-size: 12px; text-align: center;">
+          Seoul Shop Viña del Mar<br>
+          Si no creaste esta cuenta, ignora este correo o contáctanos.
+        </p>
+      </div>
+    </div>
+  `,
+
+  // EMAIL: Enlace para restablecer contraseña de cliente (POST /api/customer/password-forgot)
+  customerPasswordResetLink: ({ name, resetUrl }: { name: string; resetUrl: string }) => `
+    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: white; padding: 30px; border-radius: 8px; border-top: 4px solid #d7263d;">
+        <h1 style="color: #d7263d; margin-top: 0;">Recuperar contraseña</h1>
+
+        <p style="color: #555; line-height: 1.6;">
+          Hola${name ? ` <strong>${name}</strong>` : ''},<br>
+          Recibimos una solicitud para restablecer la contraseña de tu cuenta en Seoul Shop.
+        </p>
+
+        <div style="margin: 30px 0;">
+          <a href="${resetUrl}" style="display: inline-block; background: #d7263d; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+            Restablecer contraseña →
+          </a>
+        </div>
+
+        <p style="color: #888; font-size: 13px;">
+          Este enlace expira en 1 hora y solo puede usarse una vez. Si no solicitaste este cambio, ignora este correo — tu contraseña actual seguirá funcionando.
+        </p>
+
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+        <p style="color: #888; font-size: 12px; text-align: center;">
+          Seoul Shop Viña del Mar
+        </p>
+      </div>
+    </div>
+  `,
+
+  // EMAIL: Confirmación de cambio de contraseña de cliente
+  customerPasswordChanged: ({ name, email, timestamp }: { name: string; email: string; timestamp: string }) => `
+    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: white; padding: 30px; border-radius: 8px; border-top: 4px solid #28a745;">
+        <h1 style="color: #28a745; margin-top: 0;">Contraseña actualizada</h1>
+
+        <p style="color: #555; line-height: 1.6;">
+          Hola <strong>${name}</strong>,<br>
+          La contraseña de tu cuenta en Seoul Shop fue cambiada exitosamente.
+        </p>
+
+        <div style="background: #f0f0f0; padding: 15px; border-radius: 6px; margin: 20px 0;">
+          <p style="margin: 0; color: #666; font-size: 13px;">
+            <strong>Email:</strong> ${email}<br>
+            <strong>Cambio realizado:</strong> ${timestamp}
+          </p>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
+        <p style="color: #888; font-size: 12px; text-align: center;">
+          Seoul Shop Viña del Mar | Si no realizaste este cambio, contáctanos inmediatamente.
+        </p>
+      </div>
+    </div>
+  `,
 }

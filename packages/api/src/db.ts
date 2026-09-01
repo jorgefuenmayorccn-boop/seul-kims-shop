@@ -1,4 +1,5 @@
 import postgres from 'postgres'
+import * as crypto from 'crypto'
 
 // ============================================================================
 // ENV & CONFIG
@@ -20,6 +21,21 @@ export const JWT_SECRET = (() => {
   }
   return 'seul-king-os-secret-dev'
 })()
+
+// CUSTOMER_JWT_SECRET (S09) — customer-facing sessions (apps/web, cookie
+// `seul_customer_session`) must never be verifiable with the STAFF JWT_SECRET
+// above, and vice versa. Rather than requiring a brand-new Railway secret
+// (risk: forgetting to set it would `throw` and crash the whole API on next
+// deploy, same failure mode JWT_SECRET/DATABASE_URL guard against), this is
+// deterministically derived from JWT_SECRET via HMAC-SHA256 with a fixed,
+// distinguishing label. Result: a customer JWT is cryptographically invalid
+// if presented as a staff Bearer token (and vice versa) — signature
+// verification fails outright, not just a payload-shape mismatch — with zero
+// new ops dependency. See middleware/auth.middleware.ts `requireCustomerSession`.
+export const CUSTOMER_JWT_SECRET = crypto
+  .createHmac('sha256', JWT_SECRET)
+  .update('seul-customer-session-v1')
+  .digest('hex')
 
 // Build DATABASE_URL from env vars or use direct URL
 const DATABASE_URL = (() => {

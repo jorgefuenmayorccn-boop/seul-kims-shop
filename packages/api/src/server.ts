@@ -5,13 +5,13 @@ import { setCookie, getCookie, deleteCookie } from 'hono/cookie'
 import { serve } from '@hono/node-server'
 import * as crypto from 'crypto'
 import jwt from 'jsonwebtoken'
-import { sql, ADMIN_EMAIL, JWT_SECRET } from './db'
+import { sql, ADMIN_EMAIL, JWT_SECRET, CUSTOMER_JWT_SECRET } from './db'
 import { enqueueEmail, templates } from './email-queue'
 import { apiKeysController } from './controllers/api-keys'
 import { validateApiKeyMiddleware } from './services/api-key.service'
 import { AuthService } from './services/auth.service'
 import { PasswordService } from './services/password.service'
-import { requireAuthMiddleware, requireScopeMiddleware, requireSession, getOptionalSession } from './middleware/auth.middleware'
+import { requireAuthMiddleware, requireScopeMiddleware, requireSession, getOptionalSession, requireCustomerSession } from './middleware/auth.middleware'
 import { emitPosEvent, emitDeliveryEvent, onPosEvent, onDeliveryEvent } from './sse-broadcaster'
 
 // ============================================================================
@@ -33,6 +33,20 @@ function sessionCookieDomain(c: any): string | undefined {
   // subdomains). Local dev (localhost) must NOT set Domain or browsers reject the cookie.
   return origin.includes('seoulshop.cl') ? '.seoulshop.cl' : undefined
 }
+
+// CUSTOMER session cookie (S09, Fase 3) — deliberately a DIFFERENT name from
+// SESSION_COOKIE_NAME (staff) so the two can never collide or be confused, and
+// signed with CUSTOMER_JWT_SECRET (see db.ts) so a customer token is
+// cryptographically invalid if replayed against a staff endpoint or vice versa.
+// Same NOT-"__Host-" + Domain=.seoulshop.cl pattern as the staff cookie above —
+// that prefix is strictly host-only per spec and was the root cause of the
+// original cross-subdomain login bug fixed in Fase 0; not repeating it here.
+const CUSTOMER_SESSION_COOKIE_NAME = 'seul_customer_session'
+
+// Public storefront base URL — used to build links inside customer-facing
+// emails (password reset, welcome). Distinct from the staff panel's
+// cmr.seoulshop.cl links used in the staff email templates.
+const CUSTOMER_WEB_URL = process.env.CUSTOMER_WEB_URL || 'https://seoulshop.cl'
 
 // ============================================================================
 // APP
@@ -588,6 +602,447 @@ async function handleChangePassword(c: any) {
 }
 
 app.post('/api/auth/change-password', handleChangePassword)
+
+// ============================================================================
+// CUSTOMER AUTH ENDPOINTS (S09, Fase 3) — end customers (apps/web, tienda B2C
+// y portal B2B comparten la misma tabla `customers` / mismo login, ver
+// b2b/login/page.tsx). COMPLETAMENTE SEPARADO del auth de staff arriba: tabla
+// distinta (`customers`, no `users`), cookie distinta (CUSTOMER_SESSION_COOKIE_NAME,
+// no SESSION_COOKIE_NAME), secret de firma distinta (CUSTOMER_JWT_SECRET, ver
+// db.ts), sin roles/RBAC (un cliente solo tiene "autenticado como este cliente
+// o no"). No reutiliza AuthService.login (que consulta `users`) — lógica propia
+// pero mismo servicio de hashing (PasswordService, PBKDF2-SHA256) y mismo
+// verificador de token (AuthService.verifyToken, parametrizado con el secret
+// distinto).
+// ============================================================================
+
+// Password complexity — misma regla que handleChangePassword (staff) arriba,
+// duplicada intencionalmente (ese código tampoco la extrajo a helper) para no
+// tocar el archivo de auth de staff.
+function validateCustomerPasswordComplexity(password: string): string | null {
+  if (!password || password.length < 8) return 'La contraseña debe tener al menos 8 caracteres.'
+  if (!/[A-Z]/.test(password)) return 'La contraseña debe contener al menos una mayúscula.'
+  if (!/[0-9]/.test(password)) return 'La contraseña debe contener al menos un número.'
+  return null
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+// POST /api/customer/register — crea cuenta de cliente final. El formulario
+// (apps/web/.../cuenta/registro/page.tsx) NO pide contraseña — igual que el
+// onboarding de staff (seedRealUsersIfNeeded/initialCredentials arriba), se
+// genera una contraseña temporal, se hashea, se envía por correo, y
+// must_change_password queda en true para forzar el cambio en el primer login.
+// Si el email ya existe como cliente "fantasma" (creado por POS/checkout de
+// invitado, sin password_hash — customers.email es UNIQUE, así que un INSERT
+// duplicado rompería la constraint), esta cuenta se "reclama": se actualiza esa
+// misma fila en vez de crear una duplicada, preservando el historial de pedidos
+// ya asociado a ese customer_id.
+app.post('/api/customer/register', async (c) => {
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ ok: false, error: 'JSON inválido' }, 400)
+  }
+
+  const name = (body.name || '').trim()
+  const email = (body.email || '').trim().toLowerCase()
+  const marketingOptIn = !!body.marketingOptIn
+
+  if (!name || !email) {
+    return c.json({ ok: false, error: 'Nombre y correo son obligatorios.' }, 400)
+  }
+  if (!isValidEmail(email)) {
+    return c.json({ ok: false, error: 'Correo electrónico inválido.' }, 400)
+  }
+
+  const rl = await checkAndRecordRateLimit(c, 'customer:register', { limit: 20, windowMinutes: 5 })
+  if (!rl.allowed) {
+    return c.json({ ok: false, error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  try {
+    const existing = await sql`
+      SELECT id, password_hash FROM customers WHERE lower(email) = ${email} AND deleted_at IS NULL LIMIT 1
+    `
+
+    if (existing.length > 0 && existing[0].password_hash) {
+      return c.json({ ok: false, error: 'Ya existe una cuenta con este correo. Inicia sesión.' }, 409)
+    }
+
+    const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
+    const passwordHash = PasswordService.hashPassword(tempPassword)
+    const marketingOptInAt = marketingOptIn ? new Date() : null
+
+    if (existing.length > 0) {
+      // Reclamar cliente "fantasma" existente (creado por POS/checkout invitado)
+      await sql`
+        UPDATE customers
+        SET name = ${name},
+            password_hash = ${passwordHash},
+            must_change_password = true,
+            email_verified = false,
+            marketing_opt_in = ${marketingOptIn},
+            marketing_opt_in_at = ${marketingOptInAt}
+        WHERE id = ${existing[0].id}
+      `
+    } else {
+      await sql`
+        INSERT INTO customers (email, name, password_hash, must_change_password, email_verified, marketing_opt_in, marketing_opt_in_at, created_channel)
+        VALUES (${email}, ${name}, ${passwordHash}, true, false, ${marketingOptIn}, ${marketingOptInAt}, 'web')
+      `
+    }
+
+    await enqueueEmail(
+      email,
+      '¡Bienvenido a Seoul Shop!',
+      templates.customerInitialCredentials({ email, password: tempPassword, name }),
+      'welcome'
+    )
+
+    return c.json({ ok: true })
+  } catch (error: any) {
+    console.error('❌ Error en customer/register:', error)
+    return c.json({ ok: false, error: 'No se pudo crear la cuenta.' }, 500)
+  }
+})
+
+// AUTH LOGIN HANDLER — cliente (shared por /api/customer/login)
+async function handleCustomerLogin(c: any) {
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ ok: false, error: 'JSON inválido' }, 400)
+  }
+
+  const email = (body.email || '').trim().toLowerCase()
+  const password = body.password || ''
+
+  if (!email || !password) {
+    return c.json({ ok: false, error: 'Correo y contraseña son obligatorios.' }, 400)
+  }
+
+  const rl = await checkAndRecordRateLimit(c, 'customer:login', { limit: 20, windowMinutes: 5 }, email)
+  if (!rl.allowed) {
+    return c.json({ ok: false, error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  try {
+    const rows = await sql`
+      SELECT id, email, name, password_hash, email_verified, must_change_password, marketing_opt_in
+      FROM customers
+      WHERE lower(email) = ${email} AND deleted_at IS NULL
+      LIMIT 1
+    `
+
+    if (rows.length === 0 || !rows[0].password_hash) {
+      return c.json({ ok: false, error: 'Correo o contraseña incorrectos.' }, 401)
+    }
+
+    const customer = rows[0]
+    const validPassword = PasswordService.verifyPassword(password, customer.password_hash)
+    if (!validPassword) {
+      return c.json({ ok: false, error: 'Correo o contraseña incorrectos.' }, 401)
+    }
+
+    // Verificación implícita del correo: si el cliente puede iniciar sesión con
+    // la contraseña que le enviamos por correo, ya demostró ser dueño de ese
+    // correo — no hay un endpoint separado de "click para verificar" en S09
+    // (decisión de alcance documentada en SEUL_SESSION_09.md).
+    const emailVerified = true
+    await sql`
+      UPDATE customers
+      SET last_login_at = NOW(),
+          email_verified = true,
+          email_verified_at = COALESCE(email_verified_at, NOW())
+      WHERE id = ${customer.id}
+    `
+
+    const token = jwt.sign(
+      { customerId: customer.id, email: customer.email, name: customer.name, type: 'customer' },
+      CUSTOMER_JWT_SECRET,
+      { expiresIn: '7d' }
+    )
+
+    setCookie(c, CUSTOMER_SESSION_COOKIE_NAME, token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Lax',
+      path: '/',
+      maxAge: 604800, // 7 días
+      domain: sessionCookieDomain(c),
+    })
+
+    const response = c.json({
+      ok: true,
+      mustChangePassword: customer.must_change_password,
+      customer: {
+        id: customer.id,
+        email: customer.email,
+        name: customer.name,
+        emailVerified,
+        mustChangePassword: customer.must_change_password,
+        marketingOptIn: customer.marketing_opt_in,
+      },
+    })
+
+    // Mismo patrón que handleLogin (staff): reflejar el Origin real, nunca '*',
+    // porque el fetch usa credentials: 'include'.
+    const origin = c.req.header('Origin') || CUSTOMER_WEB_URL
+    const responseOrigin = ALLOWED_ORIGINS.includes(origin) ? origin : CUSTOMER_WEB_URL
+    response.headers.set('Access-Control-Allow-Origin', responseOrigin)
+    response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS, GET')
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    response.headers.set('Access-Control-Allow-Credentials', 'true')
+
+    return response
+  } catch (error: any) {
+    console.error('❌ Error en customer/login:', error)
+    return c.json({ ok: false, error: 'Error interno.' }, 500)
+  }
+}
+
+app.post('/api/customer/login', handleCustomerLogin)
+
+// OPTIONS preflight — mismo patrón exacto que /api/auth/login (staff), lección
+// explícita de esta sesión: reutilizar loginPreflightHeaders, no inventar uno
+// nuevo. Es genérico (solo lee el header Origin), sirve igual para este login.
+app.options('/api/customer/login', (c) => c.json(null, 200, loginPreflightHeaders(c)))
+
+// GET /api/customer/me
+app.get('/api/customer/me', async (c) => {
+  const customerAuth = await requireCustomerSession(c)
+  if (customerAuth instanceof Response) return customerAuth
+
+  const rows = await sql`
+    SELECT id, email, name, email_verified, must_change_password, marketing_opt_in
+    FROM customers
+    WHERE id = ${customerAuth.customerId} AND deleted_at IS NULL
+    LIMIT 1
+  `
+  if (rows.length === 0) {
+    return c.json({ ok: false, error: 'Cuenta no encontrada.' }, 401)
+  }
+
+  const customer = rows[0]
+  return c.json({
+    ok: true,
+    customer: {
+      id: customer.id,
+      email: customer.email,
+      name: customer.name,
+      emailVerified: customer.email_verified,
+      mustChangePassword: customer.must_change_password,
+      marketingOptIn: customer.marketing_opt_in,
+    },
+  })
+})
+
+// POST /api/customer/logout — mismo patrón que handleLogout (staff): borrar la
+// cookie con exactamente los mismos atributos (path + domain) con los que se
+// seteó, si no el browser no la borra de verdad (bug ya corregido del lado
+// staff, no repetido acá).
+app.post('/api/customer/logout', async (c) => {
+  deleteCookie(c, CUSTOMER_SESSION_COOKIE_NAME, {
+    path: '/',
+    domain: sessionCookieDomain(c),
+  })
+  const response = c.json({ ok: true })
+  const origin = c.req.header('Origin')
+  response.headers.set('Access-Control-Allow-Origin', origin || CUSTOMER_WEB_URL)
+  response.headers.set('Access-Control-Allow-Credentials', 'true')
+  return response
+})
+
+// POST /api/customer/password-change — autenticado, requiere contraseña actual
+app.post('/api/customer/password-change', async (c) => {
+  const customerAuth = await requireCustomerSession(c)
+  if (customerAuth instanceof Response) return customerAuth
+
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ ok: false, error: 'JSON inválido' }, 400)
+  }
+
+  const { currentPassword, newPassword } = body
+  if (!currentPassword || !newPassword) {
+    return c.json({ ok: false, error: 'Faltan campos de contraseña.' }, 400)
+  }
+
+  const complexityError = validateCustomerPasswordComplexity(newPassword)
+  if (complexityError) {
+    return c.json({ ok: false, error: complexityError }, 400)
+  }
+
+  try {
+    const rows = await sql`
+      SELECT id, email, name, password_hash FROM customers WHERE id = ${customerAuth.customerId} AND deleted_at IS NULL
+    `
+    if (rows.length === 0) {
+      return c.json({ ok: false, error: 'Cuenta no encontrada.' }, 404)
+    }
+
+    const customer = rows[0]
+    if (!PasswordService.verifyPassword(currentPassword, customer.password_hash)) {
+      return c.json({ ok: false, error: 'La contraseña actual es incorrecta.' }, 401)
+    }
+
+    const newHash = PasswordService.hashPassword(newPassword)
+    await sql`
+      UPDATE customers
+      SET password_hash = ${newHash}, must_change_password = false
+      WHERE id = ${customer.id}
+    `
+
+    await enqueueEmail(
+      customer.email,
+      'Tu contraseña fue actualizada',
+      templates.customerPasswordChanged({
+        name: customer.name,
+        email: customer.email,
+        timestamp: new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' }),
+      }),
+      'password-reset'
+    )
+
+    return c.json({ ok: true })
+  } catch (error: any) {
+    console.error('❌ Error en customer/password-change:', error)
+    return c.json({ ok: false, error: 'No se pudo cambiar la contraseña.' }, 500)
+  }
+})
+
+// POST /api/customer/password-forgot — NUNCA revela si el correo existe.
+// Rate-limited por email (además de la protección genérica por IP que ya da
+// el fallback de checkAndRecordRateLimit) para no poder usar este endpoint
+// para bombardear la bandeja de entrada de una víctima.
+app.post('/api/customer/password-forgot', async (c) => {
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ ok: false, error: 'JSON inválido' }, 400)
+  }
+
+  const email = (body.email || '').trim().toLowerCase()
+  if (!email) {
+    return c.json({ ok: false, error: 'Correo obligatorio.' }, 400)
+  }
+
+  const rl = await checkAndRecordRateLimit(c, 'customer:password-forgot', { limit: 20, windowMinutes: 5 }, email)
+  if (!rl.allowed) {
+    // Incluso rate-limited, respondemos ok:true — el mensaje de "demasiadas
+    // solicitudes" en sí mismo no revela si la cuenta existe, pero seguir
+    // devolviendo el mismo 200 genérico es más simple y consistente con el
+    // resto de este endpoint (nunca revelar), sin perder la protección: el
+    // INSERT/envío de correo de abajo simplemente no ocurre.
+    return c.json({ ok: true })
+  }
+
+  try {
+    const rows = await sql`
+      SELECT id, name, password_hash FROM customers
+      WHERE lower(email) = ${email} AND deleted_at IS NULL
+      LIMIT 1
+    `
+
+    if (rows.length > 0 && rows[0].password_hash) {
+      const customer = rows[0]
+      const token = crypto.randomBytes(32).toString('hex')
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000) // 1h
+
+      await sql`
+        INSERT INTO password_reset_tokens (token, customer_id, expires_at)
+        VALUES (${token}, ${customer.id}, ${expiresAt})
+      `
+
+      const resetUrl = `${CUSTOMER_WEB_URL}/cuenta/recuperar/${token}`
+      await enqueueEmail(
+        email,
+        'Recuperar tu contraseña — Seoul Shop',
+        templates.customerPasswordResetLink({ name: customer.name, resetUrl }),
+        'password-reset'
+      )
+    }
+    // Si no existe o es una cuenta sin password (fantasma de POS), no hacemos
+    // nada — pero respondemos exactamente igual para no revelar existencia.
+  } catch (error: any) {
+    console.error('❌ Error en customer/password-forgot:', error)
+    // No revelar el error tampoco — mismo ok:true genérico.
+  }
+
+  return c.json({ ok: true })
+})
+
+// POST /api/customer/password-reset — con token de un solo uso (tabla
+// password_reset_tokens, ya modelada en customer-auth.ts, TTL 1h)
+app.post('/api/customer/password-reset', async (c) => {
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ ok: false, error: 'JSON inválido' }, 400)
+  }
+
+  const { token, newPassword } = body
+  if (!token || !newPassword) {
+    return c.json({ ok: false, error: 'Faltan campos.' }, 400)
+  }
+
+  const complexityError = validateCustomerPasswordComplexity(newPassword)
+  if (complexityError) {
+    return c.json({ ok: false, error: complexityError }, 400)
+  }
+
+  try {
+    const rows = await sql`
+      SELECT prt.customer_id, prt.expires_at, prt.used_at, c.email, c.name
+      FROM password_reset_tokens prt
+      JOIN customers c ON c.id = prt.customer_id
+      WHERE prt.token = ${token}
+      LIMIT 1
+    `
+
+    if (rows.length === 0) {
+      return c.json({ ok: false, error: 'Enlace inválido o expirado.' }, 400)
+    }
+
+    const row = rows[0]
+    if (row.used_at || new Date(row.expires_at).getTime() < Date.now()) {
+      return c.json({ ok: false, error: 'Enlace inválido o expirado.' }, 400)
+    }
+
+    const newHash = PasswordService.hashPassword(newPassword)
+    await sql`
+      UPDATE customers
+      SET password_hash = ${newHash}, must_change_password = false
+      WHERE id = ${row.customer_id}
+    `
+    await sql`UPDATE password_reset_tokens SET used_at = NOW() WHERE token = ${token}`
+
+    await enqueueEmail(
+      row.email,
+      'Tu contraseña fue actualizada',
+      templates.customerPasswordChanged({
+        name: row.name,
+        email: row.email,
+        timestamp: new Date().toLocaleString('es-CL', { timeZone: 'America/Santiago' }),
+      }),
+      'password-reset'
+    )
+
+    return c.json({ ok: true })
+  } catch (error: any) {
+    console.error('❌ Error en customer/password-reset:', error)
+    return c.json({ ok: false, error: 'No se pudo restablecer la contraseña.' }, 500)
+  }
+})
 
 // ============================================================================
 // SHARED AUTH HELPER — JWT via Authorization header or session cookie.
