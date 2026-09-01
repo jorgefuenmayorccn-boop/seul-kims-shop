@@ -46,7 +46,7 @@ const corsOptions = cors({
     'https://seul-kims-shop.vercel.app', // Vercel preview URLs
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 })
 
@@ -1149,7 +1149,10 @@ app.post('/api/orders', async (c) => {
 })
 
 // POST /api/orders/:id/status
-app.post('/api/orders/:id/status', async (c) => {
+// También registrado como PATCH: apps/cerebro/.../comandas/page.tsx (drag-and-drop
+// del Kanban, agregado en S04) llama PATCH en vez de POST — mismo handler, dos
+// métodos, para no romper ningún consumidor existente que ya use POST.
+async function handleOrderStatusUpdate(c: any) {
   try {
     const { id } = c.req.param()
     const { status, customer_email, eta } = await c.req.json()
@@ -1183,7 +1186,9 @@ app.post('/api/orders/:id/status', async (c) => {
     console.error('Status error:', err)
     return c.json({ error: 'Error' }, 500)
   }
-})
+}
+app.post('/api/orders/:id/status', handleOrderStatusUpdate)
+app.patch('/api/orders/:id/status', handleOrderStatusUpdate)
 
 // POST /api/deliveries/:id/photo
 app.post('/api/deliveries/:id/photo', async (c) => {
