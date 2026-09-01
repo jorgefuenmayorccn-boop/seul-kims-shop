@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { streamSSE } from 'hono/streaming'
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie'
 import { serve } from '@hono/node-server'
 import * as crypto from 'crypto'
@@ -11,6 +12,7 @@ import { validateApiKeyMiddleware } from './services/api-key.service'
 import { AuthService } from './services/auth.service'
 import { PasswordService } from './services/password.service'
 import { requireAuthMiddleware, requireScopeMiddleware, requireSession, getOptionalSession } from './middleware/auth.middleware'
+import { emitPosEvent, emitDeliveryEvent, onPosEvent, onDeliveryEvent } from './sse-broadcaster'
 
 // ============================================================================
 // SESSION COOKIE
@@ -1129,6 +1131,25 @@ app.post('/api/orders', async (c) => {
 
     const queue_ids = [queueIdConfirmation, queueIdAdminNotice]
 
+    // SSE (S08, Fase 2): notify every connected POS terminal in real time —
+    // emit at the moment of change, no polling. Channel is hardcoded 'web'
+    // above (this endpoint has no other caller today), which is exactly the
+    // "external channel" the POS client-side filter (`data.channel !== 'pos'`
+    // in apps/pos/src/lib/order-events.ts) is built to surface.
+    emitPosEvent({
+      type: 'order.created',
+      channel: 'web',
+      payload: {
+        orderId: order.id,
+        number: order.number,
+        channel: 'web',
+        total: Number(total),
+        deliveryMode: delivery_mode || 'delivery',
+        itemCount: Array.isArray(items) ? items.length : 0,
+        createdAt: new Date().toISOString(),
+      },
+    })
+
     // Alerta de pedido grande
     if (Number(total) >= 2_000_000) {
       const queueIdLargeOrder = await enqueueEmail(
@@ -1467,6 +1488,51 @@ app.put('/api/delivery/assignments/:id/assign', async (c) => {
       RETURNING id
     `
     if (!assignment) return c.json({ error: 'Assignment not found' }, 404)
+
+    // SSE (S08, Fase 2): fire a targeted dispatch alert to the assigned
+    // driver only — never a broadcast (see sse-broadcaster.ts). One extra
+    // read here, triggered only by an actual assign action (not a timer),
+    // so it does not add per-connection DB load.
+    try {
+      const [details] = await sql`
+        SELECT
+          da.id AS assignment_id, da.amount_to_collect, da.payment_at_door,
+          o.id AS order_id, o.number AS order_number, o.total, o.delivery_mode,
+          o.delivery_address, o.metro_station, o.metro_slot,
+          COALESCE(o.guest_name, cu.name)   AS customer_name,
+          COALESCE(o.guest_phone, cu.phone) AS customer_phone,
+          cu.commune
+        FROM delivery_assignments da
+        JOIN orders o ON o.id = da.order_id
+        LEFT JOIN customers cu ON cu.id = o.customer_id
+        WHERE da.id = ${id}
+      `
+      if (details) {
+        emitDeliveryEvent(driverId, {
+          type: 'order.ready_for_dispatch',
+          payload: {
+            orderId: details.order_id,
+            orderNumber: details.order_number,
+            assignmentId: details.assignment_id,
+            driverId,
+            total: details.total,
+            amountToCollect: details.amount_to_collect,
+            paymentAtDoor: details.payment_at_door,
+            deliveryMode: details.delivery_mode,
+            customerName: details.customer_name,
+            customerPhone: details.customer_phone,
+            deliveryAddress: details.delivery_address,
+            commune: details.commune,
+            metroStation: details.metro_station,
+            metroSlot: details.metro_slot,
+          },
+        })
+      }
+    } catch (sseErr) {
+      // Never fail the assign action because of a notification error.
+      console.error('SSE delivery emit error:', sseErr)
+    }
+
     return c.json({ ok: true })
   } catch (err) {
     console.error('Assign driver error:', err)
@@ -2675,6 +2741,76 @@ app.get('/api/dashboard/alerts', async (c) => {
     console.error('Dashboard alerts error:', err)
     return c.json({ error: 'Error al calcular alertas' }, 500)
   }
+})
+
+// ============================================================================
+// SSE — TIEMPO REAL (S08, Fase 2)
+// GET /api/events/pos — apps/pos/src/lib/order-events.ts (EventSource client
+// already existed, waiting on this route — was the confirmed
+// ERR_CONNECTION_REFUSED). GET /api/events/delivery — apps/repartidor/src/
+// lib/delivery-events.ts (same situation).
+//
+// Both use the single in-process EventEmitter fan-out in ./sse-broadcaster —
+// NOT a per-client Postgres LISTEN/NOTIFY and NOT a per-client polling
+// `setInterval` (see the header comment there for why: Neon/Railway pool is
+// `max: 10`, and that exact mistake already took down the VÉRTICE CRM once).
+// The only per-connection timer here is an in-memory heartbeat `setInterval`
+// that writes a no-op SSE comment-like `ping` message — it never touches the
+// database, so opening 50 of these costs zero extra DB connections.
+// ============================================================================
+
+const SSE_HEARTBEAT_MS = 15_000
+
+// GET /api/events/pos — same access group as the rest of POS/Despacho
+// (matriz 6.1: owner/admin/staff — not delivery, not viewer).
+app.get('/api/events/pos', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  return streamSSE(c, async (stream) => {
+    const unsubscribe = onPosEvent((payload) => {
+      stream.writeSSE({ data: JSON.stringify(payload) }).catch(() => {})
+    })
+
+    const heartbeat = setInterval(() => {
+      stream.writeSSE({ data: JSON.stringify({ type: 'ping' }) }).catch(() => {})
+    }, SSE_HEARTBEAT_MS)
+
+    await new Promise<void>((resolve) => {
+      stream.onAbort(() => {
+        clearInterval(heartbeat)
+        unsubscribe()
+        resolve()
+      })
+    })
+  })
+})
+
+// GET /api/events/delivery — role `delivery` only. `driverId` for targeting
+// is always `authUser.id` from the session, never a client-supplied value —
+// same invariant already established for /api/delivery/assignments/mine and
+// /api/delivery/location (S07).
+app.get('/api/events/delivery', async (c) => {
+  const authUser = await requireSession(c, ['delivery'])
+  if (authUser instanceof Response) return authUser
+
+  return streamSSE(c, async (stream) => {
+    const unsubscribe = onDeliveryEvent(authUser.id, (payload) => {
+      stream.writeSSE({ data: JSON.stringify(payload) }).catch(() => {})
+    })
+
+    const heartbeat = setInterval(() => {
+      stream.writeSSE({ data: JSON.stringify({ type: 'ping' }) }).catch(() => {})
+    }, SSE_HEARTBEAT_MS)
+
+    await new Promise<void>((resolve) => {
+      stream.onAbort(() => {
+        clearInterval(heartbeat)
+        unsubscribe()
+        resolve()
+      })
+    })
+  })
 })
 
 // ============================================================================
