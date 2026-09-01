@@ -61,8 +61,8 @@ Fase 0 Seguridad y Estabilización (S01-02, 16h, 🔴 BLOQUEADORA) → Fase 1 N�
 | Auth staff (login/logout/me/change-password) | cerebro, pos, repartidor | ✅ completo | Verificado en navegador real las 3 apps |
 | Usuarios (listar/crear/editar/desactivar) | cerebro | ✅ completo + RBAC | Commiteado (S01), RBAC server-side owner-only en editar/desactivar/crear (S02), verificado end-to-end contra producción |
 | Dashboard (stats, alertas) | cerebro | ❌ falta | Banner "API no disponible" confirmado en captura |
-| Productos + categorías | cerebro, web | ❌ falta | Schema listo (`products.ts`), sin rutas |
-| Inventario | cerebro | ❌ falta | Schema listo (`inventory.ts`), sin rutas |
+| Productos + categorías | cerebro, web, pos | ✅ completo | S03 (1-sep-2026): `GET /api/products`, `/api/products/meta/categories`, `/api/products/barcode/:code`, `/api/products/id/:id`. Verificado con curl contra producción con datos reales (81 productos, 20 categorías) — ver `SEUL_SESSION_03.md` |
+| Inventario | cerebro | ✅ completo | S03 (1-sep-2026): `GET /api/inventory` con semáforo de vencimiento (mismos umbrales que `BadgeExpiry`) y filtros category/expiry/cold_chain/baes. Verificado con curl contra producción (65 lotes reales) — ver `SEUL_SESSION_03.md` |
 | Comandas (pedidos, listar/gestionar) | cerebro | ❌ falta | Error "Cannot read properties of undefined" confirmado en captura |
 | Despacho (asignar entregas) | cerebro | 🟡 parcial, path roto | Backend existe bajo `/api/deliveries/*`, frontend llama `/api/delivery/assignments/*` |
 | Turnos (historial cajero) | cerebro | ❌ falta | "No se pudo cargar el historial" confirmado en captura |
@@ -74,7 +74,7 @@ Fase 0 Seguridad y Estabilización (S01-02, 16h, 🔴 BLOQUEADORA) → Fase 1 N�
 | Repartidor: mis entregas, ubicación, POD | repartidor | 🟡 parcial | POD/status existen bajo `/api/deliveries/*`; `mine` y `location` no |
 | Repartidor: eventos en vivo (SSE) | repartidor | ❌ falta | Error de consola confirmado en test |
 | Tienda web: login/registro cliente | web | ❌ falta | **Los clientes finales no pueden crear cuenta hoy** |
-| Tienda web: catálogo público | web | ❌ falta | `/api/products` no existe |
+| Tienda web: catálogo público | web | 🟡 parcial | `GET /api/products` ya existe (S03) y coincide con el shape que espera `apps/web/src/lib/api.ts` — falta login/registro de cliente (Fase 3, S09-S10) para que el resto del flujo de compra funcione |
 | Tienda web: mis pedidos | web | ❌ falta | — |
 | Portal B2B (empresa): catálogo, wallet, pedidos | web | ❌ falta | — |
 | Boleta electrónica (SII/DTE) | — | ❌ falta | Schema listo (`dte-events.ts`), riesgo legal #1 del plan de negocio |
@@ -155,8 +155,8 @@ No se avanza a Fase 1 sin cerrar esto: es la base sobre la que se construyen ~25
 
 El corazón del negocio diario. Sin esto, el dueño no puede operar la tienda desde el sistema.
 
-**S03 (16h) — Productos + Inventario:**
-`GET /api/products`, `/api/products/meta/categories`, `/api/products/barcode/:code`, `/api/products/id/:id`, `GET /api/inventory`. Usar `packages/db/src/schema/products.ts` e `inventory.ts` tal cual están modelados.
+**S03 (16h) — Productos + Inventario — ✅ COMPLETA (1-sep-2026):**
+`GET /api/products`, `/api/products/meta/categories`, `/api/products/barcode/:code`, `/api/products/id/:id`, `GET /api/inventory`. Usó `packages/db/src/schema/products.ts` e `inventory.ts` tal cual están modelados. Todos con `requireSession(c)` sin restricción de rol (POS/cerebro/web comparten catálogo). `stockTotal` se calcula en vivo con `SUM(inventory.quantity)` por producto — se descubrió que `inventory_summary` (la tabla derivada pensada para esto) nunca tuvo su migración/trigger aplicados en producción (0 filas), así que no se usó. Semáforo de vencimiento (`expiryStatus` en `/api/inventory`) usa los mismos umbrales que `packages/ui/src/badge-expiry.tsx`. Verificado con curl contra producción con datos reales (81 productos, 65 lotes, 20 categorías) usando cuentas `qa-test-s03*@example.test` desechables (creadas y borradas en la misma sesión). Playwright no se pudo ejecutar (el Chromium/Firefox de la versión instalada no soporta macOS 13 de esta máquina) — deuda de verificación visual, no bloqueante dado el curl exhaustivo. Commits: `4b0c0c3`, `235402b`, `f0948c6`.
 
 **S04 (16h) — Comandas + Dashboard:**
 `GET /api/orders` (listar con filtros), `GET /api/orders/comandas`, `GET /api/dashboard/stats`, `GET /api/dashboard/alerts`. Verificar que el banner "API no disponible" de la captura desaparezca.
