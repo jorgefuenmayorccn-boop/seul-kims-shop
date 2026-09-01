@@ -543,9 +543,16 @@ async function getAuthUser(c: any): Promise<{ id: string; email: string; role: s
 // ============================================================================
 
 // GET /api/auth/users — lista de usuarios (consumida por Usuarios y Despacho)
+// RBAC (S02, matriz sección 6.1): la sección "Usuarios" (gestión: editar rol,
+// desactivar, crear) es owner-only — ver PUT/DELETE abajo y POST /api/auth/register.
+// Este GET, sin embargo, también alimenta el selector de repartidor del panel
+// Despacho (apps/cerebro/src/app/(admin)/despacho/page.tsx:67), al que staff/admin
+// SÍ tienen acceso por la matriz — restringirlo a owner rompería Despacho para
+// esos roles. Se deja en owner+admin+staff (mismos roles que ya pueden entrar a
+// Despacho) en vez de owner-only para no regresionar esa pantalla.
 app.get('/api/auth/users', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
 
   try {
     const rows = await sql`
@@ -576,9 +583,10 @@ app.get('/api/auth/users', async (c) => {
 })
 
 // PUT /api/auth/users/:id — editar usuario (isActive, role, name, cargo, departamento, telefonoPersonal)
+// RBAC (S02, matriz sección 6.1): Usuarios es visible/editable solo para 'owner'.
 app.put('/api/auth/users/:id', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
 
   const { id } = c.req.param()
   let body: any = {}
@@ -629,9 +637,10 @@ app.put('/api/auth/users/:id', async (c) => {
 // shifts, till_sessions, cash_movements, etc.) reference users.id — a hard delete would
 // either fail on FK constraints or cascade-destroy operational history, so this only
 // deactivates the account (matches the frontend's own confirm-dialog copy).
+// RBAC (S02, matriz sección 6.1): Usuarios es visible/editable solo para 'owner'.
 app.delete('/api/auth/users/:id', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
 
   const { id } = c.req.param()
   try {
@@ -1350,9 +1359,10 @@ app.get('/api/delivery/assignments', async (c) => {
   }
 })
 
+// RBAC (S02, matriz sección 6.1): Despacho es owner/admin/staff (no delivery, no viewer).
 app.put('/api/delivery/assignments/:id/assign', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
 
   const { id } = c.req.param()
   let body: any = {}
@@ -1517,9 +1527,16 @@ app.get('/api/email-queue/:id', async (c) => {
 // genera una contraseña temporal (igual patrón que seedRealUsersIfNeeded) y la envía por
 // email con la plantilla de credenciales iniciales — el password que venga en el body del
 // formulario se ignora a propósito, nunca se persiste texto plano ni se elige por el creador.
+// RBAC (S02, matriz sección 6.1): Usuarios (incluye crear cuentas nuevas) es owner-only.
 app.post('/api/auth/register', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
+
+  // Rate limit (S02, bloqueador P0 #3): 20 registros / 5 min por owner autenticado.
+  const rl = await checkAndRecordRateLimit(c, 'auth:register', { limit: 20, windowMinutes: 5 }, authUser.id)
+  if (!rl.allowed) {
+    return c.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
 
   let body: any = {}
   try {
