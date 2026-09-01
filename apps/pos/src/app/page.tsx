@@ -14,6 +14,7 @@ import { TillZReportModal } from '@/components/pos/till-z-report-modal'
 import { MasterShiftZReportModal } from '@/components/pos/master-shift-z-report-modal'
 import { ShiftCloseGuard } from '@/components/pos/shift-close-guard'
 import { IncomingOrdersDrawer } from '@/components/pos/incoming-orders-drawer'
+import { ComandasView } from '@/components/pos/comandas-view'
 import { DeliveryOrderModal } from '@/components/pos/delivery/delivery-order-modal'
 import { AssignDriverModal, type PendingAssign } from '@/components/pos/delivery/assign-driver-modal'
 import { PostTillOptions } from '@/components/pos/post-till-options'
@@ -57,6 +58,7 @@ export default function POSPage() {
   const [showShiftZReport,  setShowShiftZReport]  = useState(false)
   const [shiftGuarded,      setShiftGuarded]      = useState(false)
   const [showIncoming,       setShowIncoming]       = useState(false)
+  const [showComandas,       setShowComandas]       = useState(false)
   const [showPostTillOpts,   setShowPostTillOpts]   = useState(false)
   const [showSalesHistory,   setShowSalesHistory]   = useState(false)
   const [showDeliveryModal,  setShowDeliveryModal]  = useState(false)
@@ -352,6 +354,7 @@ export default function POSPage() {
         onCloseTill={tillReady ? handleCloseTill : undefined}
         onCloseShift={shiftReady ? handleCloseShift : undefined}
         onOpenIncoming={() => setShowIncoming(true)}
+        onOpenComandas={() => setShowComandas(true)}
         onOpenHistory={tillSession || closedTillId ? () => setShowSalesHistory(true) : undefined}
         onLogout={() => logoutUserFn(API)}
       />
@@ -673,6 +676,11 @@ export default function POSPage() {
       {/* Drawer pedidos web entrantes */}
       {showIncoming && (
         <IncomingOrdersDrawer onClose={() => setShowIncoming(false)} />
+      )}
+
+      {/* Comandas — Kanban táctil sin salir de POS */}
+      {showComandas && (
+        <ComandasView onClose={() => setShowComandas(false)} />
       )}
 
       {/* Historial ventas de la caja actual o recién cerrada */}

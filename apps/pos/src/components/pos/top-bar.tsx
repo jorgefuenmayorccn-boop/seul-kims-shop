@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
-import { Bike } from 'lucide-react'
+import { Bike, ClipboardList } from 'lucide-react'
 import { IconSun, IconMoon, IconBarcode, IconPrint, IconShift, IconSettings, IconHistory } from '../icons/pos-icons'
 import { formatCLP } from '@seul/ui'
 import type { PrintMode } from '@seul/pdf-templates/client'
@@ -26,6 +26,7 @@ interface TopBarProps {
   onCloseShift?:        () => void
   onOpenIncoming?:      () => void
   onOpenHistory?:       () => void
+  onOpenComandas?:      () => void
   onLogout?:            () => void
 }
 
@@ -49,6 +50,7 @@ export function TopBar({
   onCloseShift,
   onOpenIncoming,
   onOpenHistory,
+  onOpenComandas,
   onLogout,
 }: TopBarProps) {
   // Show till opener only if different from logged-in cashier
@@ -202,6 +204,20 @@ export function TopBar({
 
       {/* Derecha: acciones */}
       <div className="flex items-center gap-1">
+        {/* Comandas — vista Kanban sin salir de POS (rol staff no tiene cmr.seoulshop.cl) */}
+        {onOpenComandas && (
+          <button
+            onClick={onOpenComandas}
+            className="flex items-center gap-1.5 px-2 py-1 rounded transition-colors hover:bg-surface"
+            title="Comandas"
+          >
+            <ClipboardList size={14} color="var(--color-text-muted)" />
+            <span className="font-body text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              Comandas
+            </span>
+          </button>
+        )}
+
         {/* Badge pedidos web entrantes */}
         {onOpenIncoming && (
           <button
