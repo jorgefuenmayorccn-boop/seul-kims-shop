@@ -1550,6 +1550,56 @@ app.get('/api/delivery/assignments/mine', async (c) => {
   }
 })
 
+// PUT /api/delivery/assignments/:id/status — apps/repartidor/src/app/page.tsx
+// (handleStatusUpdate, handleAcceptAlert). Found missing during S07's audit:
+// the ONLY status-update route that existed was `POST /api/deliveries/:id/status`
+// (plural, gated behind requireAuthMiddleware which only validates API keys —
+// a driver's session cookie would 401 there even if the path matched). Same
+// fix pattern as Despacho admin (S02): reuse delivery_assignments, add the
+// session-cookie-auth surface under the singular /api/delivery/* prefix.
+// A driver may only update an assignment that's actually theirs.
+app.put('/api/delivery/assignments/:id/status', async (c) => {
+  const authUser = await requireSession(c, ['delivery'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const status = body.status
+  if (!status) return c.json({ error: 'Missing status' }, 400)
+
+  try {
+    const [existing] = await sql`SELECT driver_id, order_id FROM delivery_assignments WHERE id = ${id}`
+    if (!existing) return c.json({ error: 'Assignment not found' }, 404)
+    if (existing.driver_id !== authUser.id) return c.json({ error: 'Forbidden' }, 403)
+
+    const timestampCol = status === 'accepted' ? sql`accepted_at = NOW(),`
+      : status === 'in_transit' ? sql`picked_up_at = NOW(),`
+      : status === 'delivered' ? sql`delivered_at = NOW(),`
+      : status === 'failed' ? sql`failed_at = NOW(),`
+      : sql``
+
+    const paymentCond = body.amountCollected
+      ? sql`payment_at_door = 'collected', payment_method = ${body.paymentMethod ?? 'cash'},`
+      : sql``
+
+    await sql`
+      UPDATE delivery_assignments
+      SET status = ${status}, ${timestampCol} ${paymentCond} updated_at = NOW()
+      WHERE id = ${id}
+    `
+
+    if (status === 'delivered') {
+      await sql`UPDATE orders SET status = 'entregada' WHERE id = ${existing.order_id}`
+    }
+
+    return c.json({ ok: true, status })
+  } catch (err) {
+    console.error('Driver status update error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
 // POST /api/delivery/location — GPS ping while `status = in_transit`
 // (apps/repartidor/src/app/page.tsx, watchPosition + 30s interval fallback).
 // Writes to delivery_location_pings (packages/db/src/schema/delivery.ts) — a
