@@ -1372,6 +1372,50 @@ app.put('/api/delivery/assignments/:id/assign', async (c) => {
 })
 
 // ============================================================================
+// TIENDA CONFIG (singleton key/value settings) — Ajustes / Seguridad panels
+// `tienda_config` (key TEXT PK, value TEXT) already existed in prod, already
+// populated (metro_station_name, void_pin, dte_provider, etc — see
+// packages/db/src/schema/orders.ts). Generic GET/PUT by key on top of it
+// covers the requested analytics_pin without a schema change.
+// ============================================================================
+
+app.get('/api/tienda-config/:key', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const key = c.req.param('key')
+  try {
+    const [row] = await sql`SELECT value FROM tienda_config WHERE key = ${key}`
+    return c.json({ key, value: row?.value ?? null })
+  } catch (err) {
+    console.error('Get tienda-config error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+app.put('/api/tienda-config/:key', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const key = c.req.param('key')
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  if (typeof body.value !== 'string') return c.json({ error: 'Missing value' }, 400)
+
+  try {
+    await sql`
+      INSERT INTO tienda_config (key, value, updated_at)
+      VALUES (${key}, ${body.value}, NOW())
+      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+    `
+    return c.json({ ok: true, key, value: body.value })
+  } catch (err) {
+    console.error('Update tienda-config error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// ============================================================================
 // API KEY MIDDLEWARE & ENDPOINTS
 // ============================================================================
 
