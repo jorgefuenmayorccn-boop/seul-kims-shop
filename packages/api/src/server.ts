@@ -2119,6 +2119,144 @@ app.get('/api/orders/comandas', async (c) => {
   }
 })
 
+// GET /api/dashboard/stats — KPIs del panel (cerebro Dashboard). Roles: owner/
+// admin/viewer (matriz de sección 6.1 — staff no tiene Dashboard en su matriz;
+// coincide con `nav[]` de sidebar.tsx: Dashboard → ['owner','admin','viewer']).
+app.get('/api/dashboard/stats', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'viewer'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const [salesToday] = await sql`
+      SELECT COALESCE(SUM(total), 0) AS total, COUNT(*) AS cnt
+      FROM orders
+      WHERE created_at::date = CURRENT_DATE AND status != 'cancelada' AND voided_at IS NULL
+    `
+    const [salesYesterday] = await sql`
+      SELECT COALESCE(SUM(total), 0) AS total
+      FROM orders
+      WHERE created_at::date = CURRENT_DATE - INTERVAL '1 day' AND status != 'cancelada' AND voided_at IS NULL
+    `
+    const [activeOrders] = await sql`
+      SELECT COUNT(*) AS cnt FROM orders WHERE status IN ('nueva', 'preparando', 'lista', 'en_ruta')
+    `
+    const [webPending] = await sql`
+      SELECT COUNT(*) AS cnt FROM orders
+      WHERE channel = 'web' AND status NOT IN ('entregada', 'cancelada')
+    `
+    // "B2B sin cobrar" (label del KPI en cerebro): sin sistema de wallet/cobranza
+    // B2B todavía (Fase 3, S11/S12 — GET /api/b2b/wallet no existe), se define como
+    // cotizaciones enviadas al cliente y aún sin resolver (sent/viewed) — lo más
+    // cercano a "pendiente" que el modelo de datos permite hoy sin inventar columnas.
+    const [b2bPending] = await sql`
+      SELECT COUNT(*) AS cnt FROM b2b_quotes WHERE status IN ('sent', 'viewed')
+    `
+    const [expiringWeek] = await sql`
+      SELECT COUNT(DISTINCT product_id) AS cnt FROM inventory
+      WHERE quantity > 0 AND expires_at IS NOT NULL
+        AND expires_at >= NOW() AND expires_at < NOW() + INTERVAL '7 days'
+    `
+    // "Stock crítico": no existe columna min_stock en products (packages/db/src/
+    // schema/products.ts) — se usa un umbral fijo de 5 unidades totales por
+    // producto activo, mismo tipo de decisión pragmática que S03 tomó con
+    // inventory_summary (tabla derivada sin trigger, se calcula en vivo).
+    const CRITICAL_STOCK_THRESHOLD = 5
+    const [criticalStock] = await sql`
+      SELECT COUNT(*) AS cnt FROM (
+        SELECT p.id
+        FROM products p
+        LEFT JOIN inventory i ON i.product_id = p.id
+        WHERE p.status = 'active'
+        GROUP BY p.id
+        HAVING COALESCE(SUM(i.quantity), 0) <= ${CRITICAL_STOCK_THRESHOLD}
+      ) low_stock
+    `
+    const top5 = await sql`
+      SELECT p.id AS product_id, p.name, SUM(oi.quantity) AS units, SUM(oi.subtotal) AS revenue
+      FROM order_items oi
+      JOIN orders o ON o.id = oi.order_id
+      JOIN products p ON p.id = oi.product_id
+      WHERE o.created_at::date = CURRENT_DATE AND o.status != 'cancelada' AND o.voided_at IS NULL
+      GROUP BY p.id, p.name
+      ORDER BY units DESC
+      LIMIT 5
+    `
+
+    const ventasHoy  = Number(salesToday.total)
+    const ventasAyer = Number(salesYesterday.total)
+    const deltaVentas = ventasAyer > 0 ? ((ventasHoy - ventasAyer) / ventasAyer) * 100 : null
+    const ticketPromedio = Number(salesToday.cnt) > 0 ? ventasHoy / Number(salesToday.cnt) : 0
+
+    return c.json({
+      ventasHoy, ventasAyer, deltaVentas, ticketPromedio,
+      pedidosActivos: Number(activeOrders.cnt),
+      pedidosWebSinDespachar: Number(webPending.cnt),
+      b2bPendientes: Number(b2bPending.cnt),
+      vencenEstaSemana: Number(expiringWeek.cnt),
+      stockCritico: Number(criticalStock.cnt),
+      top5Productos: top5.map((r: any) => ({
+        productId: r.product_id, name: r.name, units: Number(r.units), revenue: Number(r.revenue),
+      })),
+      generatedAt: new Date().toISOString(),
+    })
+  } catch (err) {
+    console.error('Dashboard stats error:', err)
+    return c.json({ error: 'Error al calcular estadísticas' }, 500)
+  }
+})
+
+// GET /api/dashboard/alerts — semáforo de vencimiento + DTE fallidos (cerebro
+// Dashboard, banners superiores). Roles: owner/admin/viewer (misma matriz que stats).
+// Umbral de "urgentes" (3 días) sigue el copy hardcodeado en dashboard/page.tsx
+// ("vencen en menos de 3 días") — es un umbral MÁS estricto que el semáforo de
+// /api/inventory (15/30 días, BadgeExpiry), a propósito: esto es la alerta crítica
+// del Dashboard, no la navegación completa del inventario.
+app.get('/api/dashboard/alerts', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'viewer'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const vencidos = await sql`
+      SELECT p.id AS product_id, p.name, SUM(i.quantity) AS quantity, MIN(i.expires_at) AS expires_at
+      FROM inventory i
+      JOIN products p ON p.id = i.product_id
+      WHERE i.quantity > 0 AND i.expires_at IS NOT NULL AND i.expires_at < NOW()
+      GROUP BY p.id, p.name
+      ORDER BY expires_at ASC
+    `
+    const urgentes = await sql`
+      SELECT p.id AS product_id, p.name, SUM(i.quantity) AS quantity, MIN(i.expires_at) AS expires_at
+      FROM inventory i
+      JOIN products p ON p.id = i.product_id
+      WHERE i.quantity > 0 AND i.expires_at IS NOT NULL
+        AND i.expires_at >= NOW() AND i.expires_at < NOW() + INTERVAL '3 days'
+      GROUP BY p.id, p.name
+      ORDER BY expires_at ASC
+    `
+    const dtesFallidos = await sql`
+      SELECT id, number FROM orders WHERE dte_status = 'failed' ORDER BY created_at DESC LIMIT 20
+    `
+
+    const vencidosOut = vencidos.map((r: any) => ({
+      productId: r.product_id, name: r.name, quantity: Number(r.quantity), expiresAt: r.expires_at,
+    }))
+    const urgentesOut = urgentes.map((r: any) => ({
+      productId: r.product_id, name: r.name, quantity: Number(r.quantity), expiresAt: r.expires_at,
+    }))
+    const dtesFallidosOut = dtesFallidos.map((r: any) => ({ id: r.id, number: r.number }))
+
+    return c.json({
+      vencidos: vencidosOut,
+      urgentes: urgentesOut,
+      dtesFallidos: dtesFallidosOut,
+      hasAlerts: vencidosOut.length > 0 || urgentesOut.length > 0 || dtesFallidosOut.length > 0,
+    })
+  } catch (err) {
+    console.error('Dashboard alerts error:', err)
+    return c.json({ error: 'Error al calcular alertas' }, 500)
+  }
+})
+
 // ============================================================================
 // STARTUP
 // ============================================================================
