@@ -207,6 +207,20 @@ Requisito explícito del dueño del negocio: "cada vez que finalices una fase de
 
 ---
 
+## Adición post-Fase 1 — Comandas dentro de POS (1-sep-2026)
+
+Fuera de la numeración S01-S06 — tarea puntual pedida por el dueño, no una sesión de fase. Decisión de producto: la cajera (rol `staff`) no tiene acceso a `cmr.seoulshop.cl` en el flujo real de trabajo, solo usa `pos.seoulshop.cl`. Necesitaba ver y gestionar Comandas sin salir de POS.
+
+Se agregó una vista Comandas dentro de `apps/pos` (`apps/pos/src/components/pos/comandas-view.tsx`, más un botón `title="Comandas"` en el TopBar y el estado que lo abre en `apps/pos/src/app/page.tsx`) que reusa **sin ningún cambio** el backend ya construido en S04: `GET /api/orders/comandas` y `PATCH /api/orders/:id/status`. Adaptada a tablet táctil: Kanban de 3 columnas a pantalla completa con un solo botón "Siguiente estado" por tarjeta (nueva → preparando → lista) en vez del drag-and-drop del Kanban de cerebro, botones con `min-height: var(--pos-hit-area-min)`, y `credentials: 'include'` en todos los fetch desde el día uno (para no repetir el bug de cookie cross-origin que se encontró y arregló hoy mismo en `cerebro/comandas`, commit `f32a532`). No se tocó `apps/cerebro/.../comandas/page.tsx` ni el backend de orders/comandas.
+
+Commit: `ae42995`. `type-check` de `@seul/pos` limpio antes de commitear.
+
+**Verificación:** curl confirmó el contrato sin cambios (401 sin sesión, 200 con sesión `staff` real, PATCH mueve el estado). Playwright (`channel: 'chrome'`) contra `pos.seoulshop.cl` en producción, con una cuenta `qa-test-pos-comandas@example.test` desechable (creada por SQL directo) y un pedido de prueba desechable (`guest_name = 'QA Test Comandas'`, insertado por SQL directo, no vía checkout real): login OK, apertura de turno y caja OK, botón Comandas visible y abre el Kanban a pantalla completa, columna "Nueva" con el pedido de prueba visible, click en "Comenzar preparación" → `PATCH /api/orders/:id/status` → 200 → tarjeta se mueve a "Preparando", cierre de la vista OK. Cuenta, turno, caja y pedido de prueba borrados de la base al cerrar (verificado con SELECT posterior, sin filas restantes).
+
+**Incidente durante la verificación (corregido en el momento, no llegó a quedar en la base):** el primer intento de Playwright usó `getByRole('button', { name: 'Comandas' })`, que en Playwright hace *substring match* por defecto — coincidió con el botón de avatar de la cajera ("QA Test Comandas POS", que contiene "Comandas" como substring) en vez del botón nuevo del TopBar, y el click resultante cayó sobre la **primera** tarjeta real de la columna "Nueva" (pedido real `#53156`, no el de prueba), moviéndolo a "Preparando" en producción. Se detectó de inmediato al revisar el log de red del script (el `PATCH` fue contra un id de orden que no era el de prueba) y se revirtió al toque con un `PATCH .../status {"status":"nueva"}` contra ese mismo pedido — confirmado con un `GET /api/orders/comandas` posterior que volvió a aparecer en "Nueva". El script se corrigió para usar un selector inequívoco (`button[title="Comandas"]`) antes de repetir la verificación. Ningún dato de cliente real quedó alterado, pero es la razón por la que esta nota documenta el incidente explícitamente en vez de solo el resultado final.
+
+---
+
 ## FASE 2 — Repartidor + Tiempo Real (S07-08, 28h)
 
 **S07 (16h):** `GET /api/delivery/assignments/mine`, `POST /api/delivery/location`, `GET /api/delivery/drivers`, `POST /api/delivery/dispatch-rappi`, `GET /api/delivery/payouts`.
