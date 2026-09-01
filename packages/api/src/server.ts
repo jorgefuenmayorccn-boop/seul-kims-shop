@@ -1701,6 +1701,118 @@ app.post('/api/auth/register', async (c) => {
 })
 
 // ============================================================================
+// PRODUCTOS + INVENTARIO (S03 — Fase 1)
+// ============================================================================
+// Usa packages/db/src/schema/products.ts e inventory.ts tal cual modelados.
+// Todos requieren sesión (requireSession sin restricción de rol — cualquier
+// cuenta autenticada de cerebro/pos/web puede consultar catálogo/inventario;
+// no hay dato sensible por rol en estos endpoints de solo lectura).
+
+const VALID_PRODUCT_STATUS = ['active', 'inactive', 'discontinued']
+const VALID_COLD_CHAIN = ['ambient', 'refrigerated', 'frozen']
+const VALID_EXPIRY_FILTERS = ['fresh', 'warning', 'urgent', 'expired']
+
+app.get('/api/products', async (c) => {
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
+
+  const statusParam = c.req.query('status')
+  const q = c.req.query('q')?.trim()
+  const category = c.req.query('category')?.trim()
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 500)
+
+  // Default: solo activos (POS/web nunca deben listar inactivos/descontinuados por
+  // accidente). `status=all` levanta el filtro — usado por cerebro (listado admin).
+  const statusCond = !statusParam
+    ? sql`AND p.status = 'active'`
+    : statusParam === 'all'
+      ? sql``
+      : VALID_PRODUCT_STATUS.includes(statusParam)
+        ? sql`AND p.status = ${statusParam}`
+        : sql`AND p.status = 'active'`
+
+  const qCond = q
+    ? sql`AND (p.name ILIKE ${'%' + q + '%'} OR p.name_ko ILIKE ${'%' + q + '%'} OR p.sku ILIKE ${'%' + q + '%'} OR p.barcode ILIKE ${'%' + q + '%'} OR p.brand ILIKE ${'%' + q + '%'})`
+    : sql``
+
+  // `category` acepta id (uuid, usado por POS) o slug (usado por la tienda web) —
+  // los dos frontends lo llaman de forma distinta, esto cubre ambos sin tocarlos.
+  const categoryCond = category
+    ? sql`AND (p.category_id::text = ${category} OR cat.slug = ${category})`
+    : sql``
+
+  try {
+    const rows = await sql`
+      SELECT
+        p.id, p.sku, p.barcode, p.name, p.name_ko, p.slug, p.brand,
+        p.cost_price, p.price_retail, p.price_web, p.price_pos, p.price_b2b,
+        p.discount_web_pct, p.discount_pos_pct, p.discount_b2b_pct,
+        p.is_baes_eligible, p.cold_chain, p.is_weighable, p.status, p.image_url,
+        p.category_id, cat.name AS category_name,
+        stock.qty_total AS stock_total,
+        stock.next_expiry,
+        COUNT(*) OVER() AS full_count
+      FROM products p
+      LEFT JOIN categories cat ON cat.id = p.category_id
+      -- NOTA: inventory_summary existe en el schema pero su migración/trigger
+      -- (packages/db/src/migrations/001_inventory_summary.sql) nunca se aplicó
+      -- en producción (0 filas, sin trigger instalado) — se agrega en vivo desde
+      -- la tabla inventory en vez de confiar en esa tabla derivada y desactualizada.
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(SUM(i.quantity), 0) AS qty_total,
+          MIN(i.expires_at) FILTER (WHERE i.quantity > 0 AND i.expires_at IS NOT NULL) AS next_expiry
+        FROM inventory i
+        WHERE i.product_id = p.id
+      ) stock ON true
+      WHERE 1=1 ${statusCond} ${qCond} ${categoryCond}
+      ORDER BY p.name ASC
+      LIMIT ${limit}
+    `
+
+    return c.json({
+      products: rows.map((r: any) => ({
+        id: r.id, sku: r.sku, barcode: r.barcode, name: r.name, nameKo: r.name_ko,
+        slug: r.slug, brand: r.brand,
+        costPrice: r.cost_price, priceRetail: r.price_retail, priceWeb: r.price_web,
+        pricePOS: r.price_pos, priceB2B: r.price_b2b,
+        discountWebPct: r.discount_web_pct, discountPOSPct: r.discount_pos_pct, discountB2BPct: r.discount_b2b_pct,
+        isBaesEligible: r.is_baes_eligible, coldChain: r.cold_chain, isWeighable: r.is_weighable,
+        status: r.status, imageUrl: r.image_url,
+        categoryId: r.category_id, categoryName: r.category_name,
+        stockTotal: Number(r.stock_total ?? 0),
+        nextExpiry: r.next_expiry,
+      })),
+      total: rows.length > 0 ? Number(rows[0].full_count) : 0,
+    })
+  } catch (err) {
+    console.error('List products error:', err)
+    return c.json({ error: 'Error al listar productos' }, 500)
+  }
+})
+
+app.get('/api/products/meta/categories', async (c) => {
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const rows = await sql`
+      SELECT id, name, slug, emoji, sort_order
+      FROM categories
+      ORDER BY sort_order ASC, name ASC
+    `
+    return c.json({
+      categories: rows.map((r: any) => ({
+        id: r.id, name: r.name, slug: r.slug, emoji: r.emoji, sortOrder: r.sort_order,
+      })),
+    })
+  } catch (err) {
+    console.error('List categories error:', err)
+    return c.json({ error: 'Error al listar categorías' }, 500)
+  }
+})
+
+// ============================================================================
 // STARTUP
 // ============================================================================
 
