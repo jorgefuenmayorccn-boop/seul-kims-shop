@@ -46,7 +46,7 @@ const corsOptions = cors({
     'https://seul-kims-shop.vercel.app', // Vercel preview URLs
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 })
 
