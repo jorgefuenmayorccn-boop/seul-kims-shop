@@ -2016,6 +2016,72 @@ app.get('/api/inventory', async (c) => {
 })
 
 // ============================================================================
+// ORDERS + DASHBOARD (S04 — Fase 1, Comandas + Dashboard)
+// ============================================================================
+// Todo lo de aquí abajo requiere sesión de staff SIEMPRE (a diferencia de
+// /api/products y /api/categories, que S03 tuvo que abrir con getOptionalSession
+// porque la tienda pública los consume sin login). Se verificó con grep en las 4
+// apps (`grep -rn "api/dashboard\|api/orders" apps/*/src`) que ni Comandas ni
+// Dashboard son consumidos por apps/web (tienda pública) — solo por apps/cerebro
+// (Dashboard, Comandas) y apps/pos (polling de pedidos entrantes, fallback de SSE
+// de Fase 2/S08). Ningún dato aquí incluye costPrice/priceB2B/pricePOS ni margen —
+// son pedidos y agregados de ventas, no el catálogo con precios internos.
+
+const VALID_ORDER_STATUS  = ['nueva', 'preparando', 'lista', 'en_ruta', 'entregada', 'cancelada']
+const VALID_ORDER_CHANNEL = ['pos', 'web', 'b2b', 'whatsapp']
+
+// GET /api/orders — listar pedidos con filtros opcionales (status, channel, limit).
+// Consumido por cerebro (`getRecentOrders`, Dashboard → tabla "Últimos pedidos",
+// solo ?limit) y por POS (`order-events.ts`, fallback de polling cuando el SSE de
+// S08 aún no existe, con ?channel=web&status=nueva&limit=10). Roles: owner/admin/
+// staff (POS lo usa en operación diaria) + viewer (solo lectura de Dashboard).
+app.get('/api/orders', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff', 'viewer'])
+  if (authUser instanceof Response) return authUser
+
+  const status  = c.req.query('status')?.trim()
+  const channel = c.req.query('channel')?.trim()
+  const limit   = Math.min(Math.max(parseInt(c.req.query('limit') || '20', 10) || 20, 1), 200)
+
+  const statusCond = status && VALID_ORDER_STATUS.includes(status)
+    ? sql`AND o.status = ${status}`
+    : sql``
+  const channelCond = channel && VALID_ORDER_CHANNEL.includes(channel)
+    ? sql`AND o.channel = ${channel}`
+    : sql``
+
+  try {
+    const rows = await sql`
+      SELECT
+        o.id, o.number, o.channel, o.status, o.delivery_mode,
+        o.metro_station, o.metro_slot, o.notes, o.total, o.created_at,
+        COUNT(oi.id) AS item_count
+      FROM orders o
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      WHERE 1=1 ${statusCond} ${channelCond}
+      GROUP BY o.id
+      ORDER BY o.created_at DESC
+      LIMIT ${limit}
+    `
+
+    return c.json({
+      orders: rows.map((r: any) => ({
+        // `id` es el contrato de cerebro (RecentOrdersTable); `orderId` es un alias
+        // para el tipo IncomingOrder que espera POS en su fallback de polling — las
+        // dos apps consumen esta misma lista con nombres de campo distintos.
+        id: r.id, orderId: r.id, number: r.number, channel: r.channel, status: r.status,
+        deliveryMode: r.delivery_mode, metroStation: r.metro_station, metroSlot: r.metro_slot,
+        notes: r.notes, total: r.total, itemCount: Number(r.item_count ?? 0),
+        createdAt: r.created_at,
+      })),
+    })
+  } catch (err) {
+    console.error('List orders error:', err)
+    return c.json({ error: 'Error al listar pedidos' }, 500)
+  }
+})
+
+// ============================================================================
 // STARTUP
 // ============================================================================
 
