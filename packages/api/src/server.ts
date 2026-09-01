@@ -10,7 +10,7 @@ import { apiKeysController } from './controllers/api-keys'
 import { validateApiKeyMiddleware } from './services/api-key.service'
 import { AuthService } from './services/auth.service'
 import { PasswordService } from './services/password.service'
-import { requireAuthMiddleware, requireScopeMiddleware } from './middleware/auth.middleware'
+import { requireAuthMiddleware, requireScopeMiddleware, requireSession } from './middleware/auth.middleware'
 
 // ============================================================================
 // SESSION COOKIE
@@ -517,10 +517,12 @@ app.post('/api/auth/change-password', handleChangePassword)
 
 // ============================================================================
 // SHARED AUTH HELPER — JWT via Authorization header or session cookie.
-// NOTE: requireAuthMiddleware (middleware/auth.middleware.ts) only validates
-// API Keys today (JWT branch is a TODO there) — do not use it for session-
-// cookie-authenticated admin panel requests. This replicates handleGetMe's
-// working pattern instead.
+// NOTE (updated S01): requireAuthMiddleware now validates JWTs too (see
+// middleware/auth.middleware.ts), and that same file now exports
+// `requireSession(c, roles?)` — the canonical replacement for this local
+// helper. New endpoints should use `requireSession` instead of `getAuthUser`.
+// `getAuthUser` is kept as-is for the endpoints already using it below to
+// avoid regressing anything in production; migrate opportunistically.
 // ============================================================================
 async function getAuthUser(c: any): Promise<{ id: string; email: string; role: string; name: string } | null> {
   let token: string | undefined
@@ -804,8 +806,9 @@ app.post('/api/shifts/open', async (c) => {
 })
 
 app.get('/api/shifts/active', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  // Migrated to requireSession (S01 proof-of-concept, bloqueador P0 #2).
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
 
   const deviceId = c.req.query('device_id')
   if (!deviceId) return c.json({ error: 'Missing device_id' }, 400)
@@ -828,8 +831,9 @@ app.get('/api/shifts/active', async (c) => {
 })
 
 app.get('/api/shifts/history', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  // Migrated to requireSession (S01 proof-of-concept, bloqueador P0 #2).
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
 
   const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '30', 10) || 30, 1), 100)
 
@@ -1407,8 +1411,9 @@ app.get('/api/tienda-config/public', async (c) => {
 })
 
 app.get('/api/tienda-config/:key', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  // Migrated to requireSession (S01 proof-of-concept, bloqueador P0 #2).
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
 
   const key = c.req.param('key')
   try {

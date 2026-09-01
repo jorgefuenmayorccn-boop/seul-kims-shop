@@ -58,6 +58,61 @@ export async function requireAuthMiddleware(c: Context, next: Next) {
 }
 
 /**
+ * requireSession — canonical session-auth helper (S01, bloqueador P0 #2).
+ *
+ * Reads the JWT from `Authorization: Bearer <token>` or the `seul_session`
+ * cookie — the exact same token-lookup pattern as `handleGetMe`/`getAuthUser`
+ * in server.ts — verifies it with AuthService, and optionally checks the
+ * user's role.
+ *
+ * This is NOT Hono middleware (no `next()`) — it's called directly inside a
+ * handler body, since that's how every existing session-checked endpoint in
+ * server.ts is structured today (no middleware chain per route). Usage:
+ *
+ *   const authUser = await requireSession(c)
+ *   if (authUser instanceof Response) return authUser
+ *   // authUser is now { id, email, role, name }
+ *
+ *   const authUser = await requireSession(c, ['owner', 'admin'])
+ *   if (authUser instanceof Response) return authUser
+ *
+ * DECISION (S01): every NEW session-checked endpoint added from here on
+ * should use this instead of re-implementing the cookie/Bearer parsing that
+ * `handleGetMe`/`getAuthUser` in server.ts originally established and that
+ * several endpoints (users, shifts, till-sessions, delivery/assignments,
+ * tienda-config, register) have each copy-pasted independently. Existing
+ * endpoints are NOT all migrated in S01 — only a few low-risk read-only ones,
+ * as a proof of concept — to avoid regressing endpoints that already work in
+ * production. Full migration of the remaining endpoints is follow-up work,
+ * not blocking S01.
+ */
+export async function requireSession(
+  c: Context,
+  roles?: string[]
+): Promise<{ id: string; email: string; role: string; name: string } | Response> {
+  const authHeader = c.req.header('Authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+  const token = bearerToken || getCookie(c, SESSION_COOKIE_NAME)
+
+  if (!token) {
+    return c.json({ error: 'Not authenticated' }, 401)
+  }
+
+  const verified = AuthService.verifyToken(token, JWT_SECRET)
+  if (!verified.ok) {
+    return c.json({ error: 'Not authenticated' }, 401)
+  }
+
+  const user = verified.decoded as { id: string; email: string; role: string; name: string }
+
+  if (roles && roles.length > 0 && !roles.includes(user.role)) {
+    return c.json({ error: 'Forbidden' }, 403)
+  }
+
+  return user
+}
+
+/**
  * Middleware para validar scopes específicos en API Keys
  */
 export function requireScopeMiddleware(requiredScopes: string[]) {
