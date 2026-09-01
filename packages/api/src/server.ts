@@ -1475,6 +1475,371 @@ app.put('/api/delivery/assignments/:id/assign', async (c) => {
 })
 
 // ============================================================================
+// REPARTIDOR (driver-facing app) — /api/delivery/... (S07, Fase 2)
+// Role `delivery` only (matriz sección 6.1) — a driver only ever sees/reports
+// their OWN assignments, keyed off authUser.id from the session, never a
+// client-supplied driver id.
+// ============================================================================
+
+// GET /api/delivery/assignments/mine — apps/repartidor/src/app/page.tsx
+// (loadAssignments). Frontend does its own client-side split into "Activos"
+// (status not in delivered/failed) vs. "Historial" (delivered/failed) from
+// this SAME array — so this endpoint intentionally returns everything for
+// the driver, not just pending ones. Shape matches the `Assignment`
+// interface in page.tsx exactly (customerName/guestName kept separate —
+// frontend does its own `?? ` fallback, no COALESCE server-side here).
+app.get('/api/delivery/assignments/mine', async (c) => {
+  const authUser = await requireSession(c, ['delivery'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const rows = await sql`
+      SELECT
+        da.id, da.order_id, da.status, da.amount_to_collect, da.payment_at_door,
+        da.route_index, da.delivered_at, da.failed_at, da.failure_reason,
+        o.number AS order_number, o.total AS order_total, o.delivery_mode,
+        o.delivery_address, o.metro_station, o.metro_slot,
+        cu.name  AS customer_name, cu.phone AS customer_phone,
+        o.guest_name, o.guest_phone,
+        EXISTS (
+          SELECT 1 FROM order_items oi JOIN products p ON p.id = oi.product_id
+          WHERE oi.order_id = o.id AND p.cold_chain = 'frozen'
+        ) AS has_frozen,
+        EXISTS (
+          SELECT 1 FROM order_items oi JOIN products p ON p.id = oi.product_id
+          WHERE oi.order_id = o.id AND p.cold_chain = 'refrigerated'
+        ) AS has_refrigerated
+      FROM delivery_assignments da
+      JOIN orders o ON o.id = da.order_id
+      LEFT JOIN customers cu ON cu.id = o.customer_id
+      WHERE da.driver_id = ${authUser.id}
+      ORDER BY
+        (da.status NOT IN ('delivered', 'failed')) DESC,
+        da.route_index ASC NULLS LAST,
+        da.assigned_at ASC NULLS LAST,
+        da.created_at DESC
+    `
+    return c.json({
+      assignments: rows.map((r: any) => ({
+        id: r.id,
+        orderId: r.order_id,
+        status: r.status,
+        amountToCollect: r.amount_to_collect,
+        paymentAtDoor: r.payment_at_door,
+        routeIndex: r.route_index,
+        orderNumber: r.order_number,
+        orderTotal: r.order_total,
+        deliveryMode: r.delivery_mode,
+        deliveryAddress: r.delivery_address,
+        metroStation: r.metro_station,
+        metroSlot: r.metro_slot,
+        customerName: r.customer_name,
+        customerPhone: r.customer_phone,
+        guestName: r.guest_name,
+        guestPhone: r.guest_phone,
+        hasFrozen: r.has_frozen,
+        hasRefrigerated: r.has_refrigerated,
+        deliveredAt: r.delivered_at,
+        failedAt: r.failed_at,
+        failureReason: r.failure_reason,
+      })),
+    })
+  } catch (err) {
+    console.error('List my delivery assignments error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// POST /api/delivery/location — GPS ping while `status = in_transit`
+// (apps/repartidor/src/app/page.tsx, watchPosition + 30s interval fallback).
+// Writes to delivery_location_pings (packages/db/src/schema/delivery.ts) — a
+// standalone tracking table, separate from delivery_assignments itself, so a
+// dense stream of pings never touches the assignment row. driver_id always
+// comes from the session, never the request body.
+app.post('/api/delivery/location', async (c) => {
+  const authUser = await requireSession(c, ['delivery'])
+  if (authUser instanceof Response) return authUser
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const { assignmentId, latitude, longitude, accuracy } = body
+  if (typeof latitude !== 'number' || typeof longitude !== 'number') {
+    return c.json({ error: 'Missing latitude/longitude' }, 400)
+  }
+
+  try {
+    await sql`
+      INSERT INTO delivery_location_pings (driver_id, assignment_id, latitude, longitude, accuracy)
+      VALUES (${authUser.id}, ${assignmentId ?? null}, ${latitude}, ${longitude}, ${accuracy ?? null})
+    `
+    return c.json({ ok: true })
+  } catch (err) {
+    console.error('Location ping error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// ============================================================================
+// DESPACHO — repartidores / Rappi / liquidaciones (Cerebro + POS admin views)
+// Role owner/admin/staff (matriz sección 6.1 — mismo grupo que Despacho arriba).
+// ============================================================================
+
+// GET /api/delivery/drivers — selector de repartidor en Despacho
+// (apps/pos/src/components/pos/delivery/{assign-driver-modal,dispatch-panel,
+// dispatch-bifurcation-panel}.tsx). Distinct from `GET /api/auth/users`
+// (which also lists staff/admin/owner accounts, no `activeJobs`) — this is
+// scoped to role=delivery only and adds the one field those 3 modals all
+// actually need: how many jobs each driver currently has in flight.
+app.get('/api/delivery/drivers', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const rows = await sql`
+      SELECT
+        u.id, u.name, u.email,
+        COUNT(da.id) FILTER (WHERE da.status IN ('assigned', 'accepted', 'in_transit')) AS active_jobs
+      FROM users u
+      LEFT JOIN delivery_assignments da ON da.driver_id = u.id
+      WHERE u.role = 'delivery' AND u.is_active = true
+      GROUP BY u.id, u.name, u.email
+      ORDER BY u.name ASC
+    `
+    return c.json({
+      drivers: rows.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        activeJobs: Number(r.active_jobs),
+      })),
+    })
+  } catch (err) {
+    console.error('List drivers error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// POST /api/delivery/dispatch-rappi — apps/pos/.../rappi-dispatch-modal.tsx.
+// NO REAL RAPPI INTEGRATION EXISTS. This does not call any Rappi API — Seoul
+// Kims has no Rappi merchant/API credentials configured today (see CLAUDE.md
+// "Logística: Rappi + Metro Merval" — mentioned as a channel, no credentials
+// documented anywhere in this repo's env vars). What this endpoint does is
+// exactly what the schema already models for this case (`dispatch_type`,
+// `third_party_name`, `third_party_tracking` on delivery_assignments, added
+// in migrate-0009 "Bifurcación de flota: interna vs. terceros"): record, in
+// our own DB, that staff manually handed the order to a Rappi courier whose
+// name/tracking code they read off the Rappi app/SMS and typed into the
+// modal. If/when the business gets real Rappi API credentials, this is the
+// endpoint to extend with an actual outbound call — until then this is
+// bookkeeping, not dispatch automation, and must not be presented as more.
+app.post('/api/delivery/dispatch-rappi', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const { orderId, thirdPartyName, thirdPartyTracking, amountToCollect, paymentAtDoor } = body
+  if (!orderId || !thirdPartyName) {
+    return c.json({ error: 'Missing orderId or thirdPartyName' }, 400)
+  }
+
+  try {
+    const [order] = await sql`SELECT id FROM orders WHERE id = ${orderId}`
+    if (!order) return c.json({ error: 'Order not found' }, 404)
+
+    const [existing] = await sql`SELECT id FROM delivery_assignments WHERE order_id = ${orderId}`
+
+    let assignmentId: string
+    if (existing) {
+      await sql`
+        UPDATE delivery_assignments
+        SET dispatch_type = 'rappi',
+            third_party_name = ${thirdPartyName},
+            third_party_tracking = ${thirdPartyTracking ?? null},
+            third_party_saved_at = NOW(),
+            third_party_saved_by = ${authUser.id},
+            status = 'assigned',
+            assigned_at = NOW(),
+            amount_to_collect = ${amountToCollect ?? 0},
+            payment_at_door = ${paymentAtDoor ?? 'not_required'},
+            updated_at = NOW()
+        WHERE id = ${existing.id}
+      `
+      assignmentId = existing.id
+    } else {
+      const [created] = await sql`
+        INSERT INTO delivery_assignments
+          (order_id, dispatch_type, third_party_name, third_party_tracking,
+           third_party_saved_at, third_party_saved_by, status, assigned_at,
+           amount_to_collect, payment_at_door)
+        VALUES
+          (${orderId}, 'rappi', ${thirdPartyName}, ${thirdPartyTracking ?? null},
+           NOW(), ${authUser.id}, 'assigned', NOW(),
+           ${amountToCollect ?? 0}, ${paymentAtDoor ?? 'not_required'})
+        RETURNING id
+      `
+      assignmentId = created.id
+    }
+
+    console.log(`✅ Rappi dispatch recorded for order ${orderId} (${thirdPartyName})`)
+    return c.json({ ok: true, assignmentId })
+  } catch (err) {
+    console.error('Dispatch Rappi error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/delivery/drivers/:driverId/z-report — apps/pos/.../driver-z-report-modal.tsx.
+// Computes the pending liquidation period for one driver: from the moment
+// right after their last paid payout (or the epoch, if they've never been
+// paid) up to now. KNOWN LIMITATION (documented, not fixed here — out of
+// S07 scope): `distancia_km` / `monto_repartidor_clp` on delivery_assignments
+// are columns modeled in migrate-0009 but NO endpoint anywhere in this
+// codebase (this session included) ever writes them — there is no distance-
+// tracking logic yet (would need to derive km from the location-ping trail
+// this session just started collecting, or from a maps API). So `totalKm`
+// and `grossClp` will correctly read as 0 today for every driver, and
+// `netPayable` will be 0-minus-cashCollected, until a future session adds
+// that computation. Not faked here.
+app.get('/api/delivery/drivers/:driverId/z-report', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const { driverId } = c.req.param()
+
+  try {
+    const [driver] = await sql`SELECT id, name, email FROM users WHERE id = ${driverId} AND role = 'delivery'`
+    if (!driver) return c.json({ error: 'Driver not found' }, 404)
+
+    const [lastPayout] = await sql`
+      SELECT period_to FROM delivery_payouts
+      WHERE driver_id = ${driverId}
+      ORDER BY period_to DESC
+      LIMIT 1
+    `
+    const periodFrom = lastPayout?.period_to ?? new Date(0)
+    const periodTo = new Date()
+
+    const [agg] = await sql`
+      SELECT
+        COUNT(*) AS deliveries_count,
+        COALESCE(SUM(distancia_km), 0) AS total_km,
+        COALESCE(SUM(monto_repartidor_clp), 0) AS gross_clp,
+        COALESCE(SUM(amount_to_collect) FILTER (WHERE payment_at_door = 'collected'), 0) AS cash_collected
+      FROM delivery_assignments
+      WHERE driver_id = ${driverId}
+        AND status = 'delivered'
+        AND delivered_at > ${periodFrom}
+        AND delivered_at <= ${periodTo}
+    `
+
+    const grossClp = Number(agg.gross_clp)
+    const cashCollected = Number(agg.cash_collected)
+
+    return c.json({
+      driver: { id: driver.id, name: driver.name, email: driver.email },
+      periodFrom: periodFrom instanceof Date ? periodFrom.toISOString() : periodFrom,
+      periodTo: periodTo.toISOString(),
+      deliveriesCount: Number(agg.deliveries_count),
+      totalKm: Number(agg.total_km),
+      grossClp,
+      cashCollected,
+      netPayable: grossClp - cashCollected,
+    })
+  } catch (err) {
+    console.error('Driver z-report error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/delivery/payouts — historial de liquidaciones (sección 7 del plan
+// maestro la lista explícitamente). Sin consumidor de GET en las 4 apps hoy
+// (solo el POST de abajo, disparado por "Liquidar turno" en
+// driver-z-report-modal.tsx) — se construye igual porque el plan la pide y
+// porque es la lectura natural que necesitará una futura pantalla de
+// historial de liquidaciones. Optional `?driverId=` filters to one driver.
+app.get('/api/delivery/payouts', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const driverId = c.req.query('driverId')
+
+  try {
+    const rows = driverId
+      ? await sql`
+          SELECT dp.*, u.name AS driver_name, u.email AS driver_email
+          FROM delivery_payouts dp
+          JOIN users u ON u.id = dp.driver_id
+          WHERE dp.driver_id = ${driverId}
+          ORDER BY dp.created_at DESC
+        `
+      : await sql`
+          SELECT dp.*, u.name AS driver_name, u.email AS driver_email
+          FROM delivery_payouts dp
+          JOIN users u ON u.id = dp.driver_id
+          ORDER BY dp.created_at DESC
+        `
+    return c.json({
+      payouts: rows.map((r: any) => ({
+        id: r.id,
+        driverId: r.driver_id,
+        driverName: r.driver_name,
+        driverEmail: r.driver_email,
+        periodFrom: r.period_from,
+        periodTo: r.period_to,
+        deliveriesCount: r.deliveries_count,
+        totalKm: r.total_km,
+        grossClp: r.gross_clp,
+        cashCollected: r.cash_collected,
+        netPayable: r.net_payable,
+        paidAt: r.paid_at,
+        notes: r.notes,
+      })),
+    })
+  } catch (err) {
+    console.error('List payouts error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// POST /api/delivery/payouts — "Liquidar turno" button in
+// driver-z-report-modal.tsx. Registers (and immediately marks paid — this IS
+// the "pay now" action, there's no separate approval step in the UI) a
+// payout using the exact figures the z-report GET above just computed and
+// the modal echoed back in the request body.
+app.post('/api/delivery/payouts', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const {
+    driverId, periodFrom, periodTo, deliveriesCount,
+    totalKm, grossClp, cashCollected, netPayable, notes,
+  } = body
+  if (!driverId || !periodFrom || !periodTo) {
+    return c.json({ error: 'Missing driverId/periodFrom/periodTo' }, 400)
+  }
+
+  try {
+    const [payout] = await sql`
+      INSERT INTO delivery_payouts
+        (driver_id, period_from, period_to, deliveries_count, total_km,
+         gross_clp, cash_collected, net_payable, paid_at, paid_by, notes)
+      VALUES
+        (${driverId}, ${periodFrom}, ${periodTo}, ${deliveriesCount ?? 0}, ${totalKm ?? 0},
+         ${grossClp ?? 0}, ${cashCollected ?? 0}, ${netPayable ?? 0}, NOW(), ${authUser.id}, ${notes ?? null})
+      RETURNING id
+    `
+    console.log(`✅ Payout registered for driver ${driverId}: ${payout.id}`)
+    return c.json({ ok: true, id: payout.id })
+  } catch (err) {
+    console.error('Create payout error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// ============================================================================
 // TIENDA CONFIG (singleton key/value settings) — Ajustes / Seguridad panels
 // `tienda_config` (key TEXT PK, value TEXT) already existed in prod, already
 // populated (metro_station_name, void_pin, dte_provider, etc — see
