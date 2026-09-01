@@ -1379,6 +1379,33 @@ app.put('/api/delivery/assignments/:id/assign', async (c) => {
 // covers the requested analytics_pin without a schema change.
 // ============================================================================
 
+// GET /api/tienda-config/public — bank-transfer / QR-payment details shown to whoever is
+// paying, during POS checkout (components/pos/checkout/pay-qr.tsx expects
+// { config: { bank_name, bank_account, bank_account_type, bank_rut, bank_holder } }).
+// Deliberately public/no-auth (unlike the generic :key route below): it's the same bank
+// account info a cashier reads out loud for a transfer, and pay-qr.tsx's fetch does not
+// send credentials. Registered before the generic '/:key' route so 'public' isn't
+// swallowed as an arbitrary settings key with a {key,value} shape.
+app.get('/api/tienda-config/public', async (c) => {
+  try {
+    const keys = ['bank_name', 'bank_account', 'bank_account_type', 'bank_rut', 'bank_holder']
+    const rows = await sql`SELECT key, value FROM tienda_config WHERE key IN ${sql(keys)}`
+    const byKey = new Map(rows.map((r: any) => [r.key, r.value]))
+    return c.json({
+      config: {
+        bank_name:         byKey.get('bank_name')         ?? null,
+        bank_account:      byKey.get('bank_account')      ?? null,
+        bank_account_type: byKey.get('bank_account_type') ?? null,
+        bank_rut:          byKey.get('bank_rut')           ?? null,
+        bank_holder:       byKey.get('bank_holder')        ?? null,
+      },
+    })
+  } catch (err) {
+    console.error('Get tienda-config public error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
 app.get('/api/tienda-config/:key', async (c) => {
   const authUser = await getAuthUser(c)
   if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
