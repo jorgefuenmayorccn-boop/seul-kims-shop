@@ -1,5 +1,12 @@
 import { Context, Next } from 'hono'
+import { getCookie } from 'hono/cookie'
 import { ApiKeyService } from '../services/api-key.service'
+import { AuthService } from '../services/auth.service'
+import { JWT_SECRET } from '../db'
+
+// Must match SESSION_COOKIE_NAME in server.ts. There's no shared constants module
+// between server.ts and middleware/ today, so this is kept in sync manually.
+const SESSION_COOKIE_NAME = 'seul_session'
 
 /**
  * Middleware para validar Bearer token (JWT) o API Key
@@ -7,33 +14,45 @@ import { ApiKeyService } from '../services/api-key.service'
  */
 export async function requireAuthMiddleware(c: Context, next: Next) {
   const authHeader = c.req.header('Authorization')
-
-  if (!authHeader) {
-    return c.json({ error: 'Missing Authorization header' }, 401)
-  }
-
-  let tokenOrKey = authHeader
-
-  // Bearer token (JWT) o API Key
-  if (authHeader.startsWith('Bearer ')) {
-    tokenOrKey = authHeader.slice(7)
-  }
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+  // A bare (non-"Bearer ") Authorization header is how API-key clients call today —
+  // preserve that behavior. A JWT never arrives that way in this codebase.
+  const rawHeaderKey = authHeader && !authHeader.startsWith('Bearer ') ? authHeader : undefined
 
   // 1. Try API Key validation first (faster)
-  const apiKeyData = await ApiKeyService.validateKey(tokenOrKey)
-  if (apiKeyData) {
-    c.set('auth', {
-      type: 'api-key',
-      id: apiKeyData.id,
-      userId: apiKeyData.userId,
-      scopes: apiKeyData.scopes,
-      rateLimit: apiKeyData.rateLimit,
-    })
-    return next()
+  const apiKeyCandidate = rawHeaderKey || bearerToken
+  if (apiKeyCandidate) {
+    const apiKeyData = await ApiKeyService.validateKey(apiKeyCandidate)
+    if (apiKeyData) {
+      c.set('auth', {
+        type: 'api-key',
+        id: apiKeyData.id,
+        userId: apiKeyData.userId,
+        scopes: apiKeyData.scopes,
+        rateLimit: apiKeyData.rateLimit,
+      })
+      return next()
+    }
   }
 
-  // 2. Try JWT validation (sessions/user login)
-  // TODO: Implement JWT validation
+  // 2. Try JWT validation (session cookie or "Authorization: Bearer <jwt>") — same
+  // token-lookup pattern as handleGetMe/getAuthUser in server.ts.
+  const jwtToken = bearerToken || getCookie(c, SESSION_COOKIE_NAME)
+  if (jwtToken) {
+    const verified = AuthService.verifyToken(jwtToken, JWT_SECRET)
+    if (verified.ok) {
+      const decoded = verified.decoded as any
+      c.set('user', decoded)
+      c.set('auth', {
+        type: 'jwt',
+        userId: decoded.id,
+        email: decoded.email,
+        role: decoded.role,
+        name: decoded.name,
+      })
+      return next()
+    }
+  }
 
   return c.json({ error: 'Invalid or expired credentials' }, 401)
 }
@@ -45,7 +64,18 @@ export function requireScopeMiddleware(requiredScopes: string[]) {
   return async (c: Context, next: Next) => {
     const auth = c.get('auth')
 
-    if (!auth || auth.type !== 'api-key') {
+    if (!auth) {
+      return c.json({ error: 'API key required' }, 401)
+    }
+
+    // Scopes are a restriction mechanism for third-party API keys. A JWT session
+    // (staff/admin logged in via cookie or Bearer token) is already fully
+    // authenticated by requireAuthMiddleware, so it bypasses the scope check.
+    if (auth.type === 'jwt') {
+      return next()
+    }
+
+    if (auth.type !== 'api-key') {
       return c.json({ error: 'API key required' }, 401)
     }
 
