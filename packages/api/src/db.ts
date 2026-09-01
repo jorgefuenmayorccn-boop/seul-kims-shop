@@ -7,7 +7,19 @@ import postgres from 'postgres'
 export const RESEND_KEY = process.env.RESEND_API_KEY || ''
 
 export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@seoulshop.cl'
-export const JWT_SECRET = process.env.JWT_SECRET || 'seul-king-os-secret-dev'
+
+// JWT_SECRET must never silently fall back to a hardcoded value in production —
+// that hardcoded value lives in this file's git history, so a silent fallback
+// would mean anyone could forge valid session tokens. Same throw-if-missing
+// pattern as DATABASE_URL below. In non-production (local dev), keep a fixed
+// dev-only fallback so `pnpm dev` keeps working without extra setup.
+export const JWT_SECRET = (() => {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be configured in production')
+  }
+  return 'seul-king-os-secret-dev'
+})()
 
 // Build DATABASE_URL from env vars or use direct URL
 const DATABASE_URL = (() => {
