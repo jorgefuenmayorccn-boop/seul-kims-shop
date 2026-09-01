@@ -144,6 +144,32 @@ async function runMigrationsIfNeeded() {
       `
       console.log('✅ Migration 0015 applied')
     }
+
+    // 0016: Generic rate limiting table (S02, bloqueador P0 #3) — same pattern as
+    // login_attempts (0015) above, generalized to (bucket_key, action) pairs so any
+    // write endpoint can rate-limit per user-or-IP without a KV/Redis dependency.
+    const genericRateLimitTableExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'rate_limit_events' AND column_name = 'bucket_key'
+    `
+
+    if (genericRateLimitTableExists.length === 0) {
+      console.log('🔄 Running migration 0016 (generic rate limiter)...')
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS rate_limit_events (
+          id SERIAL PRIMARY KEY,
+          bucket_key VARCHAR(255) NOT NULL,
+          action VARCHAR(100) NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+      await sql`
+        CREATE INDEX IF NOT EXISTS rate_limit_events_bucket_idx
+        ON rate_limit_events(bucket_key, action, created_at DESC)
+      `
+      console.log('✅ Migration 0016 applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -232,6 +258,52 @@ async function checkRateLimit(email: string): Promise<{ allowed: boolean; retryA
     return { allowed: true }
   } catch (e) {
     // If rate limit table doesn't exist yet, allow login
+    return { allowed: true }
+  }
+}
+
+// Generic rate limiter (S02, bloqueador P0 #3 — replaces the KV-store TODO at
+// auth.middleware.ts:160 with the same Postgres pattern as checkRateLimit/
+// recordLoginAttempt above, generalized to any (bucket, action) pair). No new
+// dependency (no Redis/Upstash/KV) — reuses the `sql` tag already in scope and
+// the `rate_limit_events` table created by migration 0016.
+//
+// Identifier precedence: explicit `identifier` param (e.g. an authenticated
+// user's id) > JWT session set by requireAuthMiddleware (c.get('user')) >
+// API-key auth set by the same middleware (c.get('auth').userId) > client IP.
+// Fails OPEN on DB error, matching checkRateLimit's posture — a rate-limit
+// outage must never block legitimate traffic.
+async function checkAndRecordRateLimit(
+  c: any,
+  action: string,
+  opts: { limit: number; windowMinutes: number },
+  identifier?: string
+): Promise<{ allowed: boolean; retryAfterMinutes?: number }> {
+  try {
+    const jwtUser = c.get('user')
+    const apiKeyAuth = c.get('auth')
+    const bucketKey =
+      identifier ||
+      jwtUser?.id ||
+      apiKeyAuth?.userId ||
+      c.req.header('cf-connecting-ip') ||
+      c.req.header('x-forwarded-for') ||
+      'unknown'
+
+    const windowStart = new Date(Date.now() - opts.windowMinutes * 60 * 1000)
+    const rows = await sql`
+      SELECT count(*) AS n FROM rate_limit_events
+      WHERE bucket_key = ${bucketKey} AND action = ${action} AND created_at > ${windowStart}
+    `
+    const count = Number(rows[0]?.n ?? 0)
+    if (count >= opts.limit) {
+      return { allowed: false, retryAfterMinutes: opts.windowMinutes }
+    }
+
+    await sql`INSERT INTO rate_limit_events (bucket_key, action) VALUES (${bucketKey}, ${action})`
+    return { allowed: true }
+  } catch (e) {
+    // If the table doesn't exist yet (migration race) or DB hiccups, allow the request.
     return { allowed: true }
   }
 }
@@ -1022,6 +1094,12 @@ app.use('/api/orders*', requireScopeMiddleware(['orders:write']))
 
 // POST /api/orders
 app.post('/api/orders', async (c) => {
+  // Rate limit (S02, bloqueador P0 #3): 20 pedidos / 5 min por usuario o IP.
+  const rl = await checkAndRecordRateLimit(c, 'orders:create', { limit: 20, windowMinutes: 5 })
+  if (!rl.allowed) {
+    return c.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
   try {
     const { customer_email, customer_name, items, total, delivery_mode } = await c.req.json()
     if (!customer_email || !items || !total) return c.json({ error: 'Missing fields' }, 400)
@@ -1154,6 +1232,12 @@ app.use('/api/b2b*', requireScopeMiddleware(['orders:write']))
 
 // POST /api/b2b/quotes
 app.post('/api/b2b/quotes', async (c) => {
+  // Rate limit (S02, bloqueador P0 #3): 20 cotizaciones / 5 min por usuario o IP.
+  const rl = await checkAndRecordRateLimit(c, 'b2b/quotes:create', { limit: 20, windowMinutes: 5 })
+  if (!rl.allowed) {
+    return c.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
   try {
     const { company_id, buyer_name, buyer_email, items, total, valid_days } = await c.req.json()
     if (!company_id || !buyer_email) return c.json({ error: 'Missing fields' }, 400)

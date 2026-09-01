@@ -157,7 +157,15 @@ export async function rateLimitMiddleware(c: Context, next: Next) {
     return next() // Sin limite
   }
 
-  // TODO: Implement rate limiter (use KV store)
+  // NOTE (S02, bloqueador P0 #3): the generic, KV-free rate limiter now lives as
+  // `checkAndRecordRateLimit(c, action, opts, identifier?)` in server.ts, using a
+  // Postgres table (`rate_limit_events`, migration 0016) — same pattern as the
+  // existing login_attempts limiter. It is applied directly inside the handlers
+  // for POST /api/orders, POST /api/b2b/quotes, and POST /api/auth/register
+  // (the highest-risk write endpoints), not through this Hono middleware, because
+  // this middleware only runs for API-key-scoped routes (`auth.rateLimit` above)
+  // while those three endpoints are reached via JWT session too. Wiring API-key
+  // `rateLimit` config through the same helper is follow-up work, not done in S02.
   return next()
 }
 
