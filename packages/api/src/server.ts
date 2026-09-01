@@ -1928,6 +1928,79 @@ app.get('/api/products/id/:id', async (c) => {
   }
 })
 
+// Listado de lotes de inventario — usado por cerebro en /inventory (getInventory).
+// Semáforo de vencimiento (expiryStatus) con los mismos umbrales que
+// packages/ui/src/badge-expiry.tsx (getStatus): <0d vencido, <15d urgente,
+// <30d por vencer, resto fresco. Filtros calcados de la UI: category (id o
+// slug), expiry, cold_chain, baes.
+app.get('/api/inventory', async (c) => {
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
+
+  const category = c.req.query('category')?.trim()
+  const expiry = c.req.query('expiry')?.trim()
+  const coldChain = c.req.query('cold_chain')?.trim()
+  const baes = c.req.query('baes')?.trim()
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '300', 10) || 300, 1), 1000)
+
+  const categoryCond = category
+    ? sql`AND (p.category_id::text = ${category} OR cat.slug = ${category})`
+    : sql``
+
+  const expiryCond = expiry && VALID_EXPIRY_FILTERS.includes(expiry)
+    ? expiry === 'expired'
+      ? sql`AND i.expires_at IS NOT NULL AND i.expires_at < NOW()`
+      : expiry === 'urgent'
+        ? sql`AND i.expires_at IS NOT NULL AND i.expires_at >= NOW() AND i.expires_at < NOW() + INTERVAL '15 days'`
+        : expiry === 'warning'
+          ? sql`AND i.expires_at IS NOT NULL AND i.expires_at >= NOW() + INTERVAL '15 days' AND i.expires_at < NOW() + INTERVAL '30 days'`
+          : sql`AND i.expires_at IS NOT NULL AND i.expires_at >= NOW() + INTERVAL '30 days'`
+    : sql``
+
+  const coldChainCond = coldChain && VALID_COLD_CHAIN.includes(coldChain)
+    ? sql`AND p.cold_chain = ${coldChain}`
+    : sql``
+
+  const baesCond = baes === 'true' ? sql`AND p.is_baes_eligible = true` : sql``
+
+  try {
+    const rows = await sql`
+      SELECT
+        i.id, i.product_id, p.name AS product_name, p.sku, p.brand,
+        i.lot, i.quantity, i.expires_at, i.location,
+        p.cold_chain, p.is_baes_eligible, cat.name AS category_name,
+        CASE
+          WHEN i.expires_at IS NULL THEN NULL
+          WHEN i.expires_at < NOW() THEN 'expired'
+          WHEN i.expires_at < NOW() + INTERVAL '15 days' THEN 'urgent'
+          WHEN i.expires_at < NOW() + INTERVAL '30 days' THEN 'warning'
+          ELSE 'fresh'
+        END AS expiry_status,
+        COUNT(*) OVER() AS full_count
+      FROM inventory i
+      JOIN products p ON p.id = i.product_id
+      LEFT JOIN categories cat ON cat.id = p.category_id
+      WHERE 1=1 ${categoryCond} ${expiryCond} ${coldChainCond} ${baesCond}
+      ORDER BY i.expires_at ASC NULLS LAST
+      LIMIT ${limit}
+    `
+
+    return c.json({
+      items: rows.map((r: any) => ({
+        id: r.id, productId: r.product_id, productName: r.product_name, sku: r.sku,
+        brand: r.brand, lot: r.lot, quantity: r.quantity,
+        expiresAt: r.expires_at, location: r.location,
+        coldChain: r.cold_chain, isBaesEligible: r.is_baes_eligible,
+        categoryName: r.category_name, expiryStatus: r.expiry_status,
+      })),
+      total: rows.length > 0 ? Number(rows[0].full_count) : 0,
+    })
+  } catch (err) {
+    console.error('List inventory error:', err)
+    return c.json({ error: 'Error al listar inventario' }, 500)
+  }
+})
+
 // ============================================================================
 // STARTUP
 // ============================================================================
