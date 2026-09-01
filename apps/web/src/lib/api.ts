@@ -46,6 +46,14 @@ export async function getCustomerSession(): Promise<{
 }
 
 // Pedido web
+// NOTA (S10): el path real es /api/public/orders, no /api/orders/public.
+// /api/orders* en el backend exige API key con scope orders:write o sesión
+// staff (ver server.ts, app.use('/api/orders*', requireAuthMiddleware)) — un
+// visitante anónimo o un cliente logueado (seul_customer_session, no es
+// sesión staff) no puede pasar por ahí, así que el endpoint de checkout
+// público vive en un path distinto a propósito. credentials:'include' para
+// que, si hay sesión de cliente activa, el backend la use para vincular el
+// pedido en vez de confiar en el customerId del body.
 export async function createWebOrder(payload: {
   channel: 'web'
   deliveryMode: 'rappi' | 'metro' | 'pickup' | 'shipping'
@@ -54,7 +62,7 @@ export async function createWebOrder(payload: {
   notes?: string
   items: Array<{ productId: string; quantity: number; unitPrice: number; isBaes: boolean }>
 }) {
-  return apiFetch<{ ok: boolean; orderId: string; number: number; pdfToken: string; total: number }>(
-    '/api/orders/public', { method: 'POST', body: JSON.stringify(payload) }
+  return apiFetch<{ ok: boolean; orderId: string; number: number; pdfToken: string | null; total: number }>(
+    '/api/public/orders', { method: 'POST', credentials: 'include', body: JSON.stringify(payload) } as RequestInit
   )
 }
