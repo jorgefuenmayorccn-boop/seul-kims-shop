@@ -155,7 +155,12 @@ export default function ComandasPage() {
 
   const fetchComandas = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/api/orders/comandas`)
+      // credentials: 'include' es obligatorio — cmr.seoulshop.cl y api.seoulshop.cl son
+      // orígenes distintos (subdominios), así que sin esto el navegador nunca envía la
+      // cookie seul_session y el endpoint responde 401 aunque curl (que sí manda la
+      // cookie a mano) lo dé por bueno. Bug encontrado en auditoría de cierre Fase 1.
+      const res = await fetch(`${API}/api/orders/comandas`, { credentials: 'include' })
+      if (!res.ok) return
       const json = await res.json() as KanbanData
       setData(json)
     } finally {
@@ -188,6 +193,7 @@ export default function ComandasPage() {
     await fetch(`${API}/api/orders/${orderId}/status`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify({ status }),
     })
   }
