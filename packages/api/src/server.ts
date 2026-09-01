@@ -1480,31 +1480,90 @@ app.get('/api/email-queue/:id', async (c) => {
   }
 })
 
+// POST /api/auth/register — crea un usuario STAFF real (usado por el panel Usuarios).
+// No es self-signup: requiere sesión válida (mismo guard que GET/PUT/DELETE /api/auth/users),
+// genera una contraseña temporal (igual patrón que seedRealUsersIfNeeded) y la envía por
+// email con la plantilla de credenciales iniciales — el password que venga en el body del
+// formulario se ignora a propósito, nunca se persiste texto plano ni se elige por el creador.
 app.post('/api/auth/register', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  let body: any = {}
   try {
-    const { email, password, firstName, lastName } = await c.req.json()
-    if (!email || !password) return c.json({ error: 'Missing fields' }, 400)
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
 
-    const fullName = lastName ? `${firstName} ${lastName}` : firstName
+  const email = String(body.email || '').toLowerCase().trim()
+  const name = String(body.name || '').trim()
+  const role = body.role || 'staff'
+  const cargo = body.cargo || null
+  const departamento = body.departamento || null
+  const telefonoPersonal = body.telefonoPersonal || null
 
-    const queueIdAdmin = await enqueueEmail(
-      ADMIN_EMAIL,
-      `✨ Nuevo Usuario: ${fullName}`,
-      `<p>Email: ${email}</p>`,
-      'user-created'
-    )
+  if (!email || !name) {
+    return c.json({ error: 'Faltan campos requeridos (nombre, email)' }, 400)
+  }
 
-    const queueIdWelcome = await enqueueEmail(
-      email,
-      `¡Bienvenido a Seoul Shop!`,
-      `<p>¡Hola ${fullName}! Bienvenido.</p>`,
-      'welcome'
-    )
+  const VALID_ROLES = ['owner', 'admin', 'staff', 'delivery', 'viewer']
+  if (!VALID_ROLES.includes(role)) {
+    return c.json({ error: 'Rol inválido' }, 400)
+  }
 
-    const token = jwt.sign({ userId: crypto.randomUUID() }, JWT_SECRET, { expiresIn: '24h' })
-    return c.json({ ok: true, token, queue_ids: [queueIdAdmin, queueIdWelcome] })
-  } catch (err) {
-    return c.json({ error: 'Error' }, 500)
+  try {
+    const [existing] = await sql`SELECT id FROM users WHERE email = ${email}`
+    if (existing) {
+      return c.json({ error: 'Ya existe un usuario con ese email' }, 409)
+    }
+
+    const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
+    const passwordHash = PasswordService.hashPassword(tempPassword)
+
+    const [created] = await sql`
+      INSERT INTO users (email, password_hash, name, role, is_active, must_change_password, cargo, departamento, telefono_personal)
+      VALUES (${email}, ${passwordHash}, ${name}, ${role}, true, true, ${cargo}, ${departamento}, ${telefonoPersonal})
+      RETURNING id, email, name, role, is_active, cargo, departamento, telefono_personal, last_login_at, created_at
+    `
+
+    try {
+      await enqueueEmail(
+        email,
+        '🎉 ¡Bienvenido a SEUL KING OS v1.0!',
+        templates.initialCredentials({
+          email,
+          password: tempPassword,
+          name,
+          role,
+        }),
+        'welcome'
+      )
+    } catch (emailError) {
+      console.error(`⚠️  Register — email error for ${email}:`, emailError)
+    }
+
+    return c.json({
+      ok: true,
+      user: {
+        id: created.id,
+        email: created.email,
+        name: created.name,
+        role: created.role,
+        isActive: created.is_active,
+        cargo: created.cargo,
+        departamento: created.departamento,
+        telefonoPersonal: created.telefono_personal,
+        lastLoginAt: created.last_login_at,
+        createdAt: created.created_at,
+      },
+    })
+  } catch (err: any) {
+    console.error('Register error:', err)
+    if (err?.code === '23505') {
+      return c.json({ error: 'Ya existe un usuario con ese email' }, 409)
+    }
+    return c.json({ error: 'Error al crear usuario' }, 500)
   }
 })
 
