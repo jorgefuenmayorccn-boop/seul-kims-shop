@@ -516,6 +516,138 @@ async function handleChangePassword(c: any) {
 app.post('/api/auth/change-password', handleChangePassword)
 
 // ============================================================================
+// SHARED AUTH HELPER — JWT via Authorization header or session cookie.
+// NOTE: requireAuthMiddleware (middleware/auth.middleware.ts) only validates
+// API Keys today (JWT branch is a TODO there) — do not use it for session-
+// cookie-authenticated admin panel requests. This replicates handleGetMe's
+// working pattern instead.
+// ============================================================================
+async function getAuthUser(c: any): Promise<{ id: string; email: string; role: string; name: string } | null> {
+  let token: string | undefined
+  const authHeader = c.req.header('Authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.slice(7)
+  } else {
+    token = getCookie(c, SESSION_COOKIE_NAME)
+  }
+  if (!token) return null
+  const verified = AuthService.verifyToken(token, JWT_SECRET)
+  if (!verified.ok) return null
+  return verified.decoded as any
+}
+
+// ============================================================================
+// USERS MANAGEMENT (Usuarios panel + Despacho driver selector)
+// ============================================================================
+
+// GET /api/auth/users — lista de usuarios (consumida por Usuarios y Despacho)
+app.get('/api/auth/users', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  try {
+    const rows = await sql`
+      SELECT id, email, name, role, is_active, cargo, departamento, telefono_personal,
+             last_login_at, created_at, must_change_password
+      FROM users
+      ORDER BY created_at ASC
+    `
+    return c.json({
+      users: rows.map((r: any) => ({
+        id: r.id,
+        email: r.email,
+        name: r.name,
+        role: r.role,
+        isActive: r.is_active,
+        cargo: r.cargo,
+        departamento: r.departamento,
+        telefonoPersonal: r.telefono_personal,
+        lastLoginAt: r.last_login_at,
+        createdAt: r.created_at,
+        mustChangePassword: r.must_change_password,
+      })),
+    })
+  } catch (err) {
+    console.error('List users error:', err)
+    return c.json({ error: 'Error listing users' }, 500)
+  }
+})
+
+// PUT /api/auth/users/:id — editar usuario (isActive, role, name, cargo, departamento, telefonoPersonal)
+app.put('/api/auth/users/:id', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const { id } = c.req.param()
+  let body: any = {}
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON' }, 400)
+  }
+
+  try {
+    const [updated] = await sql`
+      UPDATE users SET
+        role               = COALESCE(${body.role ?? null}, role),
+        is_active          = COALESCE(${typeof body.isActive === 'boolean' ? body.isActive : null}, is_active),
+        name               = COALESCE(${body.name ?? null}, name),
+        cargo              = COALESCE(${body.cargo ?? null}, cargo),
+        departamento       = COALESCE(${body.departamento ?? null}, departamento),
+        telefono_personal  = COALESCE(${body.telefonoPersonal ?? null}, telefono_personal),
+        updated_at         = NOW()
+      WHERE id = ${id}
+      RETURNING id, email, name, role, is_active, cargo, departamento, telefono_personal, last_login_at, created_at
+    `
+
+    if (!updated) return c.json({ error: 'User not found' }, 404)
+
+    return c.json({
+      ok: true,
+      user: {
+        id: updated.id,
+        email: updated.email,
+        name: updated.name,
+        role: updated.role,
+        isActive: updated.is_active,
+        cargo: updated.cargo,
+        departamento: updated.departamento,
+        telefonoPersonal: updated.telefono_personal,
+        lastLoginAt: updated.last_login_at,
+        createdAt: updated.created_at,
+      },
+    })
+  } catch (err) {
+    console.error('Update user error:', err)
+    return c.json({ error: 'Error updating user' }, 500)
+  }
+})
+
+// DELETE /api/auth/users/:id — soft-delete (is_active=false). FKs (delivery_assignments,
+// shifts, till_sessions, cash_movements, etc.) reference users.id — a hard delete would
+// either fail on FK constraints or cascade-destroy operational history, so this only
+// deactivates the account (matches the frontend's own confirm-dialog copy).
+app.delete('/api/auth/users/:id', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const { id } = c.req.param()
+  try {
+    const [target] = await sql`SELECT id, role FROM users WHERE id = ${id}`
+    if (!target) return c.json({ error: 'User not found' }, 404)
+    if (target.role === 'owner') {
+      return c.json({ error: 'No se puede eliminar una cuenta owner' }, 403)
+    }
+
+    await sql`UPDATE users SET is_active = false, updated_at = NOW() WHERE id = ${id}`
+    return c.json({ ok: true })
+  } catch (err) {
+    console.error('Delete user error:', err)
+    return c.json({ error: 'Error deleting user' }, 500)
+  }
+})
+
+// ============================================================================
 // B2C ENDPOINTS (7 emails)
 // ============================================================================
 
