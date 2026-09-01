@@ -112,6 +112,24 @@ export async function requireSession(
   return user
 }
 
+// Like requireSession, but never fails: returns the authenticated user if a
+// valid session is present, or null for an anonymous/public caller. Used by
+// endpoints that must serve BOTH staff (cerebro/pos, full data) and public
+// visitors (apps/web storefront, no session) — e.g. the product catalog.
+export async function getOptionalSession(
+  c: Context
+): Promise<{ id: string; email: string; role: string; name: string } | null> {
+  const authHeader = c.req.header('Authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+  const token = bearerToken || getCookie(c, SESSION_COOKIE_NAME)
+  if (!token) return null
+
+  const verified = AuthService.verifyToken(token, JWT_SECRET)
+  if (!verified.ok) return null
+
+  return verified.decoded as { id: string; email: string; role: string; name: string }
+}
+
 /**
  * Middleware para validar scopes específicos en API Keys
  */

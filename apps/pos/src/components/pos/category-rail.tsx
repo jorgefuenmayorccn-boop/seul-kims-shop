@@ -42,7 +42,7 @@ export function CategoryRail({
   const [categories, setCategories] = useState<ApiCategory[]>([])
 
   useEffect(() => {
-    fetch(`${API}/api/products/meta/categories`)
+    fetch(`${API}/api/products/meta/categories`, { credentials: 'include' })
       .then(r => r.json() as Promise<{ categories: ApiCategory[] }>)
       .then(d => setCategories(d.categories ?? []))
       .catch(() => { /* silencioso — muestra solo "Todo" */ })

@@ -10,7 +10,7 @@ import { apiKeysController } from './controllers/api-keys'
 import { validateApiKeyMiddleware } from './services/api-key.service'
 import { AuthService } from './services/auth.service'
 import { PasswordService } from './services/password.service'
-import { requireAuthMiddleware, requireScopeMiddleware, requireSession } from './middleware/auth.middleware'
+import { requireAuthMiddleware, requireScopeMiddleware, requireSession, getOptionalSession } from './middleware/auth.middleware'
 
 // ============================================================================
 // SESSION COOKIE
@@ -1712,9 +1712,14 @@ const VALID_PRODUCT_STATUS = ['active', 'inactive', 'discontinued']
 const VALID_COLD_CHAIN = ['ambient', 'refrigerated', 'frozen']
 const VALID_EXPIRY_FILTERS = ['fresh', 'warning', 'urgent', 'expired']
 
+// Sesión OPCIONAL: apps/web (tienda pública, sin login de cliente aún — eso es
+// Fase 3) necesita listar productos sin estar autenticado. Staff (cerebro/pos)
+// sigue mandando su cookie y recibe el shape completo (costo, precio B2B,
+// descuentos internos); un visitante público recibe solo los campos vendibles
+// (ver `isStaff` más abajo) — nunca exponer costo/margen a un anónimo.
 app.get('/api/products', async (c) => {
-  const authUser = await requireSession(c)
-  if (authUser instanceof Response) return authUser
+  const authUser = await getOptionalSession(c)
+  const isStaff = authUser !== null
 
   const statusParam = c.req.query('status')
   const q = c.req.query('q')?.trim()
@@ -1722,8 +1727,9 @@ app.get('/api/products', async (c) => {
   const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 500)
 
   // Default: solo activos (POS/web nunca deben listar inactivos/descontinuados por
-  // accidente). `status=all` levanta el filtro — usado por cerebro (listado admin).
-  const statusCond = !statusParam
+  // accidente). `status=all`/`draft`/etc solo lo puede pedir staff autenticado —
+  // un visitante público SIEMPRE ve solo 'active', sin importar el query param.
+  const statusCond = !isStaff || !statusParam
     ? sql`AND p.status = 'active'`
     : statusParam === 'all'
       ? sql``
@@ -1772,16 +1778,25 @@ app.get('/api/products', async (c) => {
 
     return c.json({
       products: rows.map((r: any) => ({
-        id: r.id, sku: r.sku, barcode: r.barcode, name: r.name, nameKo: r.name_ko,
+        id: r.id, sku: r.sku, name: r.name, nameKo: r.name_ko,
         slug: r.slug, brand: r.brand,
-        costPrice: r.cost_price, priceRetail: r.price_retail, priceWeb: r.price_web,
-        pricePOS: r.price_pos, priceB2B: r.price_b2b,
-        discountWebPct: r.discount_web_pct, discountPOSPct: r.discount_pos_pct, discountB2BPct: r.discount_b2b_pct,
+        priceRetail: r.price_retail, priceWeb: r.price_web,
         isBaesEligible: r.is_baes_eligible, coldChain: r.cold_chain, isWeighable: r.is_weighable,
         status: r.status, imageUrl: r.image_url,
         categoryId: r.category_id, categoryName: r.category_name,
         stockTotal: Number(r.stock_total ?? 0),
         nextExpiry: r.next_expiry,
+        // Solo staff autenticado (cerebro/pos) recibe costo, precios internos
+        // (POS/B2B) y descuentos — nunca exponer margen a un visitante público.
+        ...(isStaff ? {
+          barcode: r.barcode,
+          costPrice: r.cost_price,
+          pricePOS: r.price_pos,
+          priceB2B: r.price_b2b,
+          discountWebPct: r.discount_web_pct,
+          discountPOSPct: r.discount_pos_pct,
+          discountB2BPct: r.discount_b2b_pct,
+        } : {}),
       })),
       total: rows.length > 0 ? Number(rows[0].full_count) : 0,
     })
@@ -1791,10 +1806,9 @@ app.get('/api/products', async (c) => {
   }
 })
 
+// Público — apps/web (tienda sin login de cliente todavía) también lo consume,
+// y no expone nada sensible (solo nombre/slug/emoji de categoría).
 app.get('/api/products/meta/categories', async (c) => {
-  const authUser = await requireSession(c)
-  if (authUser instanceof Response) return authUser
-
   try {
     const rows = await sql`
       SELECT id, name, slug, emoji, sort_order
