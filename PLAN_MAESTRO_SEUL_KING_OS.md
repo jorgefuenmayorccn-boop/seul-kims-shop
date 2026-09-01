@@ -284,7 +284,7 @@ Commit: `dc52a74` — pusheado a `main`, auto-deploy Railway confirmado (nuevo d
 
 ## FASE 4 — Cumplimiento Legal + Analítica + Extras (S12-14, 44h)
 
-**S12 (16h) — Boleta electrónica (SII/DTE):** el riesgo #1 del plan de negocio original ("operar sin boleta electrónica" = multas y clausura). Usar `dte-events.ts` ya modelado. Definir con el cliente qué proveedor de facturación usar (Haulmer/OpenFactura, SimpleAPI, etc.) antes de escribir código — **esto requiere una decisión de negocio, no solo técnica, agendarla explícitamente al abrir S12**.
+**S12 (16h) — Boleta electrónica (SII/DTE) — ⏸️ POSPUESTO POST-ENTREGA (decisión del cliente, 1-sep-2026):** el cliente confirmó explícitamente que la integración SII/DTE (y la elección de proveedor: Haulmer/OpenFactura/SimpleAPI, etc.) se hace DESPUÉS de la entrega de v1.0, no antes. **No bloquea el resto de Fase 4** — saltar directo a S13-S14 cuando se llegue a esta fase. Retomar S12 en una sesión futura post-entrega cuando el cliente decida proveedor.
 
 **S13 (14h) — Seguridad/Legal + Devoluciones:** `GET /api/arcop` (Ley 21.719 — derechos ARCOP), `GET /api/returns`.
 
