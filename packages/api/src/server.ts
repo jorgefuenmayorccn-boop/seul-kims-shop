@@ -1292,6 +1292,86 @@ app.post('/api/deliveries/:id/status', async (c) => {
 })
 
 // ============================================================================
+// DESPACHO PANEL (Cerebro admin) — /api/delivery/... (singular)
+// Distinct route prefix from the driver-facing /api/deliveries/... (plural)
+// above: those are gated behind requireAuthMiddleware, which today only
+// validates API Keys (JWT branch is a TODO in auth.middleware.ts) and would
+// 401 every session-cookie admin request. Reuses the same delivery_assignments
+// table/business logic — only the list+assign HTTP surface was missing.
+// ============================================================================
+
+app.get('/api/delivery/assignments', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  try {
+    const rows = await sql`
+      SELECT
+        da.id, da.order_id, da.driver_id, da.status, da.amount_to_collect, da.payment_at_door,
+        da.route_index, da.assigned_at, da.delivered_at, da.created_at,
+        o.number AS order_number, o.total AS order_total, o.delivery_mode,
+        o.delivery_address, o.metro_station, o.metro_slot,
+        COALESCE(o.guest_name, cu.name)   AS customer_name,
+        COALESCE(o.guest_phone, cu.phone) AS customer_phone
+      FROM delivery_assignments da
+      JOIN orders o ON o.id = da.order_id
+      LEFT JOIN customers cu ON cu.id = o.customer_id
+      ORDER BY da.created_at DESC
+    `
+    return c.json({
+      assignments: rows.map((r: any) => ({
+        id: r.id,
+        orderId: r.order_id,
+        driverId: r.driver_id,
+        status: r.status,
+        amountToCollect: r.amount_to_collect,
+        paymentAtDoor: r.payment_at_door,
+        routeIndex: r.route_index,
+        assignedAt: r.assigned_at,
+        deliveredAt: r.delivered_at,
+        createdAt: r.created_at,
+        orderNumber: r.order_number,
+        orderTotal: r.order_total,
+        deliveryMode: r.delivery_mode,
+        deliveryAddress: r.delivery_address,
+        metroStation: r.metro_station,
+        metroSlot: r.metro_slot,
+        customerName: r.customer_name,
+        customerPhone: r.customer_phone,
+      })),
+    })
+  } catch (err) {
+    console.error('List delivery assignments error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+app.put('/api/delivery/assignments/:id/assign', async (c) => {
+  const authUser = await getAuthUser(c)
+  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+
+  const { id } = c.req.param()
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'Invalid JSON' }, 400) }
+  const driverId = body.driverId
+  if (!driverId) return c.json({ error: 'Missing driverId' }, 400)
+
+  try {
+    const [assignment] = await sql`
+      UPDATE delivery_assignments
+      SET driver_id = ${driverId}, status = 'assigned', assigned_at = NOW(), updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING id
+    `
+    if (!assignment) return c.json({ error: 'Assignment not found' }, 404)
+    return c.json({ ok: true })
+  } catch (err) {
+    console.error('Assign driver error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// ============================================================================
 // API KEY MIDDLEWARE & ENDPOINTS
 // ============================================================================
 
