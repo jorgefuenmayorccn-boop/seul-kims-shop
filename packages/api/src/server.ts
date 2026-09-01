@@ -11,7 +11,7 @@ import { apiKeysController } from './controllers/api-keys'
 import { validateApiKeyMiddleware } from './services/api-key.service'
 import { AuthService } from './services/auth.service'
 import { PasswordService } from './services/password.service'
-import { requireAuthMiddleware, requireScopeMiddleware, requireSession, getOptionalSession, requireCustomerSession } from './middleware/auth.middleware'
+import { requireAuthMiddleware, requireScopeMiddleware, requireSession, getOptionalSession, requireCustomerSession, getOptionalCustomerSession } from './middleware/auth.middleware'
 import { emitPosEvent, emitDeliveryEvent, onPosEvent, onDeliveryEvent } from './sse-broadcaster'
 
 // ============================================================================
@@ -1041,6 +1041,252 @@ app.post('/api/customer/password-reset', async (c) => {
   } catch (error: any) {
     console.error('❌ Error en customer/password-reset:', error)
     return c.json({ ok: false, error: 'No se pudo restablecer la contraseña.' }, 500)
+  }
+})
+
+// ============================================================================
+// CUSTOMER ORDERS + PUBLIC CHECKOUT (S10, Fase 3) — catálogo + pedidos del
+// cliente. Los endpoints de auth de arriba (register/login/me/logout/
+// password-*) son de S09 y no se tocan en esta sesión.
+// ============================================================================
+
+// GET /api/customer/orders — pedidos del cliente autenticado
+// (apps/web/.../cuenta/pedidos/page.tsx). Filtra SIEMPRE por el customerId de
+// la sesión (requireCustomerSession), nunca por un parámetro — un cliente
+// jamás debe poder pedir los pedidos de otro customerId adivinando/pasando un id.
+app.get('/api/customer/orders', async (c) => {
+  const customerAuth = await requireCustomerSession(c)
+  if (customerAuth instanceof Response) return customerAuth
+
+  try {
+    const rows = await sql`
+      SELECT id, number, total, status, dte_status, channel, created_at
+      FROM orders
+      WHERE customer_id = ${customerAuth.customerId}
+      ORDER BY created_at DESC
+      LIMIT 100
+    `
+    return c.json({
+      orders: rows.map((r: any) => ({
+        id: r.id,
+        number: r.number,
+        total: r.total,
+        status: r.status,
+        dteStatus: r.dte_status,
+        channel: r.channel,
+        createdAt: r.created_at,
+      })),
+    })
+  } catch (err) {
+    console.error('Customer orders error:', err)
+    return c.json({ error: 'No se pudieron cargar tus pedidos.' }, 500)
+  }
+})
+
+// POST /api/customers/guest (S10) — upsert de cliente invitado para checkout
+// sin cuenta (apps/web/.../checkout/page.tsx, upsertGuestCustomer). Mismo
+// patrón "reclamar fantasma" que POST /api/customer/register (S09):
+// customers.email es UNIQUE, así que un email que ya existe (con o sin
+// password_hash) se reutiliza en vez de duplicar — preserva el historial de
+// pedidos ya asociado a ese customer_id. Público, sin sesión — a diferencia
+// del registro real, no crea password_hash ni envía ningún correo.
+app.post('/api/customers/guest', async (c) => {
+  const rl = await checkAndRecordRateLimit(c, 'customers:guest', { limit: 20, windowMinutes: 5 })
+  if (!rl.allowed) {
+    return c.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ error: 'JSON inválido' }, 400)
+  }
+
+  const name  = (body.name || '').trim()
+  const email = (body.email || '').trim().toLowerCase()
+  const phone = (body.phone || '').trim() || null
+
+  if (!name || !email) {
+    return c.json({ error: 'Nombre y correo son obligatorios.' }, 400)
+  }
+  if (!isValidEmail(email)) {
+    return c.json({ error: 'Correo electrónico inválido.' }, 400)
+  }
+
+  try {
+    const existing = await sql`SELECT id FROM customers WHERE email = ${email} AND deleted_at IS NULL LIMIT 1`
+    if (existing.length > 0) {
+      // Reclama la fila existente — refresca nombre/teléfono si vinieron
+      // distintos, nunca toca password_hash/auth de una cuenta que ya exista.
+      await sql`
+        UPDATE customers SET name = ${name}, phone = COALESCE(${phone}, phone)
+        WHERE id = ${existing[0].id}
+      `
+      return c.json({ customerId: existing[0].id, isNew: false })
+    }
+
+    const [created] = await sql`
+      INSERT INTO customers (name, email, phone, created_channel)
+      VALUES (${name}, ${email}, ${phone}, 'web')
+      RETURNING id
+    `
+    return c.json({ customerId: created.id, isNew: true })
+  } catch (err) {
+    console.error('Guest customer error:', err)
+    return c.json({ error: 'Error al registrar datos de contacto.' }, 500)
+  }
+})
+
+// POST /api/public/orders (S10) — crea un pedido desde la tienda web pública
+// (apps/web/.../checkout/page.tsx, createWebOrder). El frontend llamaba
+// originalmente POST /api/orders/public, que nunca existió en el backend —
+// se construye acá bajo un path distinto a propósito: /api/orders* (ver
+// `app.use('/api/orders*', requireAuthMiddleware)` más arriba) exige API key
+// con scope orders:write o sesión STAFF, y un visitante anónimo (o un cliente
+// logueado con seul_customer_session, que tampoco es sesión staff) tiene que
+// poder crear su propio pedido sin ninguna de esas dos credenciales. Colgar
+// esto de /api/orders/public habría quedado atrapado por ese middleware sin
+// forma limpia de exceptuarlo; un path fuera del prefijo evita depender de
+// un detalle frágil de orden de registro de rutas en Hono.
+//
+// customer_id: si hay sesión de cliente activa, SIEMPRE se usa el customerId
+// de esa sesión — nunca el que venga en el body — para que un cliente
+// logueado no pueda crear un pedido atribuido a otro customerId. Sin sesión
+// (checkout de invitado), se usa el customerId del body, creado un instante
+// antes vía POST /api/customers/guest.
+//
+// Precio: el unitPrice que manda el frontend (copiado del carrito) se
+// IGNORA — se recalcula desde products.price_retail al momento de crear el
+// pedido, para que nadie pueda mandar un total manipulado. price_retail es
+// información ya pública (GET /api/products), así que no hay fuga de datos
+// al leerlo acá sin sesión.
+//
+// NO descuenta inventario — ningún endpoint de este backend lo hace todavía
+// (ni POS ni B2B); es deuda pre-existente documentada en el plan maestro, no
+// introducida por esta sesión.
+//
+// pdfToken: se devuelve null — no existe generación de PDF/boleta en este
+// backend (orders.pdf_token existe en el schema pero ningún endpoint lo
+// llena); es la Fase de SII/DTE, pospuesta post-entrega por decisión del
+// cliente (commit 042e8f4). El checkout de apps/web no usa pdfToken hoy
+// (solo result.number), así que null no rompe nada.
+app.post('/api/public/orders', async (c) => {
+  const rl = await checkAndRecordRateLimit(c, 'public-orders:create', { limit: 20, windowMinutes: 5 })
+  if (!rl.allowed) {
+    return c.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ error: 'JSON inválido' }, 400)
+  }
+
+  const { deliveryMode, metroStation, metroSlot, deliveryAddress, notes, items } = body
+  const VALID_DELIVERY_MODES = ['rappi', 'metro', 'pickup', 'shipping', 'delivery']
+
+  if (!deliveryMode || !VALID_DELIVERY_MODES.includes(deliveryMode)) {
+    return c.json({ error: 'Modo de entrega inválido.' }, 400)
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return c.json({ error: 'El carrito está vacío.' }, 400)
+  }
+  for (const it of items) {
+    if (!it.productId || !(Number(it.quantity) > 0)) {
+      return c.json({ error: 'Ítems de pedido inválidos.' }, 400)
+    }
+  }
+
+  // Sesión de cliente opcional — nunca bloquea (el checkout de invitado debe
+  // seguir funcionando sin login), pero si existe, manda por sobre cualquier
+  // customerId que venga en el body.
+  const customerAuth = await getOptionalCustomerSession(c)
+  const customerId: string | undefined = customerAuth?.customerId || body.customerId
+
+  if (!customerId) {
+    return c.json({ error: 'Falta customerId.' }, 400)
+  }
+
+  try {
+    const [customer] = await sql`
+      SELECT id, email, name FROM customers WHERE id = ${customerId} AND deleted_at IS NULL LIMIT 1
+    `
+    if (!customer) return c.json({ error: 'Cliente no encontrado.' }, 404)
+
+    // Precios reales desde products — nunca confiar en el unitPrice del body.
+    const productIds = items.map((it: any) => it.productId)
+    const products = await sql`
+      SELECT id, price_retail, status FROM products WHERE id = ANY(${productIds})
+    `
+    const productMap = new Map(products.map((p: any) => [p.id, p]))
+
+    let subtotal = 0
+    const resolvedItems: Array<{ productId: string; quantity: number; unitPrice: number; isBaes: boolean; lineTotal: number }> = []
+    for (const it of items) {
+      const p: any = productMap.get(it.productId)
+      if (!p || p.status !== 'active') {
+        return c.json({ error: 'Uno de los productos ya no está disponible.' }, 400)
+      }
+      const quantity = Number(it.quantity)
+      const unitPrice = Number(p.price_retail)
+      const lineTotal = Math.round(unitPrice * quantity)
+      subtotal += lineTotal
+      resolvedItems.push({ productId: it.productId, quantity, unitPrice, isBaes: !!it.isBaes, lineTotal })
+    }
+
+    const order_number = Math.floor(Math.random() * 100000)
+
+    const order = await sql.begin(async (tx: any) => {
+      const [ord] = await tx`
+        INSERT INTO orders (number, channel, customer_id, status, delivery_mode, delivery_address, metro_station, metro_slot, subtotal, total, notes)
+        VALUES (${order_number}, 'web', ${customerId}, 'nueva', ${deliveryMode}, ${deliveryAddress || null}, ${metroStation || null}, ${metroSlot || null}, ${subtotal}, ${subtotal}, ${notes || null})
+        RETURNING id, number
+      `
+      for (const it of resolvedItems) {
+        await tx`
+          INSERT INTO order_items (order_id, product_id, quantity, unit_price, is_baes, subtotal)
+          VALUES (${ord.id}, ${it.productId}, ${it.quantity}, ${it.unitPrice}, ${it.isBaes}, ${it.lineTotal})
+        `
+      }
+      return ord
+    })
+
+    if (customer.email) {
+      await enqueueEmail(
+        customer.email,
+        `✅ Orden Confirmada #${order.number}`,
+        templates.orderConfirmation(order),
+        'order-confirmation'
+      )
+    }
+    await enqueueEmail(
+      ADMIN_EMAIL,
+      `📦 Nueva Orden #${order.number}`,
+      `<p>Nueva orden de ${customer.name}. Total: $${subtotal}</p>`,
+      'order-confirmation'
+    )
+
+    emitPosEvent({
+      type: 'order.created',
+      channel: 'web',
+      payload: {
+        orderId: order.id,
+        number: order.number,
+        channel: 'web',
+        total: subtotal,
+        deliveryMode,
+        itemCount: resolvedItems.length,
+        createdAt: new Date().toISOString(),
+      },
+    })
+
+    console.log(`✅ Public order created: #${order.number}`)
+    return c.json({ ok: true, orderId: order.id, number: order.number, pdfToken: null, total: subtotal })
+  } catch (err) {
+    console.error('Public order error:', err)
+    return c.json({ error: 'Error al crear el pedido.' }, 500)
   }
 })
 
@@ -2879,6 +3125,74 @@ app.get('/api/products/id/:id', async (c) => {
     })
   } catch (err) {
     console.error('Product detail error:', err)
+    return c.json({ error: 'Error al obtener producto' }, 500)
+  }
+})
+
+// GET /api/products/:slug (S10, Fase 3) — detalle público para la tienda
+// (apps/web, producto/[slug]/page.tsx vía apiServerFetch, GET /api/products/${slug}).
+// Contraparte pública de /api/products/id/:id de arriba (esa exige sesión
+// staff y sirve a cerebro por id, no por slug). Siempre público, sin sesión —
+// mismo criterio de privacidad de precios que GET /api/products (S03): nunca
+// expone costPrice/priceB2B/pricePOS/discountXXXPct a un visitante. Solo
+// status='active' es alcanzable por slug — un producto draft/discontinued
+// nunca debe ser visible en la tienda pública así se conozca el slug exacto.
+//
+// Segmento único (`:slug`) — no colisiona con las rutas de arriba
+// (meta/categories, barcode/:code, id/:id) porque todas tienen 2 segmentos
+// después de /products y esta tiene 1; Hono las distingue por profundidad de
+// ruta, no por orden de registro.
+app.get('/api/products/:slug', async (c) => {
+  const slug = c.req.param('slug')
+
+  try {
+    const [p] = await sql`
+      SELECT
+        p.id, p.sku, p.name, p.name_ko, p.slug, p.description, p.brand,
+        p.price_retail, p.price_web,
+        p.weight_grams, p.is_weighable, p.is_baes_eligible, p.cold_chain, p.status, p.image_url,
+        p.category_id, cat.name AS category_name,
+        stock.qty_total AS stock_total, stock.next_expiry
+      FROM products p
+      LEFT JOIN categories cat ON cat.id = p.category_id
+      LEFT JOIN LATERAL (
+        SELECT
+          COALESCE(SUM(i.quantity), 0) AS qty_total,
+          MIN(i.expires_at) FILTER (WHERE i.quantity > 0 AND i.expires_at IS NOT NULL) AS next_expiry
+        FROM inventory i
+        WHERE i.product_id = p.id
+      ) stock ON true
+      WHERE p.slug = ${slug} AND p.status = 'active'
+      LIMIT 1
+    `
+
+    if (!p) return c.json({ error: 'Producto no encontrado' }, 404)
+
+    const [sellos, images] = await Promise.all([
+      sql`SELECT sello FROM product_sellos WHERE product_id = ${p.id}`,
+      sql`SELECT id, r2_key, sort_order FROM product_images WHERE product_id = ${p.id} ORDER BY sort_order ASC`,
+    ])
+
+    const r2PublicUrl = process.env.R2_PUBLIC_URL || ''
+
+    return c.json({
+      id: p.id, sku: p.sku, name: p.name, nameKo: p.name_ko,
+      slug: p.slug, description: p.description, brand: p.brand,
+      priceRetail: p.price_retail, priceWeb: p.price_web,
+      weightGrams: p.weight_grams, isWeighable: p.is_weighable, isBaesEligible: p.is_baes_eligible,
+      coldChain: p.cold_chain, status: p.status, imageUrl: p.image_url,
+      categoryId: p.category_id, categoryName: p.category_name,
+      stockTotal: Number(p.stock_total ?? 0), nextExpiry: p.next_expiry,
+      sellos: sellos.map((s: any) => s.sello),
+      images: images.map((im: any) => ({
+        id: im.id,
+        url: r2PublicUrl ? `${r2PublicUrl}/${im.r2_key}` : null,
+        r2Key: im.r2_key,
+        sortOrder: im.sort_order,
+      })),
+    })
+  } catch (err) {
+    console.error('Product detail by slug error:', err)
     return c.json({ error: 'Error al obtener producto' }, 500)
   }
 })

@@ -178,6 +178,32 @@ export async function getOptionalSession(
   return verified.decoded as { id: string; email: string; role: string; name: string }
 }
 
+// getOptionalCustomerSession (S10, Fase 3) — customer-facing counterpart to
+// getOptionalSession above, never fails: returns the customer if a valid
+// `seul_customer_session` is present, or null for an anonymous visitor. Used
+// by the public checkout endpoint (POST /api/public/orders), which must work
+// for BOTH a logged-in customer (link the order to their session customerId,
+// ignoring whatever the body claims) and a guest checkout (no session at all,
+// customerId comes from the body instead — created moments earlier via
+// POST /api/customers/guest). Same token-lookup/verification as
+// requireCustomerSession, just non-fatal on a missing/invalid token.
+export async function getOptionalCustomerSession(
+  c: Context
+): Promise<{ customerId: string; email: string; name: string } | null> {
+  const authHeader = c.req.header('Authorization')
+  const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined
+  const token = bearerToken || getCookie(c, CUSTOMER_SESSION_COOKIE_NAME)
+  if (!token) return null
+
+  const verified = AuthService.verifyToken(token, CUSTOMER_JWT_SECRET)
+  if (!verified.ok) return null
+
+  const decoded = verified.decoded as any
+  if (decoded.type !== 'customer' || !decoded.customerId) return null
+
+  return { customerId: decoded.customerId, email: decoded.email, name: decoded.name }
+}
+
 /**
  * Middleware para validar scopes específicos en API Keys
  */
