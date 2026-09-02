@@ -210,6 +210,7 @@ ${storeHeader()}
 
 <div class="order-num-block">
   <div class="doc-type">${docTypeLabel}</div>
+  ${isNotaVenta ? `<div class="dte-badge mt-1">No es documento tributario</div>` : ''}
   ${folioHtml}
   <span class="anchor-num">#${padNum(p.number)}</span>
   <div class="meta mt-2">${formatDateTime(p.date)}</div>
