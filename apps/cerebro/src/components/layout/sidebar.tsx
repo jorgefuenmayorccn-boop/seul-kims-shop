@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Tag, Package, ClipboardList, Shield, Settings, LogOut, ShoppingCart, Globe, Users, Users2, Truck, Clock, Building2 } from 'lucide-react'
+import { LayoutDashboard, Tag, Package, ClipboardList, Shield, Settings, LogOut, ShoppingCart, Globe, Users, Users2, Truck, Clock, Building2, History } from 'lucide-react'
 import { cn } from '@seul/ui'
 import type { SessionUser } from '@/lib/types'
 
@@ -24,6 +24,7 @@ const nav: { href: string; label: string; icon: typeof LayoutDashboard; roles: R
   { href: '/b2b/solicitudes', label: 'B2B Crédito', icon: Building2, roles: ['owner', 'admin'] },
   { href: '/usuarios',   label: 'Usuarios',   icon: Users,           roles: ['owner'] },
   { href: '/seguridad',  label: 'Seguridad',  icon: Shield,          roles: ['owner'] },
+  { href: '/auditoria',  label: 'Auditoría',  icon: History,         roles: ['owner'] },
   { href: '/ajustes',    label: 'Ajustes',    icon: Settings,        roles: ['owner', 'admin'] },
 ]
 
