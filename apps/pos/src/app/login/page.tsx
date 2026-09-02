@@ -41,23 +41,14 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      className="flex items-center justify-center min-h-screen"
-      style={{ background: 'var(--color-background)' }}
-    >
-      <div
-        className="w-full max-w-sm mx-4 rounded-xl shadow-lg overflow-hidden"
-        style={{ background: 'var(--color-surface-elevated)', border: '1px solid var(--color-border)' }}
-      >
+    <div className="flex items-center justify-center min-h-screen bg-background">
+      <div className="w-full max-w-sm mx-4 rounded-xl shadow-lg overflow-hidden bg-elevated border border-[var(--color-border)]">
         {/* Header */}
-        <div
-          className="px-8 py-8 text-center border-b"
-          style={{ borderColor: 'var(--color-border)' }}
-        >
-          <p className="font-korean font-black text-3xl mb-1" style={{ color: 'var(--color-brand)' }}>
+        <div className="px-8 py-8 text-center border-b border-[var(--color-border)]">
+          <p className="font-korean font-black text-3xl mb-1 text-brand">
             서울킴스
           </p>
-          <p className="font-body text-sm" style={{ color: 'var(--color-text-muted)' }}>
+          <p className="font-body text-sm text-text-muted">
             Sistema POS — Acceso cajera
           </p>
         </div>
@@ -67,8 +58,7 @@ export default function LoginPage() {
           <div>
             <label
               htmlFor="email"
-              className="block font-body text-xs font-semibold mb-1.5"
-              style={{ color: 'var(--color-text-muted)' }}
+              className="block font-body text-xs font-semibold mb-1.5 text-text-muted"
             >
               CORREO
             </label>
@@ -79,20 +69,14 @@ export default function LoginPage() {
               autoComplete="email"
               required
               placeholder="cajera@seoulshop.cl"
-              className="w-full px-3 py-2.5 rounded text-sm font-body outline-none focus:ring-2 focus:ring-brand"
-              style={{
-                background:  '#ffffff',
-                border:      '2px solid #d1d5db',
-                color:       '#111827',
-              }}
+              className="w-full px-3 py-2.5 rounded text-sm font-body outline-none focus:ring-2 focus:ring-brand bg-surface border-2 border-[var(--color-border-strong)] text-text"
             />
           </div>
 
           <div>
             <label
               htmlFor="password"
-              className="block font-body text-xs font-semibold mb-1.5"
-              style={{ color: 'var(--color-text-muted)' }}
+              className="block font-body text-xs font-semibold mb-1.5 text-text-muted"
             >
               CONTRASEÑA
             </label>
@@ -102,20 +86,12 @@ export default function LoginPage() {
               type="password"
               autoComplete="current-password"
               required
-              className="w-full px-3 py-2.5 rounded text-sm font-body outline-none focus:ring-2 focus:ring-brand"
-              style={{
-                background:  '#ffffff',
-                border:      '2px solid #d1d5db',
-                color:       '#111827',
-              }}
+              className="w-full px-3 py-2.5 rounded text-sm font-body outline-none focus:ring-2 focus:ring-brand bg-surface border-2 border-[var(--color-border-strong)] text-text"
             />
           </div>
 
           {error && (
-            <div
-              className="px-3 py-2.5 rounded text-sm font-body"
-              style={{ background: 'var(--color-error-subtle)', color: 'var(--color-error)', border: '1px solid var(--color-error)' }}
-            >
+            <div className="px-3 py-2.5 rounded text-sm font-body bg-error-subtle text-error border border-error">
               {error}
             </div>
           )}
@@ -134,11 +110,8 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div
-          className="px-8 py-4 text-center border-t"
-          style={{ borderColor: 'var(--color-border)' }}
-        >
-          <p className="font-body text-xs" style={{ color: 'var(--color-text-muted)' }}>
+        <div className="px-8 py-4 text-center border-t border-[var(--color-border)]">
+          <p className="font-body text-xs text-text-muted">
             3 intentos fallidos bloquean la cuenta por 15 min
           </p>
         </div>

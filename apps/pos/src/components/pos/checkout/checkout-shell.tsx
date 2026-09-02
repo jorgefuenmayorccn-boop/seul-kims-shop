@@ -1,6 +1,6 @@
 'use client'
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { formatCLP } from '@seul/ui'
+import { formatCLP, friendlyErrorMessage } from '@seul/ui'
 import { ColdChainAlert } from '@seul/ui/pos/cold-chain-alert'
 import { MethodPicker } from './method-picker'
 import { PayCash } from './pay-cash'
@@ -220,7 +220,8 @@ export function CheckoutShell({
         }
       })
     } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : 'Error al procesar la venta')
+      console.error('[pos/checkout]', err)
+      setErrorMsg(friendlyErrorMessage(err instanceof Error ? err.message : undefined, 'Error al procesar la venta'))
     } finally {
       setLoading(false)
     }
