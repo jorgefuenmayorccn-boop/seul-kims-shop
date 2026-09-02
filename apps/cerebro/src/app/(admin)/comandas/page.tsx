@@ -1,11 +1,18 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { Clock, Truck, Train, ShoppingBag, RefreshCw } from 'lucide-react'
+import { Clock, Truck, Train, ShoppingBag, RefreshCw, Printer, Banknote, CreditCard, Landmark } from 'lucide-react'
 import { StatusPill, cn, formatCLP } from '@seul/ui'
+import { renderComandaHtml, renderPosReceiptHtml } from '@seul/pdf-templates/client'
+import type { ComandaPayload, TicketPayload } from '@seul/pdf-templates/client'
 
 type OrderStatus = 'nueva' | 'preparando' | 'lista'
 type Channel = 'pos' | 'web' | 'b2b' | 'whatsapp'
 type DeliveryMode = 'rappi' | 'metro' | 'pickup' | 'shipping'
+// Adición post-entrega — flujo de pago web. Solo channel='web' llega con
+// paymentStatus='pending' hoy (POS/B2B nacen 'confirmed', ver migración 0021
+// y POST /api/orders/:id/confirm-payment).
+type PaymentStatus = 'pending' | 'confirmed'
+type PaymentMethod = 'transferencia' | 'efectivo' | 'transbank'
 
 interface Comanda {
   id: string
@@ -19,6 +26,8 @@ interface Comanda {
   dteStatus: 'pending' | 'issued' | 'failed'
   createdAt: string
   itemCount: number
+  paymentStatus: PaymentStatus
+  paymentMethod: PaymentMethod | null
 }
 
 interface KanbanData {
@@ -60,13 +69,87 @@ function minutesSince(iso: string) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
 }
 
-function ComandaCard({ comanda, onMove }: {
+// Impresión desde Cerebro (adición post-entrega — flujo de pago web). Cerebro
+// no tiene el Print Agent ESC/POS local que sí existe en apps/pos (corre en
+// 127.0.0.1:9101, atado físicamente a la impresora de la caja) — este panel
+// puede abrirse desde cualquier computador de oficina, no necesariamente el
+// que está junto a la impresora térmica. Se usa el mismo fallback de nivel 2
+// que ya usa POS cuando el agente no está disponible: popup HTML +
+// window.print(), suficiente para confirmar el flujo y para imprimir en
+// cualquier impresora normal conectada a ese computador.
+function printHtmlPopup(html: string): boolean {
+  try {
+    const win = window.open('', 'print_popup', 'width=420,height=820,scrollbars=yes')
+    if (!win) return false
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+    win.onload = () => { win.focus(); win.print() }
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function fetchAndPrintComanda(orderId: string): Promise<boolean> {
+  const res = await fetch(`${API}/api/orders/${orderId}/comanda`, { credentials: 'include' })
+  if (!res.ok) return false
+  const { comanda } = await res.json() as { comanda: ComandaPayload }
+  return printHtmlPopup(renderComandaHtml(comanda))
+}
+
+async function fetchAndPrintTicket(orderId: string): Promise<boolean> {
+  const res = await fetch(`${API}/api/orders/${orderId}/ticket`, { credentials: 'include' })
+  if (!res.ok) return false
+  const { ticket } = await res.json() as { ticket: TicketPayload }
+  return printHtmlPopup(renderPosReceiptHtml(ticket))
+}
+
+function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
   comanda: Comanda
   onMove: (id: string, status: OrderStatus) => void
+  onPaymentConfirmed: (id: string, paymentStatus: PaymentStatus, paymentMethod: PaymentMethod) => void
 }) {
   const mins = minutesSince(comanda.createdAt)
   const isUrgent = mins > 20
   const DeliveryIcon = DELIVERY_ICONS[comanda.deliveryMode] ?? ShoppingBag
+
+  const [confirming, setConfirming] = useState<PaymentMethod | null>(null)
+  const [paymentError, setPaymentError] = useState('')
+
+  // Confirmar pago (adición post-entrega): POST /api/orders/:id/confirm-payment,
+  // y si sale bien, imprimir automáticamente comanda + Nota de Venta — el
+  // dueño pidió explícitamente que esto sea automático, no dos pasos manuales
+  // separados. Fallos de impresión (popup bloqueado, sin impresora) no
+  // deshacen la confirmación de pago — el pedido ya quedó coordinado en el
+  // sistema, el staff puede reimprimir manualmente si hace falta.
+  async function handleConfirmPayment(method: PaymentMethod) {
+    if (confirming) return
+    setConfirming(method)
+    setPaymentError('')
+    try {
+      const res = await fetch(`${API}/api/orders/${comanda.id}/confirm-payment`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ method }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPaymentError(json.error ?? 'No se pudo confirmar el pago')
+        return
+      }
+      onPaymentConfirmed(comanda.id, 'confirmed', method)
+      await Promise.all([
+        fetchAndPrintComanda(comanda.id),
+        fetchAndPrintTicket(comanda.id),
+      ])
+    } catch {
+      setPaymentError('Error de conexión')
+    } finally {
+      setConfirming(null)
+    }
+  }
 
   return (
     <div className={cn(
@@ -118,6 +201,67 @@ function ComandaCard({ comanda, onMove }: {
           {formatCLP(Number(comanda.total))}
         </span>
       </div>
+
+      {/* Pago — adición post-entrega, flujo de pago web. Solo pedidos web
+          nacen payment_status='pending' (POS/B2B ya nacen 'confirmed'). Un
+          pedido web pendiente de pago NO debería avanzar a preparación
+          todavía — por eso este bloque va antes de "Preparar"/"Lista ✓". */}
+      {comanda.channel === 'web' && comanda.paymentStatus === 'pending' && (
+        <div className="pt-1 border-t border-[var(--color-border)] space-y-1.5">
+          <p className="text-[10px] font-body font-semibold uppercase tracking-wide text-error">
+            Pago sin coordinar
+          </p>
+          <div className="grid grid-cols-3 gap-1">
+            <button
+              onClick={() => handleConfirmPayment('transferencia')}
+              disabled={!!confirming}
+              className="flex flex-col items-center gap-0.5 text-[10px] py-1.5 rounded bg-success/10 text-success hover:bg-success/20 transition-colors font-body font-medium disabled:opacity-50"
+              title="El cliente ya pagó por transferencia"
+            >
+              <Landmark size={13} />
+              {confirming === 'transferencia' ? '...' : 'Transferencia'}
+            </button>
+            <button
+              onClick={() => handleConfirmPayment('efectivo')}
+              disabled={!!confirming}
+              className="flex flex-col items-center gap-0.5 text-[10px] py-1.5 rounded bg-warning/10 text-yellow-700 hover:bg-warning/20 transition-colors font-body font-medium disabled:opacity-50"
+              title="Cobrar en efectivo al entregar/retirar"
+            >
+              <Banknote size={13} />
+              {confirming === 'efectivo' ? '...' : 'Efectivo puerta'}
+            </button>
+            <button
+              onClick={() => handleConfirmPayment('transbank')}
+              disabled={!!confirming}
+              className="flex flex-col items-center gap-0.5 text-[10px] py-1.5 rounded bg-accent/10 text-accent hover:bg-accent/20 transition-colors font-body font-medium disabled:opacity-50"
+              title="Cobrar con Transbank al entregar/retirar"
+            >
+              <CreditCard size={13} />
+              {confirming === 'transbank' ? '...' : 'Transbank puerta'}
+            </button>
+          </div>
+          {paymentError && (
+            <p className="text-[10px] text-error font-body">{paymentError}</p>
+          )}
+        </div>
+      )}
+      {comanda.channel === 'web' && comanda.paymentStatus === 'confirmed' && comanda.paymentMethod && (
+        <div className="pt-1 border-t border-[var(--color-border)] flex items-center justify-between">
+          <span className="text-[10px] font-body font-medium text-success flex items-center gap-1">
+            ✓ {comanda.paymentMethod === 'transferencia' ? 'Pagado (transferencia)'
+              : comanda.paymentMethod === 'efectivo' ? 'Cobrar efectivo en puerta'
+              : 'Cobrar Transbank en puerta'}
+          </span>
+          <button
+            onClick={() => { fetchAndPrintComanda(comanda.id); fetchAndPrintTicket(comanda.id) }}
+            className="text-[10px] text-text-muted hover:text-text transition-colors flex items-center gap-1"
+            title="Reimprimir comanda y Nota de Venta"
+          >
+            <Printer size={11} />
+            Reimprimir
+          </button>
+        </div>
+      )}
 
       {/* Acciones rápidas */}
       <div className="flex gap-1.5 pt-1 border-t border-[var(--color-border)]">
@@ -198,6 +342,18 @@ export default function ComandasPage() {
     })
   }
 
+  // Adición post-entrega — flujo de pago web. Actualización local optimista
+  // tras un POST /api/orders/:id/confirm-payment exitoso — el endpoint ya
+  // hizo el trabajo real (BD + DTE), esto solo evita esperar los 30s del
+  // auto-refresh para que el badge de pago cambie en pantalla.
+  function handlePaymentConfirmed(orderId: string, paymentStatus: PaymentStatus, paymentMethod: PaymentMethod) {
+    setData(prev => {
+      const patch = (list: Comanda[]) =>
+        list.map(o => o.id === orderId ? { ...o, paymentStatus, paymentMethod } : o)
+      return { nueva: patch(prev.nueva), preparando: patch(prev.preparando), lista: patch(prev.lista) }
+    })
+  }
+
   const total = data.nueva.length + data.preparando.length + data.lista.length
 
   return (
@@ -260,6 +416,7 @@ export default function ComandasPage() {
                       key={comanda.id}
                       comanda={comanda}
                       onMove={handleMove}
+                      onPaymentConfirmed={handlePaymentConfirmed}
                     />
                   ))}
                 </div>

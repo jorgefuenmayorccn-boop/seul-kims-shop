@@ -29,6 +29,9 @@ importers:
       '@seul/icons':
         specifier: workspace:*
         version: link:../../packages/icons
+      '@seul/pdf-templates':
+        specifier: workspace:*
+        version: link:../../packages/pdf-templates
       '@seul/tokens':
         specifier: workspace:*
         version: link:../../packages/tokens
