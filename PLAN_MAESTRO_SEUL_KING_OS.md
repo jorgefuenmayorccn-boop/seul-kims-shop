@@ -531,6 +531,27 @@ Fuera de la numeración S01-S17 — tarea puntual pedida por el dueño, mismo pa
 
 ---
 
+## Adición fuera de fase — Carrusel de fotos en el hero (2-sep-2026)
+
+Fuera de la numeración S01-S17 — pedido puntual del dueño: "el hero de la pantalla también le hacen falta unas imágenes en Full HD, sería ideal 3 imágenes pasando una por una repitiendo el ciclo entre las 3", "más que todo tipo marketing publicitario, con fotos referenciales, algo muy profesional que combine con la página". El hero (`packages/ui/src/shop/editorial-hero.tsx`, único consumidor: `apps/web/src/components/shop/locale-hero.tsx` — confirmado por grep, no lo importa ninguna otra app) tenía una sola foto estática de stock genérica (Unsplash, sin relación a Seoul Kims), sin carrusel.
+
+**Fotos elegidas:** 3 fotos editoriales de comida coreana de Unsplash (licencia libre, uso comercial permitido, sin atribución requerida), sin personas reconocibles, orientación horizontal, 1920px de ancho (por encima del mínimo Full HD pedido):
+- `hero-1.jpg` — Corte de carne sobre parrilla coreana (KBBQ) con humo, banchan alrededor en tazones metálicos, tono oscuro/carbón. Fuente: `images.unsplash.com/photo-1708388064672-6536507fdf6e`.
+- `hero-2.jpg` — Mesa de platos coreanos elevados (tartare, costillas, panchan) sobre vajilla azul-negra, estilo editorial de restaurante (WeRo, Seattle), tono oscuro/moody — el que mejor combina con el fondo heuk del sitio.
+- `hero-3.jpg` — Bibimbap en dolsot + banchan vistos desde arriba sobre mesa de madera clara, tono cálido/luminoso (contraste deliberado frente a las otras dos, para variar el ciclo).
+
+Descargadas con `curl` (no hotlink) a `apps/web/public/hero/hero-{1,2,3}.jpg`, servidas localmente igual que las fotos de producto de la sesión anterior. **No se usaron** las fotos de `apps/web/public/products/` (son de empaque de producto aislado, no de campaña/ambiente — instrucción explícita del dueño de no reusarlas para el hero).
+
+**Cambio de componente:** `EditorialHero` pasa de `photoUrl?: string` (una imagen) a `photoUrls?: string[]` (default: las 3 rutas nuevas), con `photoUrl` retenido como prop deprecada por compatibilidad hacia atrás (si se pasa, fuerza modo de una sola imagen sin carrusel). Ciclo automático cada 6s en loop infinito, crossfade vía `framer-motion` (`AnimatePresence` + `motion.div` con `opacity`), pausado si `prefers-reduced-motion` está activo (`useReducedMotion()` de framer-motion). Se agregaron 3 indicadores de posición (puntos) abajo a la derecha, sutiles, con el mismo lenguaje visual del resto del hero. Headline, subheadline, CTA, overlay de gradiente y el carácter `맛` con `mix-blend-mode:difference` **no se tocaron** — solo el mecanismo de imagen de fondo.
+
+**Verificación:** `tsc --noEmit` y `next build` de `@seul/web` limpios (`✓ Compiled successfully`, 30/30 páginas estáticas generadas). Único consumidor de `EditorialHero` confirmado por grep (`apps/web/src/components/shop/locale-hero.tsx`) — `apps/pos`, `apps/cerebro`, `apps/repartidor` no lo importan, no requirieron rebuild. `git push` (con `http.postBuffer` ampliado — el push inicial falló con `HTTP 400`/desconexión, típico de paquetes grandes con las imágenes nuevas) → deploy automático de Vercel confirmado `Ready` con `vercel inspect --logs` (build limpio, alias `seoulshop.cl` apuntando al deployment nuevo). Playwright (`channel:'chrome'`) contra `https://seoulshop.cl` en producción: las 3 imágenes cargan con **HTTP 200** (`/_next/image?url=/hero/hero-{1,2,3}.jpg`), el `<img>` activo cicla correctamente `hero-1 → hero-2 → hero-3 → hero-1` en el intervalo esperado (capturado en t=0s/8s/14.5s/21s), headline `서울의 맛` legible sobre las 3 fotos (el overlay de gradiente oscuro a la izquierda garantiza contraste independientemente de la foto), 3 indicadores de posición presentes en el DOM.
+
+**No tocado:** auth/RBAC/checkout/POS/B2B/impresión/ARCOP/analítica, ni el resto del contenido del hero (headline/subheadline/CTA/carácter 맛).
+
+Commits: `d9498a2` (3 fotos en `apps/web/public/hero/`), `f5ccd26` (carrusel en `editorial-hero.tsx`) — ambos pusheados a `main`.
+
+---
+
 ## Fuentes (investigación de arquitectura y diseño, 31-ago-2026)
 
 - [Enterprise CRM Security Framework: Comprehensive Protection Strategies](https://www.stacksync.com/blog/enterprise-crm-security-framework-comprehensive-protection-strategies-for-2025)
