@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
-import { Bike, ClipboardList } from 'lucide-react'
+import { Bike, ClipboardList, Building2 } from 'lucide-react'
 import { IconSun, IconMoon, IconBarcode, IconPrint, IconShift, IconSettings, IconHistory } from '../icons/pos-icons'
 import { formatCLP } from '@seul/ui'
 import type { PrintMode } from '@seul/pdf-templates/client'
@@ -28,6 +28,12 @@ interface TopBarProps {
   onOpenHistory?:       () => void
   onOpenComandas?:      () => void
   onLogout?:            () => void
+  // Venta B2B presencial (adición post-entrega) — onOpenB2B abre el buscador
+  // de empresa; b2bCompanyName, si viene, muestra el badge de empresa
+  // seleccionada con botón para quitarla (onClearB2B).
+  onOpenB2B?:           () => void
+  b2bCompanyName?:      string
+  onClearB2B?:          () => void
 }
 
 export function TopBar({
@@ -52,6 +58,9 @@ export function TopBar({
   onOpenHistory,
   onOpenComandas,
   onLogout,
+  onOpenB2B,
+  b2bCompanyName,
+  onClearB2B,
 }: TopBarProps) {
   // Show till opener only if different from logged-in cashier
   const showOpener = tillOpenerName && tillOpenerName !== cashierName
@@ -204,6 +213,37 @@ export function TopBar({
 
       {/* Derecha: acciones */}
       <div className="flex items-center gap-1">
+        {/* Venta B2B — toggle empresa mayorista (adición post-entrega). Sin
+            empresa seleccionada: botón para abrir el buscador. Con empresa
+            seleccionada: badge con razón social + botón para quitarla
+            (limpia el toggle, no el carrito — los ítems ya agregados
+            conservan el precio con el que se agregaron). */}
+        {b2bCompanyName ? (
+          <button
+            onClick={onClearB2B}
+            title={`Venta B2B: ${b2bCompanyName} — clic para quitar`}
+            className="flex items-center gap-1.5 px-2 py-1 rounded transition-colors"
+            style={{ background: 'var(--color-brand-subtle)', border: '1px solid var(--color-brand)' }}
+          >
+            <Building2 size={13} color="var(--color-brand)" />
+            <span className="font-body text-xs font-semibold max-w-[120px] truncate" style={{ color: 'var(--color-brand)' }}>
+              {b2bCompanyName}
+            </span>
+            <span className="font-body text-xs" style={{ color: 'var(--color-brand)' }}>✕</span>
+          </button>
+        ) : onOpenB2B && (
+          <button
+            onClick={onOpenB2B}
+            className="flex items-center gap-1.5 px-2 py-1 rounded transition-colors hover:bg-surface"
+            title="Venta B2B — seleccionar empresa mayorista"
+          >
+            <Building2 size={14} color="var(--color-text-muted)" />
+            <span className="font-body text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              B2B
+            </span>
+          </button>
+        )}
+
         {/* Comandas — vista Kanban sin salir de POS (rol staff no tiene cmr.seoulshop.cl) */}
         {onOpenComandas && (
           <button

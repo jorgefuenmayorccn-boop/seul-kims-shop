@@ -1,6 +1,7 @@
 'use client'
-import { useState, useTransition, useEffect } from 'react'
-import { ChevronDown, ChevronRight, Minus, Plus, Trash2, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { ChevronDown, ChevronRight, Loader2, Pencil } from 'lucide-react'
+import Link from 'next/link'
 import {
   BadgeBAES, BadgeChain, BadgeExpiry, TrafficLight,
   cn,
@@ -25,56 +26,19 @@ interface InventoryRowProps {
   }
 }
 
+// Vista general de Inventario — de SOLO LECTURA (adición post-entrega,
+// 2-sep-2026, pedido explícito del dueño). Antes de esta sesión, esta fila
+// tenía acciones inline (+/-1, "marcar como vencido") que llamaban a
+// POST /api/inventory/adjust — un endpoint que NUNCA existió en el backend
+// (grep confirmado, 0 resultados), así que esos botones 404-eaban en
+// silencio desde que se escribieron. El dueño pidió consolidar TODO el
+// ingreso/ajuste de inventario dentro de Editar Producto (ver
+// product-inventory.tsx) — esta vista general queda como resumen de solo
+// lectura con semáforo de vencimiento, y el botón de ajuste ahora navega a
+// la ficha del producto en vez de mutar en línea.
 export function InventoryRow({ item }: InventoryRowProps) {
-  const [expanded, setExpanded]   = useState(false)
-  const [quantity, setQuantity]   = useState(item.quantity)
-  const [isPending, startTransition] = useTransition()
-  const [error, setError]         = useState('')
-
+  const [expanded, setExpanded] = useState(false)
   const isAlert = item.expiryStatus === 'urgent' || item.expiryStatus === 'expired'
-
-  function adjust(delta: number) {
-    setError('')
-    startTransition(async () => {
-      try {
-        await clientFetch('/api/inventory/adjust', {
-          method: 'POST',
-          body: JSON.stringify({
-            productId:   item.productId,
-            inventoryId: item.id,
-            quantity:    delta,
-            type:        'adjustment',
-          }),
-        })
-        setQuantity(q => q + delta)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al ajustar.')
-      }
-    })
-  }
-
-  function markExpired() {
-    if (!confirm(`¿Marcar lote ${item.lot ?? item.id.slice(0, 8)} como vencido? El stock quedará en 0.`)) return
-    setError('')
-    startTransition(async () => {
-      try {
-        const delta = -quantity
-        await clientFetch('/api/inventory/adjust', {
-          method: 'POST',
-          body: JSON.stringify({
-            productId:   item.productId,
-            inventoryId: item.id,
-            quantity:    delta,
-            type:        'expired',
-            notes:       'Marcado como vencido desde Cerebro',
-          }),
-        })
-        setQuantity(0)
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error al marcar.')
-      }
-    })
-  }
 
   return (
     <>
@@ -123,9 +87,9 @@ export function InventoryRow({ item }: InventoryRowProps) {
         <td className="px-4 py-3 text-right cursor-pointer" onClick={() => setExpanded(e => !e)}>
           <span className={cn(
             'font-mono text-sm font-bold',
-            quantity < 5 ? 'text-warning' : 'text-text',
+            item.quantity < 5 ? 'text-warning' : 'text-text',
           )}>
-            {quantity.toLocaleString('es-CL')}
+            {item.quantity.toLocaleString('es-CL')}
           </span>
           <span className="text-xs text-text-muted ml-1">un.</span>
         </td>
@@ -143,45 +107,20 @@ export function InventoryRow({ item }: InventoryRowProps) {
           <span className="text-xs text-text-muted capitalize">{item.location}</span>
         </td>
 
-        {/* Acciones inline */}
-        <td className="px-4 py-3">
-          <div className="flex items-center justify-end gap-1">
-            {isPending
-              ? <Loader2 size={14} className="animate-spin text-text-muted" />
-              : (
-                <>
-                  <button
-                    onClick={() => adjust(-1)}
-                    disabled={quantity <= 0}
-                    title="Restar 1 unidad"
-                    className="p-1 rounded hover:bg-surface text-text-muted hover:text-brand transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  >
-                    <Minus size={13} />
-                  </button>
-                  <button
-                    onClick={() => adjust(1)}
-                    title="Sumar 1 unidad"
-                    className="p-1 rounded hover:bg-surface text-text-muted hover:text-brand transition-colors"
-                  >
-                    <Plus size={13} />
-                  </button>
-                  <button
-                    onClick={markExpired}
-                    disabled={quantity === 0}
-                    title="Marcar lote como vencido"
-                    className="p-1 rounded hover:bg-surface text-text-muted hover:text-error transition-colors disabled:opacity-30 disabled:cursor-not-allowed ml-1"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </>
-              )
-            }
-          </div>
-          {error && <p className="text-[10px] text-error mt-1 text-right">{error}</p>}
+        {/* Ajustar — navega a Editar Producto, donde vive el flujo real de
+            agregar/ajustar lotes (ya no se muta en línea desde esta vista). */}
+        <td className="px-4 py-3 text-right">
+          <Link
+            href={`/products/${item.productId}/edit`}
+            title="Ajustar inventario en Editar Producto"
+            className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-brand transition-colors"
+          >
+            <Pencil size={12} /> Ajustar
+          </Link>
         </td>
       </tr>
 
-      {/* Fila expandida — historial movimientos */}
+      {/* Fila expandida — historial de movimientos (solo lectura) */}
       {expanded && (
         <tr className="bg-surface">
           <td colSpan={8} className="px-8 py-4">
@@ -194,11 +133,12 @@ export function InventoryRow({ item }: InventoryRowProps) {
 }
 
 interface Movement {
-  id:          string
-  type:        string
-  quantity:    number
-  notes:       string | null
-  createdAt:   string
+  id:            string
+  type:          string
+  quantity:      number
+  notes:         string | null
+  createdAt:     string
+  createdByName: string | null
 }
 
 const MOVE_LABEL: Record<string, string> = {
@@ -214,7 +154,11 @@ function MovementHistory({ productId }: { productId: string }) {
   const [loading, setLoading]     = useState(true)
 
   useEffect(() => {
-    clientFetch<{ movements: Movement[] }>(`/api/inventory/${productId}/movements`)
+    // GET /api/products/:id/inventory/movements (adición post-entrega) —
+    // reemplaza a GET /api/inventory/:productId/movements, que esta fila
+    // llamaba antes pero nunca existió en el backend (mismo gap que
+    // POST /api/inventory/adjust, ver comentario de arriba).
+    clientFetch<{ movements: Movement[] }>(`/api/products/${productId}/inventory/movements`)
       .then(d => setMovements(d.movements))
       .catch(() => {})
       .finally(() => setLoading(false))
@@ -234,6 +178,7 @@ function MovementHistory({ productId }: { productId: string }) {
             </span>
             <span className="text-text-muted">{MOVE_LABEL[m.type] ?? m.type}</span>
             {m.notes && <span className="text-text-muted opacity-60">{m.notes}</span>}
+            {m.createdByName && <span className="text-text-muted opacity-40">· {m.createdByName}</span>}
           </div>
           <span className="text-text-muted font-mono text-[10px]">
             {new Date(m.createdAt).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}

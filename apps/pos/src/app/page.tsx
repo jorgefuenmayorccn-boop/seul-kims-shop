@@ -16,6 +16,7 @@ import { ShiftCloseGuard } from '@/components/pos/shift-close-guard'
 import { IncomingOrdersDrawer } from '@/components/pos/incoming-orders-drawer'
 import { ComandasView } from '@/components/pos/comandas-view'
 import { DeliveryOrderModal } from '@/components/pos/delivery/delivery-order-modal'
+import { B2BCompanyModal } from '@/components/pos/b2b/b2b-company-modal'
 import { AssignDriverModal, type PendingAssign } from '@/components/pos/delivery/assign-driver-modal'
 import { PostTillOptions } from '@/components/pos/post-till-options'
 import { VoidAuthModal } from '@/components/pos/void-auth-modal'
@@ -62,6 +63,7 @@ export default function POSPage() {
   const [showPostTillOpts,   setShowPostTillOpts]   = useState(false)
   const [showSalesHistory,   setShowSalesHistory]   = useState(false)
   const [showDeliveryModal,  setShowDeliveryModal]  = useState(false)
+  const [showB2BModal,       setShowB2BModal]       = useState(false)
   const [closedTillId,       setClosedTillId]       = useState<string | null>(null)
   const [totalSold,          setTotalSold]          = useState(0)
   const [ticketCount,        setTicketCount]        = useState(0)
@@ -216,6 +218,12 @@ export default function POSPage() {
         guestName:       delivery?.guestName ?? undefined,
         guestPhone:      delivery?.guestPhone ?? undefined,
         guestEmail:      delivery?.guestEmail ?? undefined,
+        // Venta B2B presencial (adición post-entrega) — companyId opcional,
+        // solo viaja cuando el cajero seleccionó una empresa con el toggle
+        // "B2B" del TopBar. El backend (POST /api/orders) valida la empresa,
+        // guarda company_id en la orden y autocompleta el receptor (RUT/
+        // razón social) si no se llenó a mano.
+        companyId:       store.b2bCompany?.id ?? undefined,
         payments:  allTenders.map(t => ({ method: t.method, amount: t.amount })),
         receiver,
         items: store.cart.map(i => ({
@@ -357,6 +365,9 @@ export default function POSPage() {
         onOpenComandas={() => setShowComandas(true)}
         onOpenHistory={tillSession || closedTillId ? () => setShowSalesHistory(true) : undefined}
         onLogout={() => logoutUserFn(API)}
+        onOpenB2B={() => setShowB2BModal(true)}
+        b2bCompanyName={store.b2bCompany?.razonSocial}
+        onClearB2B={() => store.setB2BCompany(null)}
       />
 
       {/* Body — 3 columnas */}
@@ -573,6 +584,26 @@ export default function POSPage() {
           )}
 
           <div className="px-4 pb-3 pt-2 shrink-0 space-y-2">
+            {/* Indicador venta B2B — visible en el carrito para que el
+                cajero no pierda de vista que está cobrando precios
+                mayoristas (adición post-entrega). */}
+            {store.b2bCompany && (
+              <div
+                className="flex items-center justify-between px-3 py-2 rounded text-xs font-body"
+                style={{ background: 'var(--color-warning-subtle, #fef3c7)', border: '1px solid var(--color-warning, #d97706)', color: 'var(--color-warning, #92400e)' }}
+              >
+                <span className="font-semibold">
+                  Venta B2B · {store.b2bCompany.razonSocial} · precios mayoristas
+                </span>
+                <button
+                  onClick={() => store.setB2BCompany(null)}
+                  className="hover:opacity-70 transition-opacity font-light"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             {/* Delivery order indicator */}
             {store.deliveryOrder && (
               <div
@@ -721,6 +752,17 @@ export default function POSPage() {
             store.setCheckoutOpen(true)
           }}
           onClose={() => setShowDeliveryModal(false)}
+        />
+      )}
+
+      {/* Modal venta B2B — buscar/seleccionar empresa mayorista (adición
+          post-entrega). Al seleccionar, los productos agregados DESPUÉS de
+          este punto usan priceB2B (ver pos-store.ts addProduct). */}
+      {showB2BModal && (
+        <B2BCompanyModal
+          apiUrl={API}
+          onSelect={company => { store.setB2BCompany(company); setShowB2BModal(false) }}
+          onClose={() => setShowB2BModal(false)}
         />
       )}
 

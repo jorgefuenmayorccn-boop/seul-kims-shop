@@ -27,6 +27,11 @@ export interface POSProduct {
   barcode?:       string | null
   brand?:         string | null
   priceRetail:    number
+  // Solo llegan con sesión de staff (GET /api/products ya los expone así,
+  // ver server.ts) — necesarios para venta B2B presencial (adición
+  // post-entrega, punto 6 del flujo de aprobación de crédito B2B).
+  pricePOS?:      number | null
+  priceB2B?:      number | null
   coldChain:      'ambient' | 'refrigerated' | 'frozen'
   isBaesEligible: boolean
   isWeighable:    boolean
@@ -35,17 +40,37 @@ export interface POSProduct {
   categoryId?:    string | null
 }
 
+// Empresa B2B seleccionada para una venta presencial en POS (adición
+// post-entrega, pedido explícito del dueño: "un cliente mayorista que llega
+// físicamente a comprar debe poder ser atendido en POS con precios B2B").
+// Opcional — un toggle, no un modo obligatorio; nunca rompe el flujo normal
+// de venta cuando no hay empresa seleccionada.
+export interface B2BCompanyInfo {
+  id:          string
+  razonSocial: string
+  rut:         string
+  status:      string
+}
+
 export function usePOSStore() {
   const [cart, setCart] = useState<CartItem[]>([])
   const [baesSession, setBAESSession] = useState<BAESSession | null>(null)
   const [checkoutOpen, setCheckoutOpen] = useState(false)
   const [deliveryOrder, setDeliveryOrder] = useState<DeliveryOrderInfo | null>(null)
   const [selectedCartIndex, setSelectedCartIndex] = useState<number>(-1)
+  // Venta B2B presencial (adición post-entrega) — cuando hay una empresa
+  // seleccionada, addProduct usa priceB2B en vez de priceRetail. Se limpia
+  // junto con el carrito (clearCart) para no arrastrar precios mayoristas a
+  // la siguiente venta por accidente.
+  const [b2bCompany, setB2BCompany] = useState<B2BCompanyInfo | null>(null)
   const searchRef = useRef<HTMLInputElement | null>(null)
 
   const addProduct = useCallback((product: POSProduct, quantity = 1) => {
     setCart(prev => {
       const existing = prev.find(i => i.id === product.id)
+      const unitPrice = b2bCompany && product.priceB2B != null
+        ? product.priceB2B
+        : product.priceRetail
       if (existing && !product.isWeighable) {
         return prev.map(i =>
           i.id === product.id ? { ...i, quantity: i.quantity + quantity } : i
@@ -55,14 +80,14 @@ export function usePOSStore() {
         id:          product.id,
         name:        product.name,
         quantity,
-        unitPrice:   product.priceRetail,
+        unitPrice,
         isWeighable: product.isWeighable,
         isBaes:      product.isBaesEligible,
         coldChain:   product.coldChain,
       }]
     })
     setSelectedCartIndex(-1)
-  }, [])
+  }, [b2bCompany])
 
   const removeProduct = useCallback((id: string) => {
     setCart(prev => prev.filter(i => i.id !== id))
@@ -83,6 +108,7 @@ export function usePOSStore() {
     setCheckoutOpen(false)
     setDeliveryOrder(null)
     setSelectedCartIndex(-1)
+    setB2BCompany(null)
   }, [])
 
   // Navegar carrito con teclado
@@ -141,6 +167,7 @@ export function usePOSStore() {
     baesSession, setBAESSession,
     checkoutOpen, setCheckoutOpen,
     deliveryOrder, setDeliveryOrder,
+    b2bCompany, setB2BCompany,
     selectedCartIndex, setSelectedCartIndex,
     cartUp, cartDown, increaseSelected, decreaseSelected,
     focusSearch, searchRef,

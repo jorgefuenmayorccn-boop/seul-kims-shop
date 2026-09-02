@@ -85,6 +85,13 @@ export const orders = pgTable('orders', {
   paymentMethod:      text('payment_method'),
   paymentConfirmedAt: timestamp('payment_confirmed_at'),
   paymentConfirmedBy: uuid('payment_confirmed_by'),
+  // Venta B2B presencial en POS (adición post-entrega, migración 0022c).
+  // Nullable — solo se setea cuando el cajero activa el toggle "Venta B2B" y
+  // selecciona una empresa. channel se mantiene 'pos' (la plata entra por
+  // caja igual que cualquier venta de mostrador); este campo es el
+  // diferenciador para reportes y para el futuro SII real (factura vs
+  // boleta/nota).
+  companyId:       uuid('company_id'),
   createdAt:       timestamp('created_at').defaultNow(),
   updatedAt:       timestamp('updated_at').defaultNow(),
 })

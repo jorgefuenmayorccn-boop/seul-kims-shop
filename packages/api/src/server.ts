@@ -80,6 +80,16 @@ const POD_UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'pod')
 // contener la key real sin cambiar el shape de la tabla.
 const PRODUCT_UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'products')
 
+// Directorio local para documentos de respaldo de solicitudes de crédito B2B
+// (adición post-entrega, 2-sep-2026 — flujo de aprobación de crédito B2B
+// pedido explícito del dueño). Mismo criterio pragmático de disco local que
+// PRODUCT_UPLOAD_DIR/POD_UPLOAD_DIR (sin R2 configurado). A diferencia de
+// esos dos, estos son documentos financieros/de identidad de una empresa —
+// la ruta que los sirve (GET /b2b-docs/:filename, ver más abajo) NO es
+// pública sin sesión como /pod y /product-photos: exige sesión de staff
+// owner/admin o sesión de la empresa dueña de la solicitud.
+const B2B_DOC_UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'b2b-credit-docs')
+
 // Public storefront base URL — used to build links inside customer-facing
 // emails (password reset, welcome). Distinct from the staff panel's
 // cmr.seoulshop.cl links used in the staff email templates.
@@ -163,6 +173,60 @@ app.get('/product-photos/:filename', async (c) => {
     return c.body(buf, 200, { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' })
   } catch (err) {
     console.error('Serve product photo error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /b2b-docs/:filename — sirve los documentos de respaldo subidos por
+// POST /api/b2b/credit-requests/:id/documents (adición post-entrega, flujo de
+// aprobación de crédito B2B). A diferencia de /pod y /product-photos de
+// arriba, ESTA ruta NO es pública sin sesión — son documentos financieros/de
+// identidad de una empresa (cédula/RUT, respaldo financiero), un nombre de
+// archivo no-enumerable no es suficiente criterio de privacidad acá. Se
+// resuelve el dueño real del archivo (b2b_credit_documents → request →
+// company) y se exige que quien pide el archivo sea: (a) staff owner/admin,
+// o (b) la propia empresa B2B dueña de la solicitud (sesión de cliente).
+app.get('/b2b-docs/:filename', async (c) => {
+  const filename = path.basename(c.req.param('filename'))
+
+  const [doc] = await sql`
+    SELECT d.filename, d.original_name, cr.company_id
+    FROM b2b_credit_documents d
+    JOIN b2b_credit_requests cr ON cr.id = d.request_id
+    WHERE d.filename = ${filename}
+    LIMIT 1
+  `
+  if (!doc) return c.json({ error: 'No encontrado' }, 404)
+
+  const staffUser = await getOptionalSession(c)
+  const isStaffAllowed = staffUser && ['owner', 'admin'].includes(staffUser.role)
+  let isOwningCompany = false
+  if (!isStaffAllowed) {
+    const customer = await getOptionalCustomerSession(c)
+    if (customer) {
+      const [comp] = await sql`SELECT id FROM b2b_companies WHERE id = ${doc.company_id} AND customer_id = ${customer.customerId}`
+      isOwningCompany = !!comp
+    }
+  }
+  if (!isStaffAllowed && !isOwningCompany) {
+    return c.json({ error: 'No autorizado' }, 403)
+  }
+
+  const filePath = path.join(B2B_DOC_UPLOAD_DIR, filename)
+  try {
+    if (!filePath.startsWith(B2B_DOC_UPLOAD_DIR) || !fs.existsSync(filePath)) {
+      return c.json({ error: 'No encontrado' }, 404)
+    }
+    const buf = fs.readFileSync(filePath)
+    const ext = path.extname(filename).toLowerCase()
+    const contentType = ext === '.pdf' ? 'application/pdf' : ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : '.jpg' === ext || '.jpeg' === ext ? 'image/jpeg' : 'application/octet-stream'
+    return c.body(buf, 200, {
+      'Content-Type': contentType,
+      'Content-Disposition': `inline; filename="${(doc.original_name || filename).replace(/"/g, '')}"`,
+      'Cache-Control': 'private, no-store',
+    })
+  } catch (err) {
+    console.error('Serve B2B credit doc error:', err)
     return c.json({ error: 'Error' }, 500)
   }
 })
@@ -462,6 +526,67 @@ async function runMigrationsIfNeeded() {
       await sql`UPDATE orders SET payment_status = 'confirmed' WHERE channel = 'pos' AND payment_status = 'pending'`
       await sql`CREATE INDEX IF NOT EXISTS orders_payment_status_idx ON orders(payment_status) WHERE payment_status = 'pending'`
       console.log('✅ Migration 0021 applied')
+    }
+
+    // 0022 (adición post-entrega — flujo de aprobación de crédito B2B +
+    // consolidación de inventario dentro de Editar Producto, pedido explícito
+    // del dueño, 2-sep-2026):
+    //
+    // 1. b2b_credit_requests gana `approved_amount_clp` (el ejecutivo puede
+    //    aprobar un monto DISTINTO al solicitado, no solo aceptar/rechazar el
+    //    monto pedido tal cual — requisito explícito del dueño) y
+    //    `commission_pct`/`commission_clp` (comisión calculada al momento de
+    //    aprobar, snapshot del % vigente en tienda_config para no cambiar
+    //    retroactivamente si el % default se edita después).
+    // 2. b2b_credit_documents (tabla nueva) — 1+ documentos de respaldo
+    //    (cédula/RUT empresa, respaldo financiero) asociados a una solicitud
+    //    de crédito, mismo patrón pragmático de disco local que
+    //    product_images/pod (sin R2 configurado).
+    // 3. orders.company_id — venta presencial B2B en POS: permite asociar una
+    //    venta al RUT/empresa correspondiente sin inventar un canal nuevo
+    //    (channel sigue 'pos' — la plata entra por caja igual que cualquier
+    //    venta de mostrador; company_id es el diferenciador para reportes y
+    //    para cuando se conecte el SII real, decidir boleta vs factura).
+    const b2bCreditColsExist = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'b2b_credit_requests' AND column_name = 'approved_amount_clp'
+    `
+    if (b2bCreditColsExist.length === 0) {
+      console.log('🔄 Running migration 0022a (b2b_credit_requests approved/commission cols)...')
+      await sql`ALTER TABLE b2b_credit_requests ADD COLUMN IF NOT EXISTS approved_amount_clp INTEGER`
+      await sql`ALTER TABLE b2b_credit_requests ADD COLUMN IF NOT EXISTS commission_pct DECIMAL(5,2)`
+      await sql`ALTER TABLE b2b_credit_requests ADD COLUMN IF NOT EXISTS commission_clp INTEGER`
+      console.log('✅ Migration 0022a applied')
+    }
+
+    const b2bCreditDocsExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'b2b_credit_documents' AND column_name = 'filename'
+    `
+    if (b2bCreditDocsExists.length === 0) {
+      console.log('🔄 Running migration 0022b (b2b_credit_documents)...')
+      await sql`
+        CREATE TABLE IF NOT EXISTS b2b_credit_documents (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          request_id UUID NOT NULL REFERENCES b2b_credit_requests(id),
+          filename TEXT NOT NULL,
+          original_name TEXT,
+          uploaded_by UUID REFERENCES users(id),
+          uploaded_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+      console.log('✅ Migration 0022b applied')
+    }
+
+    const ordersCompanyIdExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'orders' AND column_name = 'company_id'
+    `
+    if (ordersCompanyIdExists.length === 0) {
+      console.log('🔄 Running migration 0022c (orders.company_id — venta B2B en POS)...')
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS company_id UUID REFERENCES b2b_companies(id)`
+      await sql`CREATE INDEX IF NOT EXISTS orders_company_id_idx ON orders(company_id) WHERE company_id IS NOT NULL`
+      console.log('✅ Migration 0022c applied')
     }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
@@ -2180,7 +2305,7 @@ app.post('/api/orders', async (c) => {
       Array.isArray(body.items) ? body.items : []
     const payments: Array<{ method?: string; amount?: number; meta?: unknown }> =
       Array.isArray(body.payments) ? body.payments : []
-    const receiver = body.receiver as
+    let receiver = body.receiver as
       | { rut?: string; razonSocial?: string; giro?: string; direccion?: string; comuna?: string }
       | undefined
     const deliveryMode = typeof body.deliveryMode === 'string' ? body.deliveryMode : 'pickup'
@@ -2189,6 +2314,31 @@ app.post('/api/orders', async (c) => {
     for (const it of items) {
       if (!it.productId || !(Number(it.quantity) > 0) || !(Number(it.unitPrice) >= 0)) {
         return c.json({ error: 'Ítem inválido en el pedido' }, 400)
+      }
+    }
+
+    // Venta B2B presencial en POS (adición post-entrega, punto 6 del flujo de
+    // aprobación de crédito B2B pedido por el dueño). `companyId` es
+    // opcional — un toggle "Venta B2B" en el POS lo setea cuando el cajero
+    // atiende a un mayorista en mostrador, nunca obligatorio (no rompe el
+    // flujo normal de venta). channel se mantiene 'pos' a propósito (la
+    // plata sigue entrando por caja, cuenta igual en el z-report) —
+    // `company_id` es el diferenciador para reportes/futuro SII (factura vs
+    // boleta/nota). Si el cajero no llenó el panel de receptor a mano, se
+    // autocompleta desde los datos de la empresa para que la venta quede
+    // trazable al RUT correcto sin un paso manual extra.
+    let companyId: string | null = null
+    if (body.companyId) {
+      const [company] = await sql`
+        SELECT id, razon_social, rut, giro, address FROM b2b_companies WHERE id = ${body.companyId}
+      `
+      if (!company) return c.json({ error: 'Empresa B2B no encontrada' }, 404)
+      companyId = company.id
+      if (!receiver || (!receiver.rut && !receiver.razonSocial)) {
+        receiver = {
+          rut: company.rut, razonSocial: company.razon_social,
+          giro: company.giro || undefined, direccion: company.address || undefined,
+        }
       }
     }
 
@@ -2225,14 +2375,14 @@ app.post('/api/orders', async (c) => {
           subtotal, baes_amount, total, dte_type, dte_status,
           receiver_rut, receiver_name, receiver_giro, receiver_address, receiver_comuna,
           guest_name, guest_phone, guest_email,
-          shift_id, till_session_id, cashier_id,
+          shift_id, till_session_id, cashier_id, company_id,
           payment_status
         ) VALUES (
           ${next_number}, 'pos', ${body.customerId || null}, ${deliveryMode}, ${body.deliveryAddress || null},
           ${subtotal}, ${baesAmount}, ${total}, ${dteType}, 'pending',
           ${receiver?.rut || null}, ${receiver?.razonSocial || null}, ${receiver?.giro || null}, ${receiver?.direccion || null}, ${receiver?.comuna || null},
           ${body.guestName || null}, ${body.guestPhone || null}, ${body.guestEmail || null},
-          ${body.shiftId || null}, ${body.tillSessionId || null}, ${auth?.userId || null},
+          ${body.shiftId || null}, ${body.tillSessionId || null}, ${auth?.userId || null}, ${companyId},
           'confirmed'
         )
         RETURNING id, number
@@ -3248,7 +3398,8 @@ app.get('/api/b2b/credit-requests/:id', async (c) => {
   const staffUser = await getOptionalSession(c)
   if (staffUser && ['owner', 'admin'].includes(staffUser.role)) {
     const [row] = await sql`
-      SELECT cr.id, cr.company_id, cr.amount_clp, cr.reason, cr.status,
+      SELECT cr.id, cr.company_id, cr.amount_clp, cr.approved_amount_clp,
+             cr.commission_pct, cr.commission_clp, cr.reason, cr.status,
              cr.reviewed_at, cr.reviewer_note, cr.created_at,
              comp.razon_social, comp.rut
       FROM b2b_credit_requests cr
@@ -3259,6 +3410,9 @@ app.get('/api/b2b/credit-requests/:id', async (c) => {
     if (!row) return c.json({ error: 'Solicitud no encontrada' }, 404)
     return c.json({
       id: row.id, companyId: row.company_id, amountClp: Number(row.amount_clp),
+      approvedAmountClp: row.approved_amount_clp !== null ? Number(row.approved_amount_clp) : null,
+      commissionPct: row.commission_pct !== null ? Number(row.commission_pct) : null,
+      commissionClp: row.commission_clp !== null ? Number(row.commission_clp) : null,
       reason: row.reason, status: row.status, reviewedAt: row.reviewed_at,
       reviewerNote: row.reviewer_note, createdAt: row.created_at,
       razonSocial: row.razon_social, rut: row.rut,
@@ -3270,7 +3424,8 @@ app.get('/api/b2b/credit-requests/:id', async (c) => {
   const { company } = session
 
   const [row] = await sql`
-    SELECT id, company_id, amount_clp, reason, status, reviewed_at, reviewer_note, created_at
+    SELECT id, company_id, amount_clp, approved_amount_clp, commission_pct, commission_clp,
+           reason, status, reviewed_at, reviewer_note, created_at
     FROM b2b_credit_requests
     WHERE id = ${id} AND company_id = ${company.id}
     LIMIT 1
@@ -3278,22 +3433,158 @@ app.get('/api/b2b/credit-requests/:id', async (c) => {
   if (!row) return c.json({ error: 'Solicitud no encontrada' }, 404)
   return c.json({
     id: row.id, companyId: row.company_id, amountClp: Number(row.amount_clp),
+    approvedAmountClp: row.approved_amount_clp !== null ? Number(row.approved_amount_clp) : null,
+    commissionPct: row.commission_pct !== null ? Number(row.commission_pct) : null,
+    commissionClp: row.commission_clp !== null ? Number(row.commission_clp) : null,
     reason: row.reason, status: row.status, reviewedAt: row.reviewed_at,
     reviewerNote: row.reviewer_note, createdAt: row.created_at,
   })
 })
 
-// PATCH /api/b2b/credit-requests/:id/review — STAFF (owner/admin) —
-// apps/cerebro/.../b2b/solicitudes/page.tsx (botones Aprobar/Rechazar). NO
-// listado explícitamente en el brief de esta sesión bajo ese nombre exacto,
-// pero es el endpoint real que ese componente YA construido llama (confirmado
-// por grep antes de escribir código) — sin esto, "GET /api/b2b/solicitudes" no
-// tendría ninguna acción posible desde cerebro. Al aprobar, acredita el monto
-// en la wallet de la empresa (b2b_wallet_ledger + b2b_companies.wallet_balance_clp)
-// — es el único lugar del sistema que escribe en el ledger hoy. Una solicitud
-// ya revisada no se puede volver a revisar (409).
+// Resuelve acceso dual (staff owner/admin, o la empresa dueña de la
+// solicitud) para los endpoints de documentos de crédito B2B de abajo. No usa
+// requireB2BCompany() directo porque necesita permitir TAMBIÉN acceso staff
+// sin fallar primero — mismo patrón ya usado en GET /api/b2b/credit-requests/:id.
+async function resolveCreditRequestAccess(c: any, requestId: string): Promise<
+  | { ok: true; requestRow: any; actor: { id: string | null; email: string; role: string } }
+  | Response
+> {
+  const [reqRow] = await sql`
+    SELECT cr.id, cr.company_id, cr.status, comp.razon_social, comp.customer_id
+    FROM b2b_credit_requests cr
+    JOIN b2b_companies comp ON comp.id = cr.company_id
+    WHERE cr.id = ${requestId}
+    LIMIT 1
+  `
+  if (!reqRow) return c.json({ error: 'Solicitud no encontrada' }, 404)
+
+  const staffUser = await getOptionalSession(c)
+  if (staffUser && ['owner', 'admin'].includes(staffUser.role)) {
+    return { ok: true, requestRow: reqRow, actor: { id: staffUser.id, email: staffUser.email, role: staffUser.role } }
+  }
+
+  const customer = await getOptionalCustomerSession(c)
+  if (customer) {
+    const [company] = await sql`SELECT id FROM b2b_companies WHERE id = ${reqRow.company_id} AND customer_id = ${customer.customerId}`
+    if (company) {
+      return { ok: true, requestRow: reqRow, actor: { id: null, email: customer.email, role: 'b2b_company' } }
+    }
+  }
+
+  return c.json({ error: 'No autorizado' }, 403)
+}
+
+// GET /api/b2b/credit-requests/:id/documents — lista documentos de respaldo
+// (cédula/RUT empresa, respaldo financiero) subidos para una solicitud.
+// Acceso dual: staff owner/admin (revisando para aprobar) o la empresa dueña
+// (portal B2B, viendo lo que ya subió). Adición post-entrega — punto 2 del
+// flujo de aprobación de crédito B2B pedido por el dueño: "antes de aprobar
+// un crédito, deben poder subirse documentos importantes".
+app.get('/api/b2b/credit-requests/:id/documents', async (c) => {
+  const id = c.req.param('id')
+  const access = await resolveCreditRequestAccess(c, id)
+  if (access instanceof Response) return access
+
+  try {
+    const rows = await sql`
+      SELECT id, filename, original_name, uploaded_by, uploaded_at
+      FROM b2b_credit_documents
+      WHERE request_id = ${id}
+      ORDER BY uploaded_at ASC
+    `
+    return c.json({
+      documents: rows.map((r: any) => ({
+        id: r.id,
+        originalName: r.original_name ?? r.filename,
+        url: `${API_PUBLIC_URL}/b2b-docs/${r.filename}`,
+        uploadedAt: r.uploaded_at,
+      })),
+    })
+  } catch (err) {
+    console.error('List B2B credit documents error:', err)
+    return c.json({ error: 'Error al listar documentos' }, 500)
+  }
+})
+
+// POST /api/b2b/credit-requests/:id/documents — sube 1 documento de respaldo
+// (multipart, campo "file"). Mismo patrón pragmático de disco local que
+// POST /api/products/:productId/images (sin R2 configurado hoy). No se
+// permite subir documentos a una solicitud ya revisada (approved/rejected) —
+// no tendría efecto sobre una decisión ya tomada.
+app.post('/api/b2b/credit-requests/:id/documents', async (c) => {
+  const id = c.req.param('id')
+  const access = await resolveCreditRequestAccess(c, id)
+  if (access instanceof Response) return access
+  if (access.requestRow.status !== 'pending') {
+    return c.json({ error: 'Esta solicitud ya fue revisada, no se pueden agregar más documentos.' }, 409)
+  }
+
+  try {
+    const body = await c.req.parseBody()
+    const file = body['file']
+    if (!(file instanceof File)) return c.json({ error: 'Falta el documento (campo "file")' }, 400)
+    if (file.size === 0) return c.json({ error: 'Archivo vacío' }, 400)
+    if (file.size > 8 * 1024 * 1024) return c.json({ error: 'Documento demasiado grande (máx 8MB)' }, 400)
+
+    const EXT_BY_MIME: Record<string, string> = {
+      'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',
+    }
+    const ext = EXT_BY_MIME[file.type]
+    if (!ext) return c.json({ error: 'Formato no soportado (usa PDF, JPG, PNG o WebP)' }, 400)
+
+    const filename = `${id}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`
+
+    fs.mkdirSync(B2B_DOC_UPLOAD_DIR, { recursive: true })
+    const buf = Buffer.from(await file.arrayBuffer())
+    fs.writeFileSync(path.join(B2B_DOC_UPLOAD_DIR, filename), buf)
+
+    const originalName = (body['originalName'] as string) || (file as any).name || filename
+
+    const [created] = await sql`
+      INSERT INTO b2b_credit_documents (request_id, filename, original_name, uploaded_by)
+      VALUES (${id}, ${filename}, ${String(originalName).slice(0, 255)}, ${access.actor.id})
+      RETURNING id, uploaded_at
+    `
+
+    return c.json({
+      ok: true,
+      id: created.id,
+      url: `/b2b-docs/${filename}`,
+      uploadedAt: created.uploaded_at,
+    })
+  } catch (err) {
+    console.error('Upload B2B credit document error:', err)
+    return c.json({ error: 'Error al subir el documento' }, 500)
+  }
+})
+
+// PATCH /api/b2b/credit-requests/:id/review — SOLO `owner` (pedido explícito
+// del dueño: "solo el jefe/gerente puede aprobar una cuenta B2B y, si quiere,
+// aprobarle una línea de crédito"). Antes de esta sesión aceptaba
+// owner+admin; se estrecha a owner porque el brief lo pidió sin ambigüedad —
+// `admin` conserva acceso de SOLO LECTURA (GET /api/b2b/solicitudes y
+// GET .../credit-requests/:id siguen aceptando owner+admin, sin cambios) pero
+// ya no puede ejecutar la aprobación/rechazo. Decisión documentada acá y en
+// el plan maestro.
+//
+// Cambios de esta sesión (flujo de aprobación de crédito B2B):
+//   - `approvedAmountClp` opcional en el body: el ejecutivo puede aprobar un
+//     monto DISTINTO al solicitado (no solo aceptar/rechazar el monto pedido
+//     tal cual) — si se omite, se usa el monto solicitado (amount_clp) como
+//     antes. Validado: si se aprueba, el monto aprobado debe ser >= $100.000
+//     (piso pedido explícitamente por el dueño; no hay techo — "hasta un
+//     monto que decida el ejecutivo").
+//   - Comisión: se calcula sobre el monto APROBADO usando el % vigente en
+//     tienda_config (key 'b2b_credit_commission_pct', default '2' = 2% si el
+//     dueño nunca lo configuró) — se guarda como snapshot en
+//     commission_pct/commission_clp de la fila, para no cambiar
+//     retroactivamente si el % default se edita después de aprobar. Ver
+//     Ajustes/tienda_config para el campo editable.
+//   - El monto acreditado en la wallet (b2b_wallet_ledger +
+//     b2b_companies.wallet_balance_clp) ahora es el monto APROBADO, no el
+//     solicitado — cambio de comportamiento deliberado vs. antes de esta sesión.
 app.patch('/api/b2b/credit-requests/:id/review', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin'])
+  const authUser = await requireSession(c, ['owner'])
   if (authUser instanceof Response) return authUser
 
   const id = c.req.param('id')
@@ -3311,6 +3602,8 @@ app.patch('/api/b2b/credit-requests/:id/review', async (c) => {
     return c.json({ error: 'status debe ser approved o rejected' }, 400)
   }
 
+  const MIN_APPROVED_AMOUNT_CLP = 100_000
+
   try {
     const [reqRow] = await sql`
       SELECT cr.id, cr.company_id, cr.amount_clp, cr.status, comp.razon_social, comp.customer_id
@@ -3324,21 +3617,41 @@ app.patch('/api/b2b/credit-requests/:id/review', async (c) => {
       return c.json({ error: 'Esta solicitud ya fue revisada' }, 409)
     }
 
+    let approvedAmount: number | null = null
+    let commissionPct: number | null = null
+    let commissionClp: number | null = null
+
+    if (status === 'approved') {
+      approvedAmount = body.approvedAmountClp != null && body.approvedAmountClp !== ''
+        ? parseInt(body.approvedAmountClp, 10)
+        : Number(reqRow.amount_clp)
+
+      if (!(approvedAmount >= MIN_APPROVED_AMOUNT_CLP)) {
+        return c.json({ error: `El monto aprobado debe ser al menos ${MIN_APPROVED_AMOUNT_CLP.toLocaleString('es-CL')} CLP.` }, 400)
+      }
+
+      const [commissionCfg] = await sql`SELECT value FROM tienda_config WHERE key = 'b2b_credit_commission_pct'`
+      commissionPct = commissionCfg?.value ? Number(commissionCfg.value) : 2
+      if (!(commissionPct >= 0)) commissionPct = 2
+      commissionClp = Math.round(approvedAmount * (commissionPct / 100))
+    }
+
     await sql`
       UPDATE b2b_credit_requests
       SET status = ${status}, reviewed_by = ${authUser.id}, reviewed_at = NOW(),
-          reviewer_note = ${reviewerNote}, updated_at = NOW()
+          reviewer_note = ${reviewerNote}, updated_at = NOW(),
+          approved_amount_clp = ${approvedAmount}, commission_pct = ${commissionPct}, commission_clp = ${commissionClp}
       WHERE id = ${id}
     `
 
-    if (status === 'approved') {
+    if (status === 'approved' && approvedAmount !== null) {
       const [comp] = await sql`SELECT wallet_balance_clp FROM b2b_companies WHERE id = ${reqRow.company_id}`
-      const newBalance = Number(comp.wallet_balance_clp) + Number(reqRow.amount_clp)
+      const newBalance = Number(comp.wallet_balance_clp) + approvedAmount
 
       await sql`UPDATE b2b_companies SET wallet_balance_clp = ${newBalance} WHERE id = ${reqRow.company_id}`
       await sql`
         INSERT INTO b2b_wallet_ledger (company_id, type, amount_clp, balance_after, reference_id, reference_type, notes, created_by)
-        VALUES (${reqRow.company_id}, 'credit', ${reqRow.amount_clp}, ${newBalance}, ${reqRow.id}, 'credit_request', ${reviewerNote}, ${authUser.id})
+        VALUES (${reqRow.company_id}, 'credit', ${approvedAmount}, ${newBalance}, ${reqRow.id}, 'credit_request', ${reviewerNote}, ${authUser.id})
       `
     }
 
@@ -3347,18 +3660,123 @@ app.patch('/api/b2b/credit-requests/:id/review', async (c) => {
 
     if (contactEmail) {
       const label = status === 'approved' ? '✅ Aprobada' : '❌ Rechazada'
+      const amountLabel = status === 'approved' && approvedAmount !== null
+        ? `${approvedAmount.toLocaleString('es-CL')} CLP`
+        : `${Number(reqRow.amount_clp).toLocaleString('es-CL')} CLP`
       await enqueueEmail(
         contactEmail,
         `${label} — Solicitud de crédito ${reqRow.razon_social}`,
-        `<p>Tu solicitud de crédito por ${Number(reqRow.amount_clp).toLocaleString('es-CL')} CLP fue ${status === 'approved' ? 'aprobada' : 'rechazada'}.${reviewerNote ? ' Nota: ' + reviewerNote : ''}</p>`,
+        `<p>Tu solicitud de crédito fue ${status === 'approved' ? `aprobada por ${amountLabel}` : 'rechazada'}.${reviewerNote ? ' Nota: ' + reviewerNote : ''}</p>`,
         status === 'approved' ? 'quote-accepted' : 'quote-rejected'
       )
     }
 
-    return c.json({ ok: true })
+    return c.json({ ok: true, approvedAmountClp: approvedAmount, commissionPct, commissionClp })
   } catch (err) {
     console.error('B2B credit review error:', err)
     return c.json({ error: 'Error al revisar solicitud' }, 500)
+  }
+})
+
+// GET /api/b2b/credit-suggestions — owner-only. Sugerencia proactiva de subir
+// línea de crédito a empresas B2B con volumen de compra creciente (pedido
+// explícito del dueño, punto 5 del flujo de aprobación de crédito B2B).
+// v1.0: consulta SQL simple, sin algoritmo sofisticado — compara el total de
+// pedidos asociados a la empresa (orders.company_id, ver migración 0022c y
+// POST /api/orders — venta B2B en POS) en los últimos 30 días vs. los 30
+// días anteriores. Requiere volumen real en AMBOS períodos para calcular un
+// % de crecimiento (evita "creció infinito" de una empresa sin historial
+// previo). Sugiere subir el límite a ~2x el volumen reciente, redondeado a
+// $50.000, solo si eso es mayor al límite actual.
+app.get('/api/b2b/credit-suggestions', async (c) => {
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
+
+  const GROWTH_THRESHOLD_PCT = 20 // crecimiento mínimo para sugerir revisión
+
+  try {
+    const rows = await sql`
+      SELECT
+        comp.id, comp.razon_social, comp.rut, comp.tier,
+        comp.credit_limit_clp, comp.credit_used_clp, comp.wallet_balance_clp,
+        COALESCE(recent.total, 0) AS recent_total,
+        COALESCE(prior.total, 0) AS prior_total
+      FROM b2b_companies comp
+      LEFT JOIN LATERAL (
+        SELECT SUM(o.total) AS total FROM orders o
+        WHERE o.company_id = comp.id AND o.created_at >= NOW() - INTERVAL '30 days'
+      ) recent ON true
+      LEFT JOIN LATERAL (
+        SELECT SUM(o.total) AS total FROM orders o
+        WHERE o.company_id = comp.id
+          AND o.created_at >= NOW() - INTERVAL '60 days' AND o.created_at < NOW() - INTERVAL '30 days'
+      ) prior ON true
+      WHERE comp.status != 'suspended'
+    `
+
+    const suggestions = rows
+      .map((r: any) => {
+        const recentTotal = Number(r.recent_total)
+        const priorTotal = Number(r.prior_total)
+        const currentLimit = Number(r.credit_limit_clp ?? 0)
+        if (priorTotal <= 0 || recentTotal <= 0) return null
+        const growthPct = Math.round(((recentTotal - priorTotal) / priorTotal) * 100)
+        if (growthPct < GROWTH_THRESHOLD_PCT) return null
+        const suggestedLimitClp = Math.round((recentTotal * 2) / 50_000) * 50_000
+        if (suggestedLimitClp <= currentLimit) return null
+        return {
+          companyId: r.id, razonSocial: r.razon_social, rut: r.rut, tier: r.tier,
+          currentLimitClp: currentLimit, creditUsedClp: Number(r.credit_used_clp ?? 0),
+          walletBalanceClp: Number(r.wallet_balance_clp ?? 0),
+          recentTotalClp: recentTotal, priorTotalClp: priorTotal, growthPct,
+          suggestedLimitClp,
+        }
+      })
+      .filter((s: any) => s !== null)
+      .sort((a: any, b: any) => b.growthPct - a.growthPct)
+      .slice(0, 20)
+
+    return c.json({ suggestions })
+  } catch (err) {
+    console.error('B2B credit suggestions error:', err)
+    return c.json({ error: 'Error al calcular sugerencias' }, 500)
+  }
+})
+
+// GET /api/b2b/companies — búsqueda de empresas B2B por RUT/razón social,
+// STAFF (owner/admin/staff — incluye cajero de POS). Adición post-entrega:
+// venta presencial B2B en POS (punto 6 del flujo de aprobación de crédito
+// B2B) — el cajero necesita buscar/seleccionar una empresa existente al
+// iniciar una venta mayorista en mostrador. Devuelve solo lo necesario para
+// identificar/aplicar precios B2B — nunca datos de crédito/wallet (eso es
+// terreno de /api/b2b/solicitudes y /api/b2b/wallet/:id, staff owner/admin
+// solamente).
+app.get('/api/b2b/companies', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const q = c.req.query('q')?.trim()
+  if (!q || q.length < 2) return c.json({ companies: [] })
+
+  const normalizedRutQ = q.replace(/[.\-]/g, '').toUpperCase()
+
+  try {
+    const rows = await sql`
+      SELECT id, razon_social, rut, giro, status, tier
+      FROM b2b_companies
+      WHERE razon_social ILIKE ${'%' + q + '%'} OR REPLACE(REPLACE(rut, '.', ''), '-', '') ILIKE ${'%' + normalizedRutQ + '%'}
+      ORDER BY razon_social ASC
+      LIMIT 20
+    `
+    return c.json({
+      companies: rows.map((r: any) => ({
+        id: r.id, razonSocial: r.razon_social, rut: r.rut, giro: r.giro,
+        status: r.status, tier: r.tier,
+      })),
+    })
+  } catch (err) {
+    console.error('B2B companies search error:', err)
+    return c.json({ error: 'Error al buscar empresas' }, 500)
   }
 })
 
@@ -5110,6 +5528,201 @@ app.get('/api/inventory', async (c) => {
   } catch (err) {
     console.error('List inventory error:', err)
     return c.json({ error: 'Error al listar inventario' }, 500)
+  }
+})
+
+// ============================================================================
+// INVENTARIO CONSOLIDADO DENTRO DE EDITAR PRODUCTO (adición post-entrega,
+// 2-sep-2026 — pedido explícito del dueño). Antes de esta sesión existía un
+// flujo separado "Ingresar lote de inventario" (modal con selector de
+// producto, apps/cerebro/.../inventory-lot-modal.tsx) que llamaba a
+// POST /api/inventory/lot — un endpoint que NUNCA existió en el backend
+// (grep confirmado antes de escribir código, 0 resultados), así que ese
+// modal estaba 404-eando en silencio desde que se escribió, igual que las
+// acciones inline +/-/vencido de inventory-row.tsx (POST /api/inventory/adjust,
+// GET /api/inventory/:productId/movements — tampoco existían). El dueño pidió
+// consolidar ese flujo DENTRO de Editar Producto — estos 3 endpoints nuevos
+// reemplazan a los 3 rotos de arriba, con contexto de producto explícito en
+// vez de un selector suelto, y GET .../movements reemplaza al historial
+// inline del expand-row de la vista general (que ahora es de solo lectura).
+// ============================================================================
+
+// GET /api/products/:id/inventory — lotes actuales del producto + resumen de
+// stock. Cualquier sesión de staff (misma apertura que GET /api/inventory
+// general, sin restricción de rol — es lectura).
+app.get('/api/products/:id/inventory', async (c) => {
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
+
+  const productId = c.req.param('id')
+
+  try {
+    const [product] = await sql`SELECT id, name, sku FROM products WHERE id = ${productId}`
+    if (!product) return c.json({ error: 'Producto no encontrado' }, 404)
+
+    const lots = await sql`
+      SELECT id, lot, quantity, expires_at, cost_per_unit, location, created_at,
+        CASE
+          WHEN expires_at IS NULL THEN NULL
+          WHEN expires_at < NOW() THEN 'expired'
+          WHEN expires_at < NOW() + INTERVAL '15 days' THEN 'urgent'
+          WHEN expires_at < NOW() + INTERVAL '30 days' THEN 'warning'
+          ELSE 'fresh'
+        END AS expiry_status
+      FROM inventory
+      WHERE product_id = ${productId}
+      ORDER BY expires_at ASC NULLS LAST, created_at DESC
+    `
+
+    const qtyTotal = lots.reduce((acc: number, l: any) => acc + Number(l.quantity), 0)
+
+    return c.json({
+      product: { id: product.id, name: product.name, sku: product.sku },
+      qtyTotal,
+      lots: lots.map((l: any) => ({
+        id: l.id, lot: l.lot, quantity: Number(l.quantity),
+        expiresAt: l.expires_at, costPerUnit: l.cost_per_unit != null ? Number(l.cost_per_unit) : null,
+        location: l.location, createdAt: l.created_at, expiryStatus: l.expiry_status,
+      })),
+    })
+  } catch (err) {
+    console.error('Get product inventory error:', err)
+    return c.json({ error: 'Error al obtener inventario del producto' }, 500)
+  }
+})
+
+// POST /api/products/:id/inventory — agrega un lote nuevo. Reemplaza lo que
+// hacía el modal "Ingresar lote de inventario" (ahora deprecado, ver
+// apps/cerebro/.../inventory-lot-button.tsx), pero en el contexto del
+// producto que ya se está editando en vez de un selector separado. Rol
+// owner/admin (mismo criterio que crear/editar producto). Registra el
+// movimiento en inventory_movements con type='purchase' — un lote nuevo es
+// una entrada de stock, no un ajuste.
+app.post('/api/products/:id/inventory', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  const productId = c.req.param('id')
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  const quantity = Number(body.quantity)
+  if (!(quantity > 0)) return c.json({ error: 'La cantidad debe ser mayor a 0' }, 400)
+
+  const costPerUnit = body.costPerUnit != null && body.costPerUnit !== '' ? Number(body.costPerUnit) : null
+  const location = body.location ? String(body.location).trim() : 'main'
+  const expiresAt = body.expiresAt ? new Date(body.expiresAt) : null
+  const lot = body.lot ? String(body.lot).trim() : null
+  const notes = body.notes ? String(body.notes).trim() : 'Ingreso de lote desde Editar Producto'
+
+  try {
+    const [product] = await sql`SELECT id FROM products WHERE id = ${productId}`
+    if (!product) return c.json({ error: 'Producto no encontrado' }, 404)
+
+    const [created] = await sql`
+      INSERT INTO inventory (product_id, lot, quantity, expires_at, cost_per_unit, location)
+      VALUES (${productId}, ${lot}, ${quantity}, ${expiresAt}, ${costPerUnit}, ${location})
+      RETURNING id, created_at
+    `
+
+    await sql`
+      INSERT INTO inventory_movements (product_id, inventory_id, type, quantity, notes, created_by)
+      VALUES (${productId}, ${created.id}, 'purchase', ${quantity}, ${notes}, ${authUser.id})
+    `
+
+    await recordAuditLog(c, authUser, 'inventory.lot_create', { table: 'inventory', id: created.id }, {
+      productId, quantity, costPerUnit, location, expiresAt: body.expiresAt ?? null,
+    })
+
+    console.log(`✅ Inventory lot created: product ${productId} — qty ${quantity}`)
+    return c.json({ ok: true, id: created.id, createdAt: created.created_at })
+  } catch (err) {
+    console.error('Create inventory lot error:', err)
+    return c.json({ error: 'Error al ingresar el lote' }, 500)
+  }
+})
+
+// GET /api/products/:id/inventory/movements — historial de movimientos del
+// producto (reemplaza GET /api/inventory/:productId/movements, que
+// inventory-row.tsx ya llamaba pero nunca existió en el backend — mismo gap
+// que POST /api/inventory/lot de arriba). Sirve tanto a la sección
+// "Inventario" de Editar Producto como al expand-row de solo lectura de la
+// vista general de Inventario.
+app.get('/api/products/:id/inventory/movements', async (c) => {
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
+
+  const productId = c.req.param('id')
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '30', 10) || 30, 1), 200)
+
+  try {
+    const rows = await sql`
+      SELECT m.id, m.type, m.quantity, m.notes, m.created_at, m.created_by, u.name AS created_by_name
+      FROM inventory_movements m
+      LEFT JOIN users u ON u.id = m.created_by
+      WHERE m.product_id = ${productId}
+      ORDER BY m.created_at DESC
+      LIMIT ${limit}
+    `
+    return c.json({
+      movements: rows.map((m: any) => ({
+        id: m.id, type: m.type, quantity: Number(m.quantity), notes: m.notes,
+        createdAt: m.created_at, createdByName: m.created_by_name ?? null,
+      })),
+    })
+  } catch (err) {
+    console.error('Product inventory movements error:', err)
+    return c.json({ error: 'Error al obtener movimientos' }, 500)
+  }
+})
+
+// PATCH /api/inventory/:lotId — ajusta la cantidad de un lote existente
+// (subir, bajar, o dar de baja con quantity:0). EXIGE `reason` en el body —
+// requisito explícito del dueño ("que cada cambio pida un motivo/explicación
+// al guardar, para llevar control"). Registra en inventory_movements con
+// type='adjustment' y el motivo como notes. Rol owner/admin.
+app.patch('/api/inventory/:lotId', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  const lotId = c.req.param('lotId')
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  const newQuantity = Number(body.quantity)
+  const reason = body.reason ? String(body.reason).trim() : ''
+
+  if (!(newQuantity >= 0)) return c.json({ error: 'La cantidad debe ser 0 o mayor' }, 400)
+  if (!reason) return c.json({ error: 'El motivo del ajuste es obligatorio' }, 400)
+
+  try {
+    const [lot] = await sql`SELECT id, product_id, quantity FROM inventory WHERE id = ${lotId}`
+    if (!lot) return c.json({ error: 'Lote no encontrado' }, 404)
+
+    const delta = newQuantity - Number(lot.quantity)
+    if (delta === 0) {
+      return c.json({ ok: true, unchanged: true, quantity: newQuantity })
+    }
+
+    await sql`UPDATE inventory SET quantity = ${newQuantity} WHERE id = ${lotId}`
+
+    const movementType = newQuantity === 0 ? 'expired' : 'adjustment'
+    await sql`
+      INSERT INTO inventory_movements (product_id, inventory_id, type, quantity, notes, created_by)
+      VALUES (${lot.product_id}, ${lotId}, ${movementType}, ${delta}, ${reason}, ${authUser.id})
+    `
+
+    await recordAuditLog(c, authUser, 'inventory.adjust', { table: 'inventory', id: lotId }, {
+      productId: lot.product_id, before: Number(lot.quantity), after: newQuantity, delta, reason,
+    })
+
+    console.log(`✅ Inventory lot adjusted: ${lotId} — ${Number(lot.quantity)} → ${newQuantity} (${reason})`)
+    return c.json({ ok: true, quantity: newQuantity, delta })
+  } catch (err) {
+    console.error('Adjust inventory lot error:', err)
+    return c.json({ error: 'Error al ajustar el lote' }, 500)
   }
 })
 

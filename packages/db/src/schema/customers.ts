@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, boolean, timestamp, integer, pgEnum } from 'drizzle-orm/pg-core'
+import { pgTable, uuid, text, boolean, timestamp, integer, decimal, pgEnum } from 'drizzle-orm/pg-core'
 import { users } from './auth'
 
 export const b2bTierEnum = pgEnum('b2b_tier', ['hoobae', 'sunbae', 'hyung'])
@@ -77,8 +77,30 @@ export const b2bCreditRequests = pgTable('b2b_credit_requests', {
   reviewedAt:   timestamp('reviewed_at'),
   reviewerNote: text('reviewer_note'),
   docR2Key:     text('doc_r2_key'),
+  // Flujo de aprobación de crédito B2B (adición post-entrega, migración
+  // 0022a) — el ejecutivo (owner) puede aprobar un monto DISTINTO al
+  // solicitado (amountClp arriba es lo pedido; approvedAmountClp es lo
+  // realmente otorgado). commissionPct/commissionClp son un snapshot del %
+  // de comisión vigente en tienda_config al momento de aprobar.
+  approvedAmountClp: integer('approved_amount_clp'),
+  commissionPct:     decimal('commission_pct', { precision: 5, scale: 2 }),
+  commissionClp:     integer('commission_clp'),
   createdAt:    timestamp('created_at').defaultNow(),
   updatedAt:    timestamp('updated_at').defaultNow(),
+})
+
+// Documentos de respaldo de una solicitud de crédito B2B (adición
+// post-entrega, migración 0022b) — 1+ documentos por solicitud (cédula/RUT
+// empresa, respaldo financiero). Mismo patrón pragmático de disco local que
+// product_images (r2Key guarda el nombre de archivo local hasta que exista
+// R2 real).
+export const b2bCreditDocuments = pgTable('b2b_credit_documents', {
+  id:           uuid('id').primaryKey().defaultRandom(),
+  requestId:    uuid('request_id').notNull().references(() => b2bCreditRequests.id),
+  filename:     text('filename').notNull(),
+  originalName: text('original_name'),
+  uploadedBy:   uuid('uploaded_by').references(() => users.id),
+  uploadedAt:   timestamp('uploaded_at').defaultNow(),
 })
 
 // Ledger de wallet B2B (migrate-0010)

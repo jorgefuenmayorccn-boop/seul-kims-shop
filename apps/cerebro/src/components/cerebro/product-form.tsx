@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { Loader2, Save, Thermometer, Snowflake } from 'lucide-react'
 import { clientFetch } from '@/lib/client-api'
 import { ImageUploader } from './image-uploader'
+import { ProductInventory } from './product-inventory'
 import type { ProductDetail, Category } from '@/lib/types'
 
 type Sello = 'sodio' | 'grasas' | 'azucares' | 'calorias'
@@ -255,10 +256,21 @@ export function ProductForm({ product, categories }: Props) {
       </section>
 
       {savedId ? (
-        <section className="bg-elevated rounded-lg border border-[var(--color-border)] p-5 space-y-3">
-          <h2 className="font-headline font-bold text-sm text-text">Imágenes</h2>
-          <ImageUploader productId={savedId} initial={product?.images ?? []} />
-        </section>
+        <>
+          <section className="bg-elevated rounded-lg border border-[var(--color-border)] p-5 space-y-3">
+            <h2 className="font-headline font-bold text-sm text-text">Imágenes</h2>
+            <ImageUploader productId={savedId} initial={product?.images ?? []} />
+          </section>
+
+          {/* Inventario consolidado (adición post-entrega, 2-sep-2026) — antes
+              vivía en un flujo separado "Ingresar lote de inventario" (modal
+              con selector de producto). El dueño pidió tenerlo acá, en el
+              contexto del producto que ya se está editando. */}
+          <section className="bg-elevated rounded-lg border border-[var(--color-border)] p-5 space-y-3">
+            <h2 className="font-headline font-bold text-sm text-text">Inventario</h2>
+            <ProductInventory productId={savedId} />
+          </section>
+        </>
       ) : (
         <div className="bg-surface rounded-lg border border-[var(--color-border)] px-4 py-3">
           <p className="text-xs text-text-muted font-body">Las imágenes se pueden agregar después de guardar el producto por primera vez.</p>
