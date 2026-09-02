@@ -1,26 +1,9 @@
 import { Suspense } from 'react'
 import { Shield, RotateCcw, AlertTriangle } from 'lucide-react'
 import { PinMaestroSection } from './pin-maestro-section'
+import { getARCOP, getReturns } from '@/lib/api'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
-
-async function getARCOP() {
-  try {
-    const res = await fetch(`${API}/api/arcop`, { next: { revalidate: 30 } })
-    if (!res.ok) return []
-    const d = await res.json() as { requests: Array<{ id: string; type: string; status: string; notes: string | null; deadline: string | null; createdAt: string }> }
-    return d.requests
-  } catch { return [] }
-}
-
-async function getReturns() {
-  try {
-    const res = await fetch(`${API}/api/returns?status=pending`, { next: { revalidate: 30 } })
-    if (!res.ok) return []
-    const d = await res.json() as { returns: Array<{ id: string; orderId: string; type: string; status: string; reason: string; createdAt: string }> }
-    return d.returns
-  } catch { return [] }
-}
 
 async function getVoidPin(): Promise<string> {
   try {

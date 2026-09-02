@@ -157,3 +157,32 @@ export async function getCustomerTimeline(id: string): Promise<CustomerTimeline>
     return await serverFetch<CustomerTimeline>(`/api/customers/${id}/timeline`)
   } catch { return { orders: [], loyalty: [] } }
 }
+
+// ── Seguridad / Legal — ARCOP + Devoluciones (S13, Fase 4) ─────────────────
+// seguridad/page.tsx previously called these two endpoints with a bare fetch()
+// (no cookie forwarded), which meant a real GET /api/arcop or /api/returns
+// requiring requireSession would always 401 → the page's catch-and-return-[]
+// silently ate the error, showing empty lists forever ("Error al cargar" era
+// el síntoma visible antes de hoy). Routed through serverFetch like every
+// other admin page so the seul_session cookie actually reaches the API.
+
+export type ArcopRequest = {
+  id: string; type: string; status: string; notes: string | null
+  name?: string | null; email?: string | null
+  deadline: string | null; createdAt: string; resolvedAt?: string | null
+}
+
+export async function getARCOP() {
+  try { return (await serverFetch<{ requests: ArcopRequest[] }>('/api/arcop')).requests }
+  catch { return [] as ArcopRequest[] }
+}
+
+export type ReturnRequest = {
+  id: string; orderId: string; type: string; status: string; reason: string
+  createdAt: string
+}
+
+export async function getReturns(status = 'pending') {
+  try { return (await serverFetch<{ returns: ReturnRequest[] }>(`/api/returns?status=${status}`)).returns }
+  catch { return [] as ReturnRequest[] }
+}
