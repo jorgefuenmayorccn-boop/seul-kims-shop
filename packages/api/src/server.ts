@@ -393,61 +393,20 @@ async function runMigrationsIfNeeded() {
 // Auto-seed real users - IDEMPOTENT: only create + email users that don't exist yet.
 // IMPORTANT: Once a user exists, redeploys must NOT touch their password.
 // Recreating on every startup invalidates credentials the user already received by email.
-async function seedRealUsersIfNeeded() {
-  try {
-    // One-time cleanup: wrong email domain used in earlier seed (ceojorge@gmail.com
-    // should have been ceojorge@verticeproductions.com). Remove the incorrect record
-    // so the idempotent seed below creates the correct one fresh.
-    await sql`DELETE FROM users WHERE email = 'ceojorge@gmail.com'`
-
-    const REAL_USERS = [
-      { email: 'ceojorge@verticeproductions.com', name: 'Jorge Fuenmayor', role: 'owner' },
-      { email: 'marioulloa22@verticeproductions.com', name: 'Mario Ulloa', role: 'staff' },
-      { email: 'jorgefuenmayor.ccn@gmail.com', name: 'Jorge (Delivery)', role: 'delivery' },
-    ]
-
-    const existing = await sql`SELECT email FROM users WHERE email IN ${sql(REAL_USERS.map(u => u.email))}`
-    const existingEmails = new Set(existing.map((r: any) => r.email))
-    const missingUsers = REAL_USERS.filter(u => !existingEmails.has(u.email))
-
-    if (missingUsers.length === 0) {
-      return // All users already exist - never touch their credentials on redeploy
-    }
-
-    console.log('🔄 Seeding missing users and sending initial credentials...')
-
-    for (const user of missingUsers) {
-      const tempPassword = crypto.randomBytes(8).toString('hex').toUpperCase()
-      const passwordHash = PasswordService.hashPassword(tempPassword)
-
-      await sql`
-        INSERT INTO users (email, password_hash, name, role, is_active, must_change_password)
-        VALUES (${user.email}, ${passwordHash}, ${user.name}, ${user.role}, true, true)
-        ON CONFLICT (email) DO NOTHING
-      `
-
-      try {
-        await enqueueEmail(
-          user.email,
-          '🎉 ¡Bienvenido a SEUL KING OS v1.0!',
-          templates.initialCredentials({
-            email: user.email,
-            password: tempPassword,
-            name: user.name,
-            role: user.role,
-          }),
-          'welcome'
-        )
-        console.log(`  ✓ ${user.email}`)
-      } catch (emailError) {
-        console.error(`  ⚠️  ${user.email} — Email error:`, emailError)
-      }
-    }
-    console.log('✅ Missing users seeded + emails enqueued\n')
-  } catch (e) {
-    console.error('❌ User seed failed:', e)
-  }
-}
+// REMOVED (S17, 2-sep-2026 — hallazgo crítico de la sesión de entrega):
+// `seedRealUsersIfNeeded()` recreaba en CADA arranque del servidor (cada redeploy de
+// Railway) 3 cuentas de staff hardcodeadas, incluyendo `marioulloa22@verticeproductions.com`
+// y `jorgefuenmayor.ccn@gmail.com` — las mismas 2 cuentas de prueba que esta sesión eliminó
+// explícitamente por instrucción del dueño ("dejar un solo usuario de staff activo:
+// ceojorge@verticeproductions.com"). Confirmado en vivo durante esta sesión: se eliminaron
+// ambas cuentas, un redeploy de Railway (disparado por un cambio no relacionado en
+// `apps/web`) volvió a arrancar el proceso, `seedRealUsersIfNeeded()` las encontró
+// "faltantes" y las recreó con contraseña temporal nueva — incluyendo un email de
+// bienvenida real reenviado a `jorgefuenmayor.ccn@gmail.com`. Sin quitar esta función,
+// la limpieza de usuarios de esta sesión se habría revertido sola en el próximo deploy.
+// Si en el futuro se necesita un seed de usuarios de desarrollo, debe gatearse por
+// `ENVIRONMENT !== 'production'` (mismo patrón que `/api/admin/seed/users`) — nunca
+// correr incondicionalmente contra la base de datos de producción.
 
 // DEPRECATED: Hardcoded test users removed for security
 // If DB fails, login fails - no fallback authentication (correct behavior)
@@ -5393,10 +5352,10 @@ sql`SELECT 1`
   .then(() => console.log('✅ Database connected'))
   .catch(err => console.error('⚠️ Database connection warning:', err.message))
 
-// Run migrations and seed users
+// Run migrations. (seedRealUsersIfNeeded() removida en S17 — ver nota arriba: recreaba
+// cuentas de staff hardcodeadas en cada redeploy, deshaciendo la limpieza de usuarios.)
 Promise.all([
   runMigrationsIfNeeded(),
-  seedRealUsersIfNeeded(),
 ]).catch(e => console.error('⚠️ Startup initialization error:', e))
 
 // Listen for incoming HTTP requests (Railway/Node)
