@@ -76,6 +76,15 @@ export const orders = pgTable('orders', {
   // SII void (migrate-0011)
   voidSiiFolio:    text('void_sii_folio'),
   voidSiiStatus:   text('void_sii_status'),
+  // Flujo de pago web (adición post-entrega, migración 0021) — separado de
+  // `status` a propósito: `status` es flujo de preparación, esto es si el
+  // pago ya está resuelto. 'pending' | 'confirmed'. Pedidos POS nacen
+  // 'confirmed' (ya se cobró en caja); pedidos web nacen 'pending'.
+  paymentStatus:      text('payment_status').notNull().default('pending'),
+  // Solo canal web: 'transferencia' | 'efectivo' | 'transbank'.
+  paymentMethod:      text('payment_method'),
+  paymentConfirmedAt: timestamp('payment_confirmed_at'),
+  paymentConfirmedBy: uuid('payment_confirmed_by'),
   createdAt:       timestamp('created_at').defaultNow(),
   updatedAt:       timestamp('updated_at').defaultNow(),
 })

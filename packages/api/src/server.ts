@@ -420,6 +420,49 @@ async function runMigrationsIfNeeded() {
       `
       console.log('✅ Migration 0020b applied')
     }
+
+    // 0021 (adición post-entrega — flujo de pago para pedidos web): hoy un
+    // pedido web (channel='web', creado por POST /api/public/orders) queda
+    // en status='nueva' sin ninguna coordinación de pago — no hay forma de
+    // saber si el cliente ya pagó por transferencia o si el repartidor debe
+    // cobrar en la puerta. orders.status (order_status enum) es un concepto
+    // de FLUJO DE PREPARACIÓN (nueva/preparando/lista/en_ruta/entregada/
+    // cancelada) — mezclar el estado de pago ahí sería incorrecto (una orden
+    // puede estar "preparando" y aun así no tener el pago confirmado).
+    // payment_status es un campo separado a propósito.
+    //
+    // Valores: 'pending' (default — pedido web recién creado, sin
+    // coordinar) | 'confirmed' (pago por transferencia confirmado por staff,
+    // O método de cobro en la puerta ya definido — ver POST
+    // /api/orders/:id/confirm-payment más abajo). Los pedidos de POS
+    // (channel='pos') se insertan con payment_status='confirmed' desde el
+    // momento de creación porque el pago ya se cobró en caja (order_payments
+    // ya tiene el/los tenders) — no hay nada que coordinar después. B2B no
+    // inserta en `orders` directamente (usa b2b_quotes/wallet), así que no le
+    // afecta esta columna.
+    //
+    // payment_method (solo canal web): 'transferencia' | 'efectivo' |
+    // 'transbank' — moneda de decisión del staff al confirmar, independiente
+    // de delivery_assignments.payment_method (que ya existe desde S07 pero
+    // solo aplica cuando SÍ hay una asignación de repartidor; un pedido
+    // 'pickup' o 'metro' no tiene delivery_assignment pero igual necesita
+    // saber cómo se va a cobrar).
+    const paymentStatusExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'orders' AND column_name = 'payment_status'
+    `
+    if (paymentStatusExists.length === 0) {
+      console.log('🔄 Running migration 0021 (orders.payment_status — flujo de pago web)...')
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'pending'`
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT`
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_confirmed_at TIMESTAMP`
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_confirmed_by UUID REFERENCES users(id)`
+      // Pedidos ya existentes de canal 'pos' se consideran pagados retroactivamente
+      // (siempre se cobraron en caja al crear la venta) — solo 'web' se queda 'pending'.
+      await sql`UPDATE orders SET payment_status = 'confirmed' WHERE channel = 'pos' AND payment_status = 'pending'`
+      await sql`CREATE INDEX IF NOT EXISTS orders_payment_status_idx ON orders(payment_status) WHERE payment_status = 'pending'`
+      console.log('✅ Migration 0021 applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -2182,13 +2225,15 @@ app.post('/api/orders', async (c) => {
           subtotal, baes_amount, total, dte_type, dte_status,
           receiver_rut, receiver_name, receiver_giro, receiver_address, receiver_comuna,
           guest_name, guest_phone, guest_email,
-          shift_id, till_session_id, cashier_id
+          shift_id, till_session_id, cashier_id,
+          payment_status
         ) VALUES (
           ${next_number}, 'pos', ${body.customerId || null}, ${deliveryMode}, ${body.deliveryAddress || null},
           ${subtotal}, ${baesAmount}, ${total}, ${dteType}, 'pending',
           ${receiver?.rut || null}, ${receiver?.razonSocial || null}, ${receiver?.giro || null}, ${receiver?.direccion || null}, ${receiver?.comuna || null},
           ${body.guestName || null}, ${body.guestPhone || null}, ${body.guestEmail || null},
-          ${body.shiftId || null}, ${body.tillSessionId || null}, ${auth?.userId || null}
+          ${body.shiftId || null}, ${body.tillSessionId || null}, ${auth?.userId || null},
+          'confirmed'
         )
         RETURNING id, number
       `
@@ -2316,6 +2361,298 @@ app.get('/api/orders/:id/dte-status', async (c) => {
   } catch (err) {
     console.error('DTE status error:', err)
     return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/orders/:id/comanda — payload de comanda para impresión (Kitchen/
+// Prep Ticket, sin precios). GAP encontrado en esta sesión: apps/pos/.../
+// incoming-orders-drawer.tsx (S08, Fase 2) ya llama este endpoint desde el
+// botón "Imprimir comanda" pero nunca existió en el backend — el botón
+// 404-eaba en silencio para todo pedido web desde que se construyó. Se
+// arregla ahora porque además lo necesita el flujo de pago web (adición
+// post-entrega): tras confirmar el pago de un pedido, el frontend dispara
+// la impresión automática de comanda llamando primero a este GET para
+// resolver los nombres de producto (order_items solo guarda product_id).
+app.get('/api/orders/:id/comanda', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  try {
+    const [order] = await sql`
+      SELECT o.id, o.number, o.channel, o.delivery_mode, o.metro_station, o.metro_slot,
+             o.notes, o.created_at, u.name AS cashier_name
+      FROM orders o
+      LEFT JOIN users u ON u.id = o.cashier_id
+      WHERE o.id = ${id}
+    `
+    if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
+
+    const items = await sql`
+      SELECT oi.quantity, p.name
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = ${id}
+      ORDER BY oi.id
+    `
+
+    const comanda = {
+      orderId:      order.id,
+      number:       order.number,
+      channel:      order.channel,
+      createdAt:    order.created_at,
+      items:        items.map((it: any) => ({ name: it.name, qty: Number(it.quantity) })),
+      deliveryMode: order.delivery_mode,
+      notes:        order.notes ?? undefined,
+      metroStation: order.metro_station ?? undefined,
+      metroSlot:    order.metro_slot ?? undefined,
+      cashierName:  order.channel === 'pos' ? (order.cashier_name ?? undefined) : undefined,
+    }
+
+    return c.json({ comanda })
+  } catch (err) {
+    console.error('Comanda payload error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/orders/:id/ticket — payload de Nota de Venta/Boleta para
+// impresión (mismo shape TicketPayload que checkout-shell.tsx arma
+// localmente en memoria justo al cobrar una venta POS). Se reconstruye acá
+// desde la BD porque hace falta imprimir el comprobante de pedidos que NO
+// se acaban de cobrar en esa misma sesión de navegador — el caso principal
+// es un pedido web recién confirmado desde Comandas/Despacho (adición
+// post-entrega, flujo de pago web), pero sirve igual para reimprimir
+// cualquier pedido ya facturado.
+app.get('/api/orders/:id/ticket', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  try {
+    const [order] = await sql`
+      SELECT o.id, o.number, o.channel, o.dte_type, o.dte_status, o.dte_folio,
+             o.subtotal, o.baes_amount, o.total, o.created_at,
+             o.payment_status, o.payment_method,
+             u.name AS cashier_name
+      FROM orders o
+      LEFT JOIN users u ON u.id = COALESCE(o.cashier_id, o.payment_confirmed_by)
+      WHERE o.id = ${id}
+    `
+    if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
+
+    const items = await sql`
+      SELECT oi.quantity, oi.unit_price, oi.subtotal, oi.is_baes, p.name
+      FROM order_items oi
+      JOIN products p ON p.id = oi.product_id
+      WHERE oi.order_id = ${id}
+      ORDER BY oi.id
+    `
+
+    let payments: Array<{ method: string; amount: number; label: string }> = []
+    if (order.channel === 'pos') {
+      const rows = await sql`SELECT method, amount FROM order_payments WHERE order_id = ${id}`
+      const LABELS: Record<string, string> = { cash: 'Efectivo', debit: 'Débito', credit: 'Crédito', baes: 'BAES', qr: 'QR', transfer: 'Transferencia' }
+      payments = rows.map((p: any) => ({ method: p.method, amount: Number(p.amount), label: LABELS[p.method] ?? p.method }))
+    } else if (order.payment_method) {
+      const LABELS: Record<string, string> = {
+        transferencia: 'Transferencia bancaria (confirmada)',
+        efectivo: 'Por cobrar en la puerta — Efectivo',
+        transbank: 'Por cobrar en la puerta — Transbank',
+      }
+      payments = [{ method: order.payment_method, amount: Number(order.total), label: LABELS[order.payment_method] ?? order.payment_method }]
+    }
+
+    const ticket = {
+      orderId:    order.id,
+      ticketType: order.dte_type,
+      number:     order.number,
+      folio:      order.dte_folio ?? undefined,
+      date:       order.created_at,
+      cashier:    order.cashier_name ?? undefined,
+      items: items.map((it: any) => ({
+        name:      it.name,
+        qty:       Number(it.quantity),
+        unitPrice: Number(it.unit_price),
+        subtotal:  Number(it.subtotal),
+        isBaes:    !!it.is_baes,
+      })),
+      subtotal:   Number(order.subtotal),
+      baesAmount: Number(order.baes_amount ?? 0),
+      total:      Number(order.total),
+      payments,
+      storeInfo:  { ...STORE_INFO },
+      dteStatus:  order.dte_status,
+    }
+
+    return c.json({ ticket })
+  } catch (err) {
+    console.error('Ticket payload error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// POST /api/orders/:id/confirm-payment — flujo de pago para pedidos web
+// (adición post-entrega, pedido explícito del dueño). Un pedido web nace
+// payment_status='pending' (migración 0021) sin ninguna coordinación de
+// pago — hoy el pedido queda en 'nueva' y ahí se estanca. Este endpoint es
+// la acción de staff que resuelve esa coordinación:
+//
+//   - method:'transferencia' → el cliente YA pagó (verificado por fuera del
+//     sistema, ej. comprobante bancario). No hay nada que cobrar en la
+//     puerta — si el pedido ya tiene una delivery_assignment (staff pudo
+//     asignar repartidor antes de coordinar el pago), se limpia a
+//     payment_at_door='not_required'.
+//   - method:'efectivo' | 'transbank' → el cliente pagará al recibir. Es la
+//     información que el repartidor necesita para cobrar correctamente: si
+//     ya existe una delivery_assignment para este pedido, se le escribe
+//     amount_to_collect=total, payment_at_door='pending', payment_method —
+//     mismos campos que S07 ya diseñó y que el z-report de repartidor
+//     (GET /api/delivery/drivers/:driverId/z-report) ya suma vía
+//     `SUM(amount_to_collect) FILTER (WHERE payment_at_door='collected')`.
+//     Si el pedido es 'pickup' (retiro en tienda, sin repartidor), esta
+//     información queda en la orden para que el cajero que atienda el
+//     retiro sepa cómo cobrar.
+//
+// En ambos casos dispara (solo si el DTE de este pedido sigue 'pending',
+// nunca dos veces) la emisión de Nota de Venta vía el mismo seam
+// MockDTEProvider que usa el POS (ver POST /api/orders más arriba) — un
+// pedido web nunca emitía DTE hasta esta sesión (POST /api/public/orders
+// deja dte_status='pending' para siempre, pdfToken null). El frontend, tras
+// un 200 de este endpoint, dispara la impresión de comanda + ticket — 100%
+// client-side (ver print-service.ts), el backend en Railway no tiene acceso
+// a ninguna impresora física.
+//
+// Idempotente: si el pedido ya está payment_status='confirmed', no repite
+// side-effects (no re-emite DTE, no vuelve a tocar delivery_assignments) —
+// solo devuelve el estado actual, para que un doble-click o un reintento de
+// red no genere un dte_events duplicado.
+app.post('/api/orders/:id/confirm-payment', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  const method = body.method
+  const VALID_METHODS = ['transferencia', 'efectivo', 'transbank']
+  if (!VALID_METHODS.includes(method)) {
+    return c.json({ error: 'method debe ser transferencia, efectivo o transbank' }, 400)
+  }
+
+  try {
+    const [order] = await sql`
+      SELECT id, number, channel, total, dte_type, dte_status, payment_status
+      FROM orders WHERE id = ${id}
+    `
+    if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
+    if (order.channel !== 'web') {
+      return c.json({ error: 'Solo pedidos del canal web usan este flujo (POS ya cobra al crear la venta)' }, 400)
+    }
+
+    // Idempotencia: ya confirmado, no repetir side-effects.
+    if (order.payment_status === 'confirmed') {
+      return c.json({
+        ok: true,
+        alreadyConfirmed: true,
+        orderId: order.id,
+        number: order.number,
+        paymentStatus: 'confirmed',
+        dteStatus: order.dte_status,
+      })
+    }
+
+    await sql`
+      UPDATE orders
+      SET payment_status = 'confirmed', payment_method = ${method},
+          payment_confirmed_at = NOW(), payment_confirmed_by = ${authUser.id},
+          updated_at = NOW()
+      WHERE id = ${id}
+    `
+
+    // Delivery: si ya hay asignación (staff pudo asignar repartidor antes de
+    // coordinar el pago), reflejar el método de cobro para que el repartidor
+    // sepa qué hacer en la puerta. No falla el endpoint si no hay ninguna
+    // asignación todavía (UPDATE de 0 filas es un no-op válido).
+    if (method === 'transferencia') {
+      await sql`
+        UPDATE delivery_assignments
+        SET payment_at_door = 'not_required', amount_to_collect = 0, payment_method = NULL, updated_at = NOW()
+        WHERE order_id = ${id}
+      `
+    } else {
+      await sql`
+        UPDATE delivery_assignments
+        SET payment_at_door = 'pending', amount_to_collect = ${order.total}, payment_method = ${method}, updated_at = NOW()
+        WHERE order_id = ${id}
+      `
+    }
+
+    // DTE: emitir Nota de Venta (mismo seam que POS, ver POST /api/orders).
+    let dteStatus = order.dte_status
+    if (order.dte_status === 'pending') {
+      try {
+        const items = await sql`
+          SELECT oi.product_id, oi.quantity, oi.unit_price, p.name
+          FROM order_items oi
+          JOIN products p ON p.id = oi.product_id
+          WHERE oi.order_id = ${id}
+        `
+        const dteReq: DteRequest = {
+          type: (order.dte_type ?? 'nota_venta') as DteRequest['type'],
+          idempotencyKey: `${id}-1`,
+          emitter: {
+            rut: STORE_INFO.rut,
+            razonSocial: STORE_INFO.name,
+            giro: STORE_INFO.giro,
+            direccion: STORE_INFO.address,
+            comuna: '',
+          },
+          items: items.map((it: any) => ({
+            sku:       it.product_id,
+            name:      it.name,
+            qty:       Number(it.quantity),
+            unitPrice: Number(it.unit_price),
+          })),
+          payments: [{ method, amount: Number(order.total) }],
+          totalNet:   Number(order.total),
+          totalIva:   0,
+          totalGross: Number(order.total),
+        }
+        const dteRes = await emitDte(dteReq, { DTE_PROVIDER: 'mock' })
+        await sql`
+          UPDATE orders SET dte_status = 'issued', dte_provider = 'mock', dte_track_id = ${dteRes.trackId}, updated_at = NOW()
+          WHERE id = ${id}
+        `
+        await sql`
+          INSERT INTO dte_events (order_id, attempt, status, provider, request_payload, response_payload)
+          VALUES (${id}, 1, 'sent', 'mock', ${dteReq}, ${dteRes})
+        `
+        dteStatus = 'issued'
+      } catch (dteErr) {
+        console.error('DTE mock error (confirm-payment):', dteErr)
+        await sql`UPDATE orders SET dte_status = 'failed', dte_provider = 'mock', updated_at = NOW() WHERE id = ${id}`
+        await sql`
+          INSERT INTO dte_events (order_id, attempt, status, provider, error_message)
+          VALUES (${id}, 1, 'error', 'mock', ${dteErr instanceof Error ? dteErr.message : String(dteErr)})
+        `
+        dteStatus = 'failed'
+      }
+    }
+
+    console.log(`✅ Payment confirmed: order #${order.number} (${method}, dte:${dteStatus})`)
+    return c.json({
+      ok: true,
+      orderId: order.id,
+      number: order.number,
+      paymentStatus: 'confirmed',
+      paymentMethod: method,
+      dteStatus,
+    })
+  } catch (err) {
+    console.error('Confirm payment error:', err)
+    return c.json({ error: 'Error al confirmar el pago' }, 500)
   }
 })
 
@@ -4854,6 +5191,7 @@ app.get('/api/orders/comandas', async (c) => {
       SELECT
         o.id, o.number, o.channel, o.status, o.delivery_mode,
         o.metro_station, o.metro_slot, o.total, o.dte_status, o.created_at,
+        o.payment_status, o.payment_method,
         COUNT(oi.id) AS item_count
       FROM orders o
       LEFT JOIN order_items oi ON oi.order_id = o.id
@@ -4867,6 +5205,11 @@ app.get('/api/orders/comandas', async (c) => {
       deliveryMode: r.delivery_mode, metroStation: r.metro_station, metroSlot: r.metro_slot,
       total: r.total, dteStatus: r.dte_status, createdAt: r.created_at,
       itemCount: Number(r.item_count ?? 0),
+      // Adición post-entrega — flujo de pago web (ver POST
+      // /api/orders/:id/confirm-payment). Solo es relevante para channel='web'
+      // (POS/B2B ya nacen payment_status='confirmed', ver migración 0021).
+      paymentStatus: r.payment_status,
+      paymentMethod: r.payment_method,
     }))
 
     return c.json({

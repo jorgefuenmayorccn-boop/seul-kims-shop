@@ -87,13 +87,24 @@ export async function processEmailQueue(queueId: string, retryCount = 0): Promis
 // ============================================================================
 
 export const templates = {
+  // Ajustado (adición post-entrega — flujo de pago web): un pedido web ya no
+  // pasa directo a preparación al crearse — queda payment_status='pending'
+  // hasta que el negocio coordine el método de pago (transferencia, o
+  // efectivo/Transbank a cobrar en la puerta) desde Comandas/Despacho, ver
+  // POST /api/orders/:id/confirm-payment. Este correo ya NO dice "tu pedido
+  // está siendo preparado" (sería falso hasta que se confirme el pago) y
+  // reemplaza al contacto por WhatsApp — instrucción explícita del dueño:
+  // el correo es el único canal para esta coordinación puntual, no
+  // mencionar WhatsApp acá (el resto del sistema de WhatsApp —envío de
+  // boleta por wa.me— sigue igual, es un flujo distinto que no se toca).
   orderConfirmation: (order: any) => `
     <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
-      <h2 style="color: #d7263d;">✅ Orden Confirmada #${order.number}</h2>
-      <p>Tu orden ha sido registrada. Total: $${Number(order.total).toLocaleString('es-CL')}</p>
-      <p>Tu pedido está siendo preparado. Recibirás notificaciones sobre su estado.</p>
+      <h2 style="color: #d7263d;">✅ Pedido Recibido #${order.number}</h2>
+      <p>Hemos recibido tu pedido por un total de <strong>$${Number(order.total).toLocaleString('es-CL')}</strong>.</p>
+      <p>Antes de comenzar a prepararlo, nos vamos a comunicar contigo para coordinar el método de pago (transferencia, o pago en efectivo/Transbank al momento de la entrega o retiro).</p>
+      <p>En cuanto quede coordinado el pago, tu pedido pasa a preparación y te avisaremos de su avance.</p>
       <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | +56 32 250 0000</p>
+      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | contacto@seoulshop.cl</p>
     </div>
   `,
   orderStatus: (order: any, status: string, eta?: string) => `
