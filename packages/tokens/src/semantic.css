@@ -21,11 +21,15 @@
   --color-surface-overlay:  rgba(26, 26, 26, 0.5);
 
   /* ── Text ── */
-  --color-text:          var(--ink-900);
-  --color-text-muted:    var(--ink-500);
-  --color-text-disabled: var(--ink-300);
-  --color-text-on-brand: var(--white);
-  --color-text-on-dark:  var(--cream-100);
+  --color-text:            var(--ink-900);
+  --color-text-muted:      var(--ink-500);
+  /* Alias — 12 pantallas (portal B2B, ajustes, boleta) usan este nombre;
+     nunca estuvo definido y el navegador heredaba --color-text (sin distinción
+     visual de jerarquía). Detectado en auditoría S15, ver PLAN_MAESTRO sección 6. */
+  --color-text-secondary:  var(--color-text-muted);
+  --color-text-disabled:   var(--ink-300);
+  --color-text-on-brand:   var(--white);
+  --color-text-on-dark:    var(--cream-100);
 
   /* ── Borders ── */
   --color-border:        var(--ink-100);
@@ -48,6 +52,7 @@
     --color-surface-elevated: #252525;
     --color-text:             var(--cream-100);
     --color-text-muted:       var(--ink-300);
+    --color-text-secondary:   var(--ink-300);
     --color-border:           #333333;
     --color-border-strong:    #555555;
   }
@@ -60,7 +65,12 @@
   --color-surface-elevated: #222222;
   --color-surface-overlay:  rgba(0, 0, 0, 0.7);
   --color-text:             #f0ede8;
-  --color-text-muted:       #888888;
+  /* #949494 en vez de #888888 (auditoría S15): #888 daba 4.49:1 contra
+     --color-surface-elevated (#222) — bajo el mínimo WCAG AA de 4.5:1 para
+     texto normal. #949494 da ~5.1:1 contra superficie elevada y ~5.7:1 contra
+     el fondo base, sin cambio perceptible de tono. */
+  --color-text-muted:       #949494;
+  --color-text-secondary:   #949494;
   --color-text-disabled:    #555555;
   --color-border:           #2e2e2e;
   --color-border-strong:    #444444;
@@ -73,6 +83,7 @@
   --color-surface-elevated: var(--white);
   --color-text:             var(--ink-900);
   --color-text-muted:       var(--ink-500);
+  --color-text-secondary:   var(--ink-500);
   --color-text-disabled:    var(--ink-300);
   --color-border:           var(--ink-100);
   --color-border-strong:    var(--ink-300);

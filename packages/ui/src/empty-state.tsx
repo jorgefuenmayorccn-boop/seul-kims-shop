@@ -10,6 +10,11 @@ type EmptyStateVariant =
 
 interface EmptyStateProps {
   variant: EmptyStateVariant
+  /** Sobrescribe el título del preset — para reusar el mismo componente/ícono
+      en una pantalla cuyo copy no coincide exactamente con ningún variant. */
+  title?: string
+  /** Sobrescribe la descripción del preset. */
+  description?: string
   action?: React.ReactNode
   className?: string
 }
@@ -78,15 +83,15 @@ const content: Record<EmptyStateVariant, { icon: React.ReactNode; title: string;
   'no-alerts':    { icon: <IconAlerts />,    title: 'Todo en orden',          description: 'Sin alertas de inventario ni vencimientos próximos.' },
 }
 
-export function EmptyState({ variant, action, className }: EmptyStateProps) {
-  const { icon, title, description } = content[variant]
+export function EmptyState({ variant, title, description, action, className }: EmptyStateProps) {
+  const preset = content[variant]
 
   return (
     <div className={cn('flex flex-col items-center justify-center gap-3 py-16 text-center', className)}>
-      <span className="text-text-muted">{icon}</span>
+      <span className="text-text-muted">{preset.icon}</span>
       <div>
-        <p className="font-headline font-semibold text-text">{title}</p>
-        <p className="text-sm text-text-muted mt-1">{description}</p>
+        <p className="font-headline font-semibold text-text">{title ?? preset.title}</p>
+        <p className="text-sm text-text-muted mt-1">{description ?? preset.description}</p>
       </div>
       {action && <div className="mt-2">{action}</div>}
     </div>

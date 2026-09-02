@@ -40,6 +40,16 @@
   --blend-mark: difference;  /* Hangul superpuesto sobre foto */
 
   /* ── Bordes finos ── */
-  --border-editorial: 1px solid rgba(10, 10, 10, 0.12);
+  /* --border-editorial es un shorthand completo (width+style+color) — solo
+     válido en propiedades shorthand (border, borderTop, borderBottom, borderLeft).
+     --color-border-editorial es el mismo color en forma pura, para usar en
+     `borderColor` (propiedad que solo acepta un color — un shorthand ahí es
+     CSS inválido y el navegador la descarta, dejando el borde en su valor
+     inicial `currentcolor` en vez del gris translúcido esperado). Detectado
+     en auditoría S15: causaba que los checkboxes custom de /cuenta/registro
+     (Términos y Política de Privacidad) no mostraran ningún cuadro visible
+     en su estado sin marcar. Ver PLAN_MAESTRO sección 6. */
+  --color-border-editorial: rgba(10, 10, 10, 0.12);
+  --border-editorial: 1px solid var(--color-border-editorial);
   --border-heuk:      1px solid var(--heuk-950);
 }

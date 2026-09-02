@@ -1,7 +1,7 @@
 // SEUL KING OS — UI Package barrel export
 
 // Lib
-export { cn, formatCLP, formatRUT } from './lib/utils'
+export { cn, formatCLP, formatRUT, friendlyErrorMessage } from './lib/utils'
 
 // Shared badges & indicators
 export { BadgeBAES } from './badge-baes'
@@ -14,6 +14,10 @@ export { StatusPill } from './status-pill'
 
 // Empty states
 export { EmptyState } from './empty-state'
+
+// Error states (S15 — reemplaza mensajes crudos como "Algo salió mal" +
+// error.message expuesto al usuario, ver packages/ui/src/error-state.tsx)
+export { ErrorState } from './error-state'
 
 // Dashboard & inventario (Fase 1)
 export { KPICard } from './kpi-card'
