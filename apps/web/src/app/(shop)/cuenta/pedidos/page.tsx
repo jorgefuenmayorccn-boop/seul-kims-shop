@@ -57,7 +57,7 @@ export default function PedidosPage() {
 
   return (
     <div style={{ background: 'var(--color-baek-pure)', minHeight: '100vh' }}>
-      <section className="px-8 md:px-16 py-12 border-b" style={{ borderColor: 'var(--border-editorial)' }}>
+      <section className="px-8 md:px-16 py-12 border-b" style={{ borderColor: 'var(--color-border-editorial)' }}>
         <a href="/cuenta"
           className="font-body text-xs tracking-widest hover:opacity-80 transition-opacity block mb-4"
           style={{ color: 'var(--color-heuk)', opacity: 0.4, letterSpacing: '0.12em' }}>
@@ -105,7 +105,7 @@ export default function PedidosPage() {
         )}
 
         {!loading && orders.length > 0 && (
-          <div className="divide-y" style={{ borderColor: 'var(--border-editorial)' }}>
+          <div className="divide-y" style={{ borderColor: 'var(--color-border-editorial)' }}>
             {orders.map(order => (
               <div key={order.id} className="py-5 flex items-start justify-between gap-4">
                 <div>

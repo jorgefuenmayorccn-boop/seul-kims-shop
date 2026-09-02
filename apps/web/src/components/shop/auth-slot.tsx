@@ -92,7 +92,7 @@ export function AuthSlot() {
               <User size={12} color="var(--color-heuk)" className="opacity-50" />
               {t.account}
             </Link>
-            <div className="border-t my-1" style={{ borderColor: 'var(--border-editorial)' }} />
+            <div className="border-t my-1" style={{ borderColor: 'var(--color-border-editorial)' }} />
             <button
               onClick={async () => {
                 setOpen(false)

@@ -97,12 +97,12 @@ export default function RegistroPage() {
               <div className="relative mt-0.5 flex-shrink-0">
                 <input type="checkbox" required checked={terms} onChange={e => setTerms(e.target.checked)}
                   className="sr-only" />
-                <div className="w-4 h-4 border flex items-center justify-center transition-colors"
+                <div className="w-5 h-5 border-2 rounded-sm flex items-center justify-center transition-colors"
                   style={{
-                    borderColor: terms ? 'var(--color-seoul-red)' : 'var(--border-editorial)',
+                    borderColor: terms ? 'var(--color-seoul-red)' : 'var(--color-border-editorial)',
                     background: terms ? 'var(--color-seoul-red)' : 'transparent',
                   }}>
-                  {terms && <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                  {terms && <svg width="12" height="10" viewBox="0 0 10 8" fill="none">
                     <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>}
                 </div>
@@ -124,12 +124,12 @@ export default function RegistroPage() {
               <div className="relative mt-0.5 flex-shrink-0">
                 <input type="checkbox" checked={marketing} onChange={e => setMarketing(e.target.checked)}
                   className="sr-only" />
-                <div className="w-4 h-4 border flex items-center justify-center transition-colors"
+                <div className="w-5 h-5 border-2 rounded-sm flex items-center justify-center transition-colors"
                   style={{
-                    borderColor: marketing ? 'var(--color-celadon)' : 'var(--border-editorial)',
+                    borderColor: marketing ? 'var(--color-celadon)' : 'var(--color-border-editorial)',
                     background: marketing ? 'var(--color-celadon)' : 'transparent',
                   }}>
-                  {marketing && <svg width="10" height="8" viewBox="0 0 10 8" fill="none">
+                  {marketing && <svg width="12" height="10" viewBox="0 0 10 8" fill="none">
                     <path d="M1 4l3 3 5-6" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>}
                 </div>
@@ -154,7 +154,7 @@ export default function RegistroPage() {
           </button>
         </form>
 
-        <div className="mt-6 text-center border-t pt-6" style={{ borderColor: 'var(--border-editorial)' }}>
+        <div className="mt-6 text-center border-t pt-6" style={{ borderColor: 'var(--color-border-editorial)' }}>
           <p className="font-body text-sm" style={{ color: 'var(--color-heuk)', opacity: 0.55 }}>
             Ya tengo cuenta{' '}
             <a href="/cuenta/login" className="font-semibold hover:opacity-100 transition-opacity"

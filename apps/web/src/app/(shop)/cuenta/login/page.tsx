@@ -118,7 +118,7 @@ export default function LoginPage() {
           <LoginForm />
         </Suspense>
 
-        <div className="mt-6 text-center border-t pt-6" style={{ borderColor: 'var(--border-editorial)' }}>
+        <div className="mt-6 text-center border-t pt-6" style={{ borderColor: 'var(--color-border-editorial)' }}>
           <p className="font-body text-sm" style={{ color: 'var(--color-heuk)', opacity: 0.55 }}>
             ¿No tienes cuenta?{' '}
             <a href="/cuenta/registro" className="font-semibold hover:opacity-100 transition-opacity"

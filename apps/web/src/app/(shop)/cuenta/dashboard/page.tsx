@@ -23,7 +23,7 @@ export default function DashboardPage() {
       {/* Header */}
       <section
         className="px-8 md:px-16 py-12 border-b"
-        style={{ borderColor: 'var(--border-editorial)' }}
+        style={{ borderColor: 'var(--color-border-editorial)' }}
       >
         <span
           className="font-korean text-xs font-medium block mb-2"
@@ -53,7 +53,7 @@ export default function DashboardPage() {
             key={item.href}
             href={item.href}
             className="flex flex-col gap-3 p-6 border transition-colors hover:bg-black/[0.02] group"
-            style={{ borderColor: 'var(--border-editorial)' }}
+            style={{ borderColor: 'var(--color-border-editorial)' }}
           >
             <item.icon
               size={20}

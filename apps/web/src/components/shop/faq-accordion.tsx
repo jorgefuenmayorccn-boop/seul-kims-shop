@@ -14,7 +14,7 @@ function AccordionItem({ entry, defaultOpen = false }: { entry: FaqEntry; defaul
   const [open, setOpen] = useState(defaultOpen)
 
   return (
-    <div className="border-b" style={{ borderColor: 'var(--border-editorial)' }}>
+    <div className="border-b" style={{ borderColor: 'var(--color-border-editorial)' }}>
       <button
         onClick={() => setOpen(o => !o)}
         className="w-full flex items-center justify-between py-5 text-left group"

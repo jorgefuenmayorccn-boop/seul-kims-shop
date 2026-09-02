@@ -121,7 +121,7 @@ export default function HomePage() {
       </Suspense>
 
       {/* Línea divisora */}
-      <div className="mx-8 md:mx-16" style={{ height: 1, background: 'var(--border-editorial)' }} />
+      <div className="mx-8 md:mx-16" style={{ height: 1, background: 'var(--color-border-editorial)' }} />
 
       {/* Banner descuento primera compra — editorial */}
       <section
@@ -166,17 +166,17 @@ export default function HomePage() {
       </section>
 
       {/* Línea divisora */}
-      <div style={{ height: 1, background: 'var(--border-editorial)' }} />
+      <div style={{ height: 1, background: 'var(--color-border-editorial)' }} />
 
       {/* Propuestas de valor — estilo tabla editorial */}
       <section className="px-8 md:px-16 py-14">
-        <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x" style={{ borderColor: 'var(--border-editorial)', border: 'var(--border-editorial)' }}>
+        <div className="grid md:grid-cols-3 divide-y md:divide-y-0 md:divide-x" style={{ border: 'var(--border-editorial)' }}>
           {[
             { ko: '정품', title: 'Importación auténtica', desc: 'Productos directamente desde Corea del Sur, sin intermediarios ni adulteraciones.' },
             { ko: '지하철', title: 'Retiro gratis en Metro', desc: 'Recoge tu pedido en estación Merval Miramar sin costo adicional.' },
             { ko: '빠른배달', title: 'Delivery con Rappi', desc: 'Recibe en menos de 60 minutos en Viña, Reñaca y Concón.' },
           ].map((item, i) => (
-            <div key={item.ko} className="p-8" style={{ borderColor: 'var(--border-editorial)' }}>
+            <div key={item.ko} className="p-8" style={{ borderColor: 'var(--color-border-editorial)' }}>
               <span
                 className="font-korean font-black text-3xl block mb-4"
                 style={{ color: 'var(--color-celadon)' }}

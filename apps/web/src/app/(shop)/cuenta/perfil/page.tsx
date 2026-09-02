@@ -16,7 +16,7 @@ export default function PerfilPage() {
 
   return (
     <div style={{ background: 'var(--color-baek-pure)', minHeight: '100vh' }}>
-      <section className="px-8 md:px-16 py-12 border-b" style={{ borderColor: 'var(--border-editorial)' }}>
+      <section className="px-8 md:px-16 py-12 border-b" style={{ borderColor: 'var(--color-border-editorial)' }}>
         <a href="/cuenta"
           className="font-body text-xs tracking-widest hover:opacity-80 transition-opacity block mb-4"
           style={{ color: 'var(--color-heuk)', opacity: 0.4, letterSpacing: '0.12em' }}>
@@ -32,7 +32,7 @@ export default function PerfilPage() {
       </section>
 
       <div className="px-8 md:px-16 py-10 max-w-lg">
-        <dl className="divide-y" style={{ borderColor: 'var(--border-editorial)' }}>
+        <dl className="divide-y" style={{ borderColor: 'var(--color-border-editorial)' }}>
           {[
             { label: 'Nombre',               value: customer.name },
             { label: 'Correo electrónico',   value: customer.email },
@@ -49,10 +49,10 @@ export default function PerfilPage() {
           ))}
         </dl>
 
-        <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--border-editorial)' }}>
+        <div className="mt-8 pt-6 border-t" style={{ borderColor: 'var(--color-border-editorial)' }}>
           <a href="/cuenta/cambiar-clave"
             className="inline-block font-body text-xs font-semibold tracking-widest py-3 px-6 border hover:bg-black/[0.02] transition-colors"
-            style={{ borderColor: 'var(--border-editorial)', color: 'var(--color-heuk)', letterSpacing: '0.12em' }}>
+            style={{ borderColor: 'var(--color-border-editorial)', color: 'var(--color-heuk)', letterSpacing: '0.12em' }}>
             CAMBIAR CONTRASEÑA
           </a>
         </div>

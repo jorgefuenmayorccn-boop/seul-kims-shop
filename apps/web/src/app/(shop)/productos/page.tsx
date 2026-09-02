@@ -36,7 +36,7 @@ export default async function ProductosPage({
       {/* Header editorial */}
       <section
         className="border-b px-8 md:px-16 py-12"
-        style={{ borderColor: 'var(--border-editorial)' }}
+        style={{ borderColor: 'var(--color-border-editorial)' }}
       >
         <p
           className="font-korean font-black text-4xl md:text-6xl leading-none"

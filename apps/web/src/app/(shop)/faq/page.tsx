@@ -48,7 +48,7 @@ export default async function FaqPage() {
       {/* Header editorial */}
       <section
         className="px-8 md:px-16 py-16 border-b"
-        style={{ borderColor: 'var(--border-editorial)' }}
+        style={{ borderColor: 'var(--color-border-editorial)' }}
       >
         <span
           className="font-korean text-xs font-medium block mb-2"
@@ -78,7 +78,7 @@ export default async function FaqPage() {
       {/* CTA WhatsApp */}
       <section
         className="px-8 md:px-16 py-10 border-t flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
-        style={{ borderColor: 'var(--border-editorial)' }}
+        style={{ borderColor: 'var(--color-border-editorial)' }}
       >
         <div>
           <span className="font-korean text-xs block mb-1" style={{ color: 'var(--color-celadon)', letterSpacing: '0.18em' }}>더 궁금한 점</span>

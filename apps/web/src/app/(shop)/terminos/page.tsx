@@ -154,7 +154,7 @@ export default function TerminosPage() {
 
         </div>
 
-        <div className="mt-12 pt-8 border-t text-center" style={{ borderColor: 'var(--border-editorial)' }}>
+        <div className="mt-12 pt-8 border-t text-center" style={{ borderColor: 'var(--color-border-editorial)' }}>
           <p className="font-korean font-bold" style={{ color: 'var(--color-celadon)' }}>감사합니다</p>
           <p className="font-body text-xs mt-1" style={{ color: 'var(--color-heuk)', opacity: 0.35 }}>
             Seoul Kims · Viña del Mar · Chile
