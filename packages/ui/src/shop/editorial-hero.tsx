@@ -1,10 +1,17 @@
 'use client'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useEffect, useState } from 'react'
+
+const DEFAULT_PHOTO_URLS = ['/hero/hero-1.jpg', '/hero/hero-2.jpg', '/hero/hero-3.jpg']
+
+const CAROUSEL_INTERVAL_MS = 6000
 
 interface EditorialHeroProps {
+  /** @deprecated Usa photoUrls (array). Si se pasa, se usa como única imagen (sin carrusel). */
   photoUrl?: string
+  photoUrls?: string[]
   headline?: string
   subheadline?: string
   ctaLabel?: string
@@ -12,25 +19,49 @@ interface EditorialHeroProps {
 }
 
 export function EditorialHero({
-  photoUrl = 'https://images.unsplash.com/photo-1590301157890-4810ed352733?w=1600&q=80&auto=format&fit=crop',
+  photoUrl,
+  photoUrls = DEFAULT_PHOTO_URLS,
   headline = '서울의 맛',
   subheadline = 'El sabor auténtico de Corea\nen el corazón de Viña del Mar',
   ctaLabel = 'Explorar tienda',
   ctaHref = '/productos',
 }: EditorialHeroProps) {
+  const photos = photoUrl ? [photoUrl] : photoUrls
+  const [activeIndex, setActiveIndex] = useState(0)
+  const prefersReducedMotion = useReducedMotion()
+
+  useEffect(() => {
+    if (photos.length <= 1 || prefersReducedMotion) return
+    const id = setInterval(() => {
+      setActiveIndex((i) => (i + 1) % photos.length)
+    }, CAROUSEL_INTERVAL_MS)
+    return () => clearInterval(id)
+  }, [photos.length, prefersReducedMotion])
+
   return (
     <section className="relative w-full overflow-hidden" style={{ aspectRatio: '16/7', minHeight: 320 }}>
-      {/* Foto de fondo fullbleed */}
+      {/* Carrusel de fotos de fondo fullbleed */}
       <div className="absolute inset-0">
-        <Image
-          src={photoUrl}
-          alt="Seoul Kims — Productos coreanos"
-          fill
-          sizes="100vw"
-          className="object-cover"
-          priority
-          fetchPriority="high"
-        />
+        <AnimatePresence initial={false}>
+          <motion.div
+            key={photos[activeIndex]}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1.2, ease: 'easeInOut' }}
+            className="absolute inset-0"
+          >
+            <Image
+              src={photos[activeIndex]}
+              alt="Seoul Kims — Productos coreanos"
+              fill
+              sizes="100vw"
+              className="object-cover"
+              priority={activeIndex === 0}
+              fetchPriority={activeIndex === 0 ? 'high' : 'auto'}
+            />
+          </motion.div>
+        </AnimatePresence>
         {/* Overlay gradiente heuk */}
         <div
           className="absolute inset-0"
@@ -39,6 +70,25 @@ export function EditorialHero({
           }}
         />
       </div>
+
+      {/* Indicadores de posición del carrusel */}
+      {photos.length > 1 && (
+        <div className="absolute bottom-6 right-8 z-10 flex gap-2">
+          {photos.map((src, i) => (
+            <button
+              key={src}
+              type="button"
+              aria-label={`Ir a la imagen ${i + 1}`}
+              onClick={() => setActiveIndex(i)}
+              className="h-1.5 rounded-full transition-all"
+              style={{
+                width: i === activeIndex ? 20 : 6,
+                backgroundColor: i === activeIndex ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)',
+              }}
+            />
+          ))}
+        </div>
+      )}
 
       {/* 맛 — caracter héroe con mix-blend-mode:difference */}
       <motion.div
