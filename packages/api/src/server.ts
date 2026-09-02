@@ -69,6 +69,17 @@ const API_PUBLIC_URL = process.env.API_PUBLIC_URL || 'https://api.seoulshop.cl'
 // producto/hero de esta misma sesión.
 const POD_UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'pod')
 
+// Directorio local para fotos de producto subidas desde cerebro (adición
+// post-entrega, 2-sep-2026 — apps/cerebro/.../image-uploader.tsx ya llama a
+// POST /api/products/:productId/images, 404 hoy). Mismo criterio pragmático
+// que POD_UPLOAD_DIR de arriba: sin credenciales R2 configuradas, se guarda
+// en disco local de este servicio (Railway, efímero — se pierde en cada
+// redeploy) y se sirve desde GET /product-photos/:filename (ver abajo, junto
+// a /pod/:filename). `product_images.r2_key` guarda hoy el nombre de archivo
+// local (no una key real de R2) — cuando exista R2, ese campo pasa a
+// contener la key real sin cambiar el shape de la tabla.
+const PRODUCT_UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'products')
+
 // Public storefront base URL — used to build links inside customer-facing
 // emails (password reset, welcome). Distinct from the staff panel's
 // cmr.seoulshop.cl links used in the staff email templates.
@@ -128,6 +139,30 @@ app.get('/pod/:filename', async (c) => {
     return c.body(buf, 200, { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' })
   } catch (err) {
     console.error('Serve POD photo error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /product-photos/:filename — sirve las fotos de producto subidas por
+// POST /api/products/:productId/images (adición post-entrega, 2-sep-2026).
+// Mismo patrón exacto que GET /pod/:filename de arriba: fuera de /api/* (un
+// <img src> no necesita CORS), sin sesión (el nombre de archivo incluye
+// productId + timestamp + random, no es enumerable — mismo criterio de
+// "URL impredecible = suficiente" del resto del sistema), y `filename`
+// saneado a solo el basename para bloquear path traversal.
+app.get('/product-photos/:filename', async (c) => {
+  const filename = path.basename(c.req.param('filename'))
+  const filePath = path.join(PRODUCT_UPLOAD_DIR, filename)
+  try {
+    if (!filePath.startsWith(PRODUCT_UPLOAD_DIR) || !fs.existsSync(filePath)) {
+      return c.json({ error: 'No encontrado' }, 404)
+    }
+    const buf = fs.readFileSync(filePath)
+    const ext = path.extname(filename).toLowerCase()
+    const contentType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.avif' ? 'image/avif' : 'image/jpeg'
+    return c.body(buf, 200, { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' })
+  } catch (err) {
+    console.error('Serve product photo error:', err)
     return c.json({ error: 'Error' }, 500)
   }
 })
@@ -4314,9 +4349,13 @@ app.get('/api/products/barcode/:code', async (c) => {
 
 // Detalle completo — usado por cerebro en /products/[id]/edit (getProductById).
 // Incluye sellos "Alto En" (Ley 20.606, product_sellos) y galería de imágenes
-// (product_images, R2). product_images está vacía en producción hoy (nunca se
-// construyó el endpoint de upload) — el campo `url` queda null sin R2_PUBLIC_URL
-// configurado, listo para cuando exista.
+// (product_images). Adición post-entrega 2-sep-2026: POST/DELETE
+// /api/products/:productId/images ya existen (ver más abajo) y guardan en
+// disco local de este servicio (sin R2_* configurado) — el campo `url` se
+// arma con R2_PUBLIC_URL si algún día se configura, y si no con
+// API_PUBLIC_URL + /product-photos/:filename (misma ruta pública que sirve
+// esas fotos). Antes de este cambio quedaba `null` siempre porque
+// R2_PUBLIC_URL nunca existió y no había fallback.
 app.get('/api/products/id/:id', async (c) => {
   const authUser = await requireSession(c)
   if (authUser instanceof Response) return authUser
@@ -4367,7 +4406,7 @@ app.get('/api/products/id/:id', async (c) => {
       sellos: sellos.map((s: any) => s.sello),
       images: images.map((im: any) => ({
         id: im.id,
-        url: r2PublicUrl ? `${r2PublicUrl}/${im.r2_key}` : null,
+        url: r2PublicUrl ? `${r2PublicUrl}/${im.r2_key}` : `${API_PUBLIC_URL}/product-photos/${im.r2_key}`,
         r2Key: im.r2_key,
         sortOrder: im.sort_order,
       })),
@@ -4467,6 +4506,132 @@ app.put('/api/products/:id', async (c) => {
     console.error('Update product error:', err)
     if (err?.code === '23505') return c.json({ error: 'SKU, slug o código de barras ya existe' }, 409)
     return c.json({ error: 'Error al actualizar el producto' }, 500)
+  }
+})
+
+// POST /api/products/:productId/images (adición post-entrega, 2-sep-2026 —
+// apps/cerebro/.../image-uploader.tsx ya llama esto, 404 hoy). Mismo rol
+// admin+ que crear/editar producto de arriba y mismo patrón pragmático de
+// disco local que POST /api/delivery/assignments/:id/pod (ver constantes
+// PRODUCT_UPLOAD_DIR / GET /product-photos/:filename junto a POD arriba):
+// sin credenciales R2 configuradas hoy, la foto se guarda en disco local de
+// este servicio (Railway, efímero) y `product_images.r2_key` guarda el
+// nombre de archivo local en vez de una key real de R2.
+//
+// DECISIÓN (pedida explícitamente en el brief): si el producto no tenía
+// `image_url` (la portada que usa el catálogo público, GET /api/products) y
+// esta es su primera foto en la galería, se usa automáticamente como
+// portada — así aparece en la tienda sin un paso manual extra en el form.
+// `image_url` se guarda ABSOLUTA (API_PUBLIC_URL + /product-photos/...) a
+// propósito: apps/web (seoulshop.cl, Vercel) renderiza `imageUrl` con
+// next/image, que exige una URL absoluta y un host en `images.remotePatterns`
+// (apps/web/next.config.js) — se agregó `api.seoulshop.cl` a esa lista como
+// parte de este mismo cambio, si no la portada auto-asignada rompería con
+// el mismo 400 INVALID_IMAGE_OPTIMIZE_REQUEST que ya se diagnosticó en S17
+// para hosts no declarados.
+app.post('/api/products/:productId/images', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  const { productId } = c.req.param()
+
+  try {
+    const [product] = await sql`SELECT id, image_url FROM products WHERE id = ${productId}`
+    if (!product) return c.json({ error: 'Producto no encontrado' }, 404)
+
+    const body = await c.req.parseBody()
+    const file = body['file']
+    if (!(file instanceof File)) return c.json({ error: 'Falta la imagen (campo "file")' }, 400)
+    if (file.size === 0) return c.json({ error: 'Archivo vacío' }, 400)
+    // Mismo límite que ya anuncia el frontend (image-uploader.tsx: "máx 5MB").
+    if (file.size > 5 * 1024 * 1024) return c.json({ error: 'Imagen demasiado grande (máx 5MB)' }, 400)
+
+    const EXT_BY_MIME: Record<string, string> = {
+      'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/avif': 'avif',
+    }
+    const ext = EXT_BY_MIME[file.type]
+    if (!ext) return c.json({ error: 'Formato no soportado (usa JPG, PNG, WebP o AVIF)' }, 400)
+
+    const filename = `${productId}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}.${ext}`
+
+    fs.mkdirSync(PRODUCT_UPLOAD_DIR, { recursive: true })
+    const buf = Buffer.from(await file.arrayBuffer())
+    fs.writeFileSync(path.join(PRODUCT_UPLOAD_DIR, filename), buf)
+
+    const [{ next_sort }] = await sql`
+      SELECT COALESCE(MAX(sort_order) + 1, 0) AS next_sort FROM product_images WHERE product_id = ${productId}
+    `
+
+    const [created] = await sql`
+      INSERT INTO product_images (product_id, r2_key, sort_order)
+      VALUES (${productId}, ${filename}, ${next_sort})
+      RETURNING id
+    `
+
+    const absoluteUrl = `${API_PUBLIC_URL}/product-photos/${filename}`
+
+    // Primera foto de un producto sin portada → se vuelve la portada automáticamente.
+    if (!product.image_url && Number(next_sort) === 0) {
+      await sql`UPDATE products SET image_url = ${absoluteUrl}, updated_at = NOW() WHERE id = ${productId}`
+    }
+
+    await recordAuditLog(c, authUser, 'product.image_upload', { table: 'product_images', id: created.id }, { productId, filename })
+
+    console.log(`✅ Product image uploaded: ${productId} — ${filename}`)
+    // image-uploader.tsx (apps/cerebro) hace `${API_BASE}${data.url}`, así que
+    // `url` va relativo a la API — mismo shape que espera el frontend ya escrito.
+    return c.json({ ok: true, id: created.id, url: `/product-photos/${filename}` })
+  } catch (err) {
+    console.error('Product image upload error:', err)
+    return c.json({ error: 'Error al subir la imagen' }, 500)
+  }
+})
+
+// DELETE /api/products/:productId/images/:imageId (adición post-entrega,
+// 2-sep-2026 — contraparte del POST de arriba, también llamada ya por
+// image-uploader.tsx, 404 hoy). Mismo rol admin+. Borra la fila y, de forma
+// prolija, también el archivo físico en disco. Si la imagen borrada era la
+// portada (`products.image_url`), promueve la siguiente imagen restante
+// (menor sort_order) a portada, o limpia `image_url` si no queda ninguna —
+// evita dejar la portada del catálogo apuntando a un archivo que ya no existe.
+app.delete('/api/products/:productId/images/:imageId', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  const { productId, imageId } = c.req.param()
+
+  try {
+    const [image] = await sql`SELECT id, r2_key FROM product_images WHERE id = ${imageId} AND product_id = ${productId}`
+    if (!image) return c.json({ error: 'Imagen no encontrada' }, 404)
+
+    const [product] = await sql`SELECT image_url FROM products WHERE id = ${productId}`
+
+    await sql`DELETE FROM product_images WHERE id = ${imageId}`
+
+    const deletedUrl = `${API_PUBLIC_URL}/product-photos/${image.r2_key}`
+    if (product?.image_url === deletedUrl) {
+      const [next] = await sql`
+        SELECT r2_key FROM product_images WHERE product_id = ${productId} ORDER BY sort_order ASC LIMIT 1
+      `
+      const newImageUrl = next ? `${API_PUBLIC_URL}/product-photos/${next.r2_key}` : null
+      await sql`UPDATE products SET image_url = ${newImageUrl}, updated_at = NOW() WHERE id = ${productId}`
+    }
+
+    // No es obligatorio (fuera del brief), pero evita basura acumulándose en
+    // disco efímero de Railway — best-effort, nunca bloquea la respuesta.
+    try {
+      const filePath = path.join(PRODUCT_UPLOAD_DIR, path.basename(image.r2_key))
+      if (filePath.startsWith(PRODUCT_UPLOAD_DIR) && fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    } catch (fileErr) {
+      console.error('Product image file cleanup error (non-fatal):', fileErr)
+    }
+
+    await recordAuditLog(c, authUser, 'product.image_delete', { table: 'product_images', id: imageId }, { productId })
+
+    return c.json({ ok: true })
+  } catch (err) {
+    console.error('Product image delete error:', err)
+    return c.json({ error: 'Error al borrar la imagen' }, 500)
   }
 })
 
