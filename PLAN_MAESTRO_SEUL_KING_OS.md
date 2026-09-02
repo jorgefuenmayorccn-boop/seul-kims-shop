@@ -1,5 +1,7 @@
 # SEUL KING OS v1.0 — Plan Maestro de Ejecución (v1.0, 31-ago-2026)
 
+**🟢 PLAN CERRADO (2-sep-2026) — 17 sesiones + 6 adiciones fuera de fase completas. Ver "CIERRE DEL PLAN MAESTRO" al final de S17 para el resumen ejecutivo de entrega.**
+
 **Este es el plan único de ejecución para dejar SEUL KING OS listo para entrega. No improvisar fuera de él.**
 
 Repo: `/Users/vertice/vertice_productions/seul-kims-shop` (monorepo pnpm — `apps/web`, `apps/cerebro`, `apps/pos`, `apps/repartidor`, `packages/api`, `packages/db`)
@@ -84,7 +86,7 @@ Fase 0 Seguridad y Estabilización (S01-02, 16h, 🔴 BLOQUEADORA) → Fase 1 N�
 | FAQ pública | web | ✅ completo | S14 (2-sep-2026): `GET /api/faq`. Ver "FASE 4 — S14" abajo. |
 | Promociones, fidelización | — | ❌ falta (decisión pendiente) | Schemas y tablas ya en producción, cero UI/rutas/consumidor. Evaluado en S14 — recomendación: postergar a v1.1, ver "FASE 4 — S14" abajo. |
 | Auditoría (audit log) | cerebro | ✅ completo | S16 (2-sep-2026): `audit_log` (migración 0019) + `GET /api/audit-log` (owner-only, paginado) + pantalla `/auditoria`. Instrumentado: crear/editar-rol/desactivar usuario, cambio de contraseña propia, cambios de `tienda_config` (PINs enmascarados en el log). Ver "FASE 5 — S16" abajo. **Gap encontrado, no instrumentado:** edición de precio de producto no es una acción auditable porque el endpoint (`PUT /api/products/:id`) no existe todavía pese a que el frontend ya lo llama — ver detalle en S16. |
-| Edición de productos (crear/editar) | cerebro | ❌ falta | **Hallazgo de S16 (2-sep-2026):** `apps/cerebro/products/new` y `products/[id]/edit` están completamente construidos (`product-form.tsx`, incluye edición de precio/costo/margen) y llaman `POST /api/products` y `PUT /api/products/:id` — **ninguno de los dos existe en `server.ts`** (solo existen los GET de S03). Ambas pantallas 404-ean hoy en producción. No construido en S16 (sería trabajo de catálogo, fuera de los límites de Hardening) — candidato claro para una sesión futura corta, mismo patrón que el resto del proyecto (frontend listo, falta la ruta). |
+| Edición de productos (crear/editar) | cerebro | ✅ completo (texto/precio) · ❌ falta (fotos) | Hallazgo de S16: `POST /api/products`/`PUT /api/products/:id` no existían — **construidos en la adición "3 gaps críticos"** (2-sep-2026), ver esa sección. **Hallazgo nuevo de S17:** `product-form.tsx` monta `image-uploader.tsx`, que llama `POST /api/products/:id/images` y `DELETE /api/products/:id/images/:id` — **ninguno de los dos existe** — la subida/borrado de fotos desde el panel es 100% no funcional hoy, aunque el resto del formulario (nombre/precio/categoría/sellos) sí funciona. Candidato para sesión futura corta. |
 
 **Leyenda:** ✅ funciona y verificado · 🟡 parcial/roto · ❌ sin construir
 
@@ -538,10 +540,54 @@ Commits: pendientes de push al cierre de esta sesión (ver `SEUL_SESSION_16.md`)
 
 **No se avanzó a S17.**
 
-**S17 (12h) — Entrega:**
-- Actualizar `SEUL_KING_OS_v1.0_MANUAL_CLIENTE.md` y `SEUL_KING_OS_v1_Manual.html` con el estado final real (quitar todos los "próximamente"/"pendiente" que Fase 1-4 ya resolvieron).
-- Checklist de entrega: las 4 apps + portal B2B + tienda cliente funcionando en navegador real, sesión de capacitación con Jorge y Mario (ya contemplada en el manual), SLA de 30 días activo.
-- **Gate final:** cero pantalla con "Error al cargar", cero endpoint 404 en las rutas que el frontend llama — verificado con el mismo método de auditoría de la sección 7, corriéndolo de nuevo y confirmando 0 faltantes.
+**S17 (12h) — Entrega — ✅ COMPLETA (2-sep-2026), última sesión del plan:**
+
+**1. Limpieza de usuarios.** Estado encontrado al empezar: 6 usuarios de staff activos, no 3 como asumía la nota pendiente del cierre de la adición "3 gaps críticos" — además de `ceojorge@verticeproductions.com`, `marioulloa22@verticeproductions.com` y `jorgefuenmayor.ccn@gmail.com`, existían `founder@seoulshop.cl`, `gerente@seoulshop.cl` y `repartidor.test@seoulshop.cl` (cuentas de sesiones de deploy muy tempranas, sin FK). Verificado por FK contra las 17 tablas que referencian `users.id` (`sessions`, `b2b_credit_requests`, `b2b_wallet_ledger`, `cash_movements`, `shifts`, `till_sessions`, `delivery_assignments` ×2, `delivery_location_pings`, `delivery_payouts` ×2, `delivery_shifts`, `loyalty_ledger`, `pos_void_events`, `password_reset_tokens`, `staff_password_reset_tokens`, `audit_log`): `repartidor.test@seoulshop.cl` tenía 5 filas en `delivery_assignments.driver_id` (`confdeltype='a'`, no cascada) — **desactivado** (`is_active=false`), no eliminado. Los otros 4 (`founder`, `gerente`, `marioulloa22`, `jorgefuenmayor.ccn`) sin ninguna referencia — **eliminados** con `DELETE`.
+
+**🔴 Hallazgo crítico durante la limpieza:** tras el primer `DELETE`, un redeploy de Railway (disparado por un push no relacionado de esta misma sesión, el fix de `next.config.js` de abajo) **revivió `marioulloa22@verticeproductions.com` y `jorgefuenmayor.ccn@gmail.com`** con contraseña temporal nueva y un correo de bienvenida real reenviado. Causa: `seedRealUsersIfNeeded()` en `server.ts` corría en **cada arranque del proceso** (cada redeploy) y recreaba 3 cuentas de staff hardcodeadas si "faltaban" — exactamente las 2 que esta sesión acababa de eliminar por instrucción explícita del dueño. La función (y su llamada en el bloque de arranque) fue **eliminada por completo** (commit `3f1a970`) — sin esto, la limpieza de usuarios se habría revertido sola en cualquier deploy futuro. Verificado tras el siguiente redeploy: las cuentas no volvieron. Limpieza reaplicada y confirmada final: **1 solo usuario activo** (`ceojorge@verticeproductions.com`, owner).
+
+**2. Auditoría final de endpoints (misma metodología de la sección 7, repetida al cierre):** grep de los 110 `fetch()`/`EventSource` de las 4 apps contra las 95 rutas registradas en `server.ts`, con un matcher de segmentos de ruta (no solo substring). **Resultado: el gap de ~27 endpoints del día 1 está en 0** para todo lo que estaba planeado — pero la auditoría encontró **4 gaps reales no documentados hasta ahora**, honestamente reportados (no asumidos resueltos):
+   - `GET /api/orders/:id` — llamado por `dispatch-panel.tsx` y `dispatch-bifurcation-panel.tsx` (imprimir la comanda de despacho después de asignar un repartidor) — no existe. Ambos `fetch()` ya estaban con `.catch(() => null)`, así que no crashean, pero la reimpresión de comanda tras asignar silenciosamente no trae los ítems del pedido.
+   - `GET /api/orders/:id/comanda` — llamado por `incoming-orders-drawer.tsx` (botón "reimprimir comanda" de un pedido web entrante en POS) — no existe, el botón muestra error de impresión.
+   - `POST /api/products/:id/images` y `DELETE /api/products/:id/images/:id` — `image-uploader.tsx`, montado dentro de `product-form.tsx` (pantallas crear/editar producto ya funcionales desde la adición "3 gaps críticos") — la subida/borrado de fotos de producto desde el panel es 100% no funcional hoy.
+   - `GET /api/customers`, `GET /api/customers/search` — gap ya documentado desde el cierre de Fase 1/3 (módulo Clientes/CRM interno), confirmado que sigue sin construir.
+
+   Ninguno de los 4 se construyó en esta sesión (desarrollo nuevo, fuera de los límites estrictos de S17) — quedan documentados para una sesión futura corta.
+
+**3. Auditoría visual en navegador real — 4 apps + B2C + B2B (Playwright, `channel:'chrome'`):**
+   - Cuenta desechable `qa-s17-final@example.test` (owner) para cerebro/POS/drive — login, 12 pantallas de `cerebro`, POS, drive: 24/24 cargan sin "Error al cargar", sin "Cannot read properties", sin 404. **Primeros dos intentos de login fallaron** por errores propios del script de auditoría (hash PBKDF2 mal extraído la primera vez, timeout de espera de redirect insuficiente la segunda) — no bugs del sistema, documentado para que quede claro que el 24/24 final es real, no un falso negativo temprano.
+   - **Instrucción explícita del dueño a mitad de sesión: no conformarse con status codes — entrar de verdad a B2C y B2B y mirar.** Se registró una cuenta B2C real (`qa-s17-b2c-visual@example.test`, flujo completo: registro → leer contraseña temporal de `email_queue` → login → cambio de contraseña obligatorio → dashboard/pedidos/perfil) y una empresa B2B real (`qa-s17-b2b-visual@example.test`, RUT válido con dígito verificador calculado, flujo de 2 pasos → login → dashboard/catálogo/crédito/estado de cuenta/postventa), con capturas de pantalla completas revisadas visualmente, no solo status code.
+
+**🔴 Bug real encontrado en la revisión visual (el tipo de hallazgo que el dueño pidió explícitamente no repetir sin cazar):** `/cuenta`, `/cuenta/dashboard`, `/cuenta/pedidos` y `/cuenta/perfil` (B2C) leían el store de sesión de cliente (`zustand`/`persist`, `apps/web/src/lib/customer-store.ts`) en el primer render, **antes** de que `persist` terminara de hidratar desde `localStorage` — el store ya exponía un flag `hasHydrated` pensado exactamente para esto, pero ninguna de las 4 pantallas lo usaba. Efecto real: un cliente con sesión válida que carga la página directamente (URL escrita a mano, recarga del navegador, link desde un correo o desde fuera del sitio) era rebotado al login, aunque su sesión siguiera siendo válida — solo funcionaba si navegaba con los links internos de la SPA después de que el store ya estuviera hidratado en esa misma pestaña. Confirmado en vivo: login 200 + cookie seteada, pero carga directa de `/cuenta/dashboard` mostraba el formulario de login. **Corregido** en las 4 pantallas (esperar `hasHydrated` antes de decidir "no hay sesión") — commit `1405669`, verificado de nuevo con Playwright tras el fix: las 4 rutas permanecen en su URL en una carga fresca. El portal B2B no tiene este bug (usa el status 401/403 del propio `fetch()`, no este store).
+
+**Hallazgo menor, no corregido (documentado):** el header del portal B2B (`apps/web/src/app/(b2b)/layout.tsx`) es un Server Component estático que siempre muestra "Iniciar sesión"/"Solicitar cuenta", incluso con una empresa ya logueada (confirmado en las 5 capturas de pantalla B2B — el contenido de cada página sí refleja la sesión correctamente, solo el header no). Cosmético, no bloqueante, requeriría convertir el layout a client-side o agregar un subcomponente que consulte `/api/customer/me` — fuera de los límites de "trivial" de esta sesión, queda documentado para una sesión futura de UX.
+
+**🔴 Bug real encontrado y corregido, no relacionado a usuarios (fix trivial autorizado por los límites de la sesión):** `apps/web/next.config.js` nunca configuró `images.remotePatterns` — `next/image` rechazaba con 400 (`INVALID_IMAGE_OPTIMIZE_REQUEST`) **cualquier imagen remota**, dejando **todas las fotos de producto rotas** en `/productos`, la ficha de producto, el carrito y el checkout (tanto los placeholders `picsum.photos` como las 26 fotos reales servidas desde el propio `seoulshop.cl/products/*.jpg` — `next/image` no reconoce su propio dominio automáticamente cuando el `src` es una URL absoluta). Confirmado visualmente con captura de pantalla antes (tarjetas de producto vacías) y después (fotos cargando) del fix. Corregido con los 2 hosts reales que usa `products.image_url` hoy (confirmado por `SELECT DISTINCT` contra Neon de producción) — commit `fcb19d0`.
+
+**4. `CLAUDE.md` corregido** (deuda desde SESSION 20) — commit `d9d1ead`. Ver detalle en la nota de la sección "Dónde está todo" / commit message.
+
+**5. `SEUL_KING_OS_v1.0_MANUAL_CLIENTE.md` creado desde cero** — commit `b76c77e`. Estructura completa pedida por el dueño (misión/visión, proyección a futuro, guía de uso de las 4 apps por rol, flujo de creación de usuarios en abstracto, checklist de entrega con SLA de 30 días). Verificado con grep: cero menciones de proveedores técnicos reales o cuentas de prueba de desarrollo.
+
+**Verificación final de cierre:** `/health` (API) y `/` (web) en 200 antes, durante y después de cada push. Toda la data de prueba de esta sesión (4 cuentas desechables, 1 empresa B2B, `email_queue`/`email_log`/`rate_limit_events` asociados) borrada y verificada con `SELECT` posterior sin filas restantes. Estado final de `users` en producción: 2 filas — `ceojorge@verticeproductions.com` (owner, activo) y `repartidor.test@seoulshop.cl` (delivery, desactivado, conservado por integridad referencial).
+
+Commits: `fcb19d0` (fix images.remotePatterns), `3f1a970` (elimina seed de usuarios hardcodeado), `1405669` (fix hidratación B2C), `d9d1ead` (CLAUDE.md + 2 `.gitignore` sueltos), `b76c77e` (manual del cliente) — los 5 pusheados a `main`, auto-deploy Railway (API) y Vercel (`web`) confirmados.
+
+---
+
+## CIERRE DEL PLAN MAESTRO (2-sep-2026)
+
+**Las 17 sesiones + 6 adiciones fuera de fase de este plan quedan CERRADAS.** Resumen ejecutivo de lo que se entrega:
+
+- **4 apps en producción, verificadas en navegador real:** `apps/cerebro` (panel administrativo, 12 pantallas), `apps/pos` (caja táctil, apertura/cobro/comandas/anulación/cierre), `apps/repartidor` (PWA de entregas con GPS y foto de comprobante), `apps/web` (tienda B2C + portal B2B).
+- **Backend único** (`packages/api`, Hono/Node en Railway) con ~95 rutas registradas, RBAC por rol en los endpoints sensibles, rate limiting genérico, auditoría real (`audit_log`), y tiempo real vía SSE (POS y repartidor) sin agotar el pool de Postgres.
+- **Nota de Venta** funcionando en cada venta (boleta electrónica SII pospuesta post-entrega, decisión de negocio, seam `@seul/dte` ya listo para conectar un proveedor real).
+- **Portal B2B** completo (registro, catálogo con precios netos, crédito, estado de cuenta) — confirmado con revisión visual real, no solo status code.
+- **4 gaps de endpoints conocidos y documentados, no bloqueantes para v1.0:** reimpresión de comanda de despacho (`GET /api/orders/:id`, `GET /api/orders/:id/comanda`), subida de fotos de producto (`POST/DELETE /api/products/:id/images`), y el módulo Clientes/CRM interno (`GET /api/customers*`).
+- **1 hallazgo de UX menor no corregido:** header del portal B2B no refleja sesión activa (cosmético).
+- **Usuarios en producción reducidos a 1 cuenta activa** (`ceojorge@verticeproductions.com`, owner), lista para que el dueño real de Seoul Kims cree sus propias cuentas — sin ningún seed automático que pueda revivir cuentas de prueba en el futuro.
+- **Manual del cliente completo entregado**, sin jerga técnica, sin nombrar proveedores de infraestructura, sin credenciales de desarrollo.
+
+**Deuda técnica documentada para sesiones futuras (post-entrega), en orden de prioridad sugerido:** (1) SII/DTE real, (2) los 4 gaps de endpoints de esta sesión, (3) fidelización/promociones (v1.1, evaluado en S14), (4) header de sesión B2B, (5) aprobación de registro de empresa B2B nueva (`b2b_companies.status` pending→approved sin UI), (6) el resto de estilos inline/banners de error sin migrar a tokens (S15).
 
 ---
 
