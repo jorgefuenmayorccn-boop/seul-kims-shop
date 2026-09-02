@@ -193,6 +193,23 @@ async function runMigrationsIfNeeded() {
       `
       console.log('✅ Migration 0016 applied')
     }
+
+    // 0017 (S13, Fase 4): arcop_requests.name/email — la tabla ya existía
+    // (customer_id, type, status, notes, deadline) pero una solicitud ARCOP
+    // puede venir de una persona SIN cuenta (Ley 21.719 exige poder ejercer
+    // el derecho sin ser cliente), así que necesitamos guardar su nombre y
+    // correo de contacto directamente, no solo enlazarla a un customer_id
+    // opcional que puede quedar null.
+    const arcopNameExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'arcop_requests' AND column_name = 'name'
+    `
+    if (arcopNameExists.length === 0) {
+      console.log('🔄 Running migration 0017 (arcop_requests.name/email)...')
+      await sql`ALTER TABLE arcop_requests ADD COLUMN IF NOT EXISTS name TEXT`
+      await sql`ALTER TABLE arcop_requests ADD COLUMN IF NOT EXISTS email TEXT`
+      console.log('✅ Migration 0017 applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -4242,6 +4259,213 @@ app.get('/api/dashboard/alerts', async (c) => {
   } catch (err) {
     console.error('Dashboard alerts error:', err)
     return c.json({ error: 'Error al calcular alertas' }, 500)
+  }
+})
+
+// ============================================================================
+// SEGURIDAD / LEGAL — ARCOP (Ley 21.719) + DEVOLUCIONES (S13, Fase 4)
+// ============================================================================
+// GET /api/arcop y GET /api/returns: apps/cerebro/.../seguridad/page.tsx
+// (ver apps/cerebro/src/lib/api.ts getARCOP/getReturns — Server Component que
+// reenvía la cookie seul_session a mano, mismo patrón que dashboard/inventory/
+// customers). Roles owner/admin, matriz sección 6.1 ("Seguridad").
+//
+// POST /api/arcop y POST /api/returns: PÚBLICOS, sin sesión — ya consumidos
+// por apps/web/.../privacidad/page.tsx y apps/web/.../devoluciones/page.tsx
+// (confirmados por grep antes de escribir esta ruta, lección de hoy). La Ley
+// 21.719 exige que CUALQUIER persona pueda ejercer sus derechos ARCOP, tenga
+// o no cuenta, así que no usan requireCustomerSession. Devoluciones tampoco
+// exige cuenta: hoy el checkout emite Nota de Venta (no boleta SII real —
+// S12 pospuesto post-entrega), así que el orderId es la única referencia
+// confiable, igual que el flujo real de post-venta por WhatsApp.
+
+function addBusinessDays(from: Date, days: number): Date {
+  // Feriados chilenos no se calculan aquí (no hay tabla de feriados en el
+  // sistema hoy) — solo se saltan sábado/domingo. Suficiente para el umbral
+  // "≤3 días" que usa el panel de Seguridad; una discrepancia de 1-2 días
+  // por feriado no cambia el semáforo salvo casos límite.
+  const d = new Date(from)
+  let added = 0
+  while (added < days) {
+    d.setDate(d.getDate() + 1)
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) added++
+  }
+  return d
+}
+
+const ARCOP_TYPES = ['access', 'rectification', 'deletion', 'portability']
+
+app.post('/api/arcop', async (c) => {
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ ok: false, error: 'JSON inválido' }, 400)
+  }
+
+  const type  = String(body.type || '').trim()
+  const name  = String(body.name || '').trim()
+  const email = String(body.email || '').trim().toLowerCase()
+  const notes = String(body.notes || '').trim()
+
+  if (!ARCOP_TYPES.includes(type)) {
+    return c.json({ ok: false, error: 'Tipo de solicitud inválido.' }, 400)
+  }
+  if (!name || !email || notes.length < 10) {
+    return c.json({ ok: false, error: 'Completa todos los campos obligatorios.' }, 400)
+  }
+  if (!isValidEmail(email)) {
+    return c.json({ ok: false, error: 'Correo electrónico inválido.' }, 400)
+  }
+
+  const rl = await checkAndRecordRateLimit(c, 'arcop:create', { limit: 10, windowMinutes: 5 })
+  if (!rl.allowed) {
+    return c.json({ ok: false, error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  try {
+    const [existingCustomer] = await sql`
+      SELECT id FROM customers WHERE lower(email) = ${email} AND deleted_at IS NULL LIMIT 1
+    `
+    const customerId = existingCustomer?.id ?? null
+    const deadline = addBusinessDays(new Date(), 15) // Ley 21.719: 15 días hábiles
+
+    const [created] = await sql`
+      INSERT INTO arcop_requests (customer_id, type, status, notes, name, email, deadline)
+      VALUES (${customerId}, ${type}, 'pending', ${notes}, ${name}, ${email}, ${deadline})
+      RETURNING id, deadline
+    `
+
+    const deadlineLabel = created.deadline ? new Date(created.deadline).toLocaleDateString('es-CL') : ''
+
+    enqueueEmail(
+      email,
+      'Solicitud ARCOP recibida — Seoul Kims',
+      `<p>Hola ${name}, recibimos tu solicitud de <strong>${type}</strong> sobre tus datos personales (Ley 21.719). Te responderemos a este correo antes del ${deadlineLabel}.</p>`,
+      'contact-form-reply'
+    ).catch(err => console.error('ARCOP confirm email error:', err))
+
+    enqueueEmail(
+      ADMIN_EMAIL,
+      `🛡️ Nueva solicitud ARCOP — ${type}`,
+      `<p>${name} (${email}) solicitó <strong>${type}</strong>. Plazo de respuesta: ${deadlineLabel}.</p><p>${notes}</p>`,
+      'contact-form-reply'
+    ).catch(err => console.error('ARCOP admin email error:', err))
+
+    return c.json({ ok: true, requestId: created.id, deadline: created.deadline })
+  } catch (err) {
+    console.error('ARCOP create error:', err)
+    return c.json({ ok: false, error: 'No se pudo registrar la solicitud. Intenta de nuevo o escríbenos al WhatsApp.' }, 500)
+  }
+})
+
+app.get('/api/arcop', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const rows = await sql`
+      SELECT id, type, status, notes, name, email, deadline, created_at, resolved_at
+      FROM arcop_requests
+      ORDER BY (status = 'pending') DESC, deadline ASC NULLS LAST, created_at DESC
+      LIMIT 200
+    `
+    return c.json({
+      requests: rows.map((r: any) => ({
+        id: r.id, type: r.type, status: r.status, notes: r.notes,
+        name: r.name, email: r.email, deadline: r.deadline,
+        createdAt: r.created_at, resolvedAt: r.resolved_at,
+      })),
+    })
+  } catch (err) {
+    console.error('ARCOP list error:', err)
+    return c.json({ error: 'Error al listar solicitudes ARCOP' }, 500)
+  }
+})
+
+// ── Devoluciones (returns) ──────────────────────────────────────────────────
+
+const RETURN_TYPES = ['defective', 'wrong_item', 'changed_mind', 'other']
+
+app.post('/api/returns', async (c) => {
+  let body: any = {}
+  try {
+    body = JSON.parse(await c.req.text())
+  } catch {
+    return c.json({ error: 'JSON inválido' }, 400)
+  }
+
+  const orderId = String(body.orderId || '').trim()
+  const type    = String(body.type || '').trim()
+  const reason  = String(body.reason || '').trim()
+
+  if (!orderId || !RETURN_TYPES.includes(type) || reason.length < 10) {
+    return c.json({ error: 'Completa todos los campos obligatorios.' }, 400)
+  }
+
+  const rl = await checkAndRecordRateLimit(c, 'returns:create', { limit: 20, windowMinutes: 5 })
+  if (!rl.allowed) {
+    return c.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  try {
+    const [order] = await sql`SELECT id, customer_id, number FROM orders WHERE id = ${orderId} LIMIT 1`
+    if (!order) {
+      return c.json({ error: 'No encontramos ese pedido. Revisa el ID e intenta de nuevo.' }, 404)
+    }
+
+    const [created] = await sql`
+      INSERT INTO returns (order_id, customer_id, type, reason, status)
+      VALUES (${order.id}, ${order.customer_id}, ${type}, ${reason}, 'pending')
+      RETURNING id
+    `
+
+    enqueueEmail(
+      ADMIN_EMAIL,
+      `↩️ Nueva devolución — Pedido #${order.number ?? String(order.id).slice(0, 8)}`,
+      `<p>Tipo: <strong>${type}</strong></p><p>${reason}</p>`,
+      'contact-form-reply'
+    ).catch(err => console.error('Return admin email error:', err))
+
+    return c.json({ ok: true, returnId: created.id })
+  } catch (err: any) {
+    console.error('Return create error:', err)
+    if (err?.code === '22P02') {
+      return c.json({ error: 'ID de pedido inválido.' }, 400)
+    }
+    return c.json({ error: 'No se pudo registrar la devolución. Escríbenos al WhatsApp.' }, 500)
+  }
+})
+
+app.get('/api/returns', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  const status = c.req.query('status')
+  const statusCond = status && ['pending', 'approved', 'rejected', 'processed'].includes(status)
+    ? sql`WHERE r.status = ${status}`
+    : sql``
+
+  try {
+    const rows = await sql`
+      SELECT r.id, r.order_id, r.customer_id, r.type, r.reason, r.refund_amount_clp,
+             r.resolution, r.status, r.notes, r.created_at, r.resolved_at
+      FROM returns r
+      ${statusCond}
+      ORDER BY r.created_at DESC
+      LIMIT 200
+    `
+    return c.json({
+      returns: rows.map((r: any) => ({
+        id: r.id, orderId: r.order_id, customerId: r.customer_id, type: r.type,
+        reason: r.reason, refundAmountClp: r.refund_amount_clp, resolution: r.resolution,
+        status: r.status, notes: r.notes, createdAt: r.created_at, resolvedAt: r.resolved_at,
+      })),
+    })
+  } catch (err) {
+    console.error('Returns list error:', err)
+    return c.json({ error: 'Error al listar devoluciones' }, 500)
   }
 })
 
