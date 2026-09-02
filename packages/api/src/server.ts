@@ -268,6 +268,38 @@ async function runMigrationsIfNeeded() {
       }
       console.log(`✅ Migration 0018 applied (${seed.length} FAQ entries seeded)`)
     }
+
+    // 0019 (S16, Fase 5 — Hardening): audit_log — registro de acciones
+    // administrativas sensibles (crear/editar/desactivar usuario, cambio de
+    // contraseña, cambios de configuración de tienda). Mismo patrón auto-run
+    // que 0014-0018. `entity_id` es TEXT (no UUID) a propósito: no todas las
+    // entidades auditadas usan uuid como PK (ej. tienda_config.key es texto).
+    const auditLogTableExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'audit_log' AND column_name = 'action'
+    `
+    if (auditLogTableExists.length === 0) {
+      console.log('🔄 Running migration 0019 (audit_log)...')
+      await sql`
+        CREATE TABLE IF NOT EXISTS audit_log (
+          id SERIAL PRIMARY KEY,
+          actor_user_id UUID,
+          actor_email VARCHAR(255),
+          actor_role VARCHAR(50),
+          action VARCHAR(100) NOT NULL,
+          entity_table VARCHAR(100),
+          entity_id TEXT,
+          details JSONB,
+          ip_address VARCHAR(45),
+          user_agent TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+      await sql`CREATE INDEX IF NOT EXISTS audit_log_created_idx ON audit_log(created_at DESC)`
+      await sql`CREATE INDEX IF NOT EXISTS audit_log_actor_idx ON audit_log(actor_user_id, created_at DESC)`
+      await sql`CREATE INDEX IF NOT EXISTS audit_log_action_idx ON audit_log(action, created_at DESC)`
+      console.log('✅ Migration 0019 applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -403,6 +435,40 @@ async function checkAndRecordRateLimit(
   } catch (e) {
     // If the table doesn't exist yet (migration race) or DB hiccups, allow the request.
     return { allowed: true }
+  }
+}
+
+// recordAuditLog (S16, Fase 5 — Hardening) — registro de auditoría para
+// acciones administrativas sensibles (tabla audit_log, migración 0019).
+// Fail-open: un fallo de auditoría (ej. tabla no migrada todavía) NUNCA
+// bloquea la acción real, mismo criterio que checkAndRecordRateLimit/
+// recordLoginAttempt arriba.
+//
+// IMPORTANTE — `details` se pasa como objeto JS DIRECTO al tagged template
+// `sql`, nunca `JSON.stringify(details)`. postgres.js serializa el objeto a
+// jsonb por sí solo; hacer JSON.stringify a mano produce un string JSON
+// doble-encodeado dentro de la columna (bug real ya encontrado y corregido
+// una vez en este proyecto — ver nota en el plan maestro, sección S16).
+async function recordAuditLog(
+  c: any,
+  actor: { id: string; email: string; role: string },
+  action: string,
+  entity: { table: string; id: string | null },
+  details?: Record<string, any> | null
+) {
+  try {
+    await sql`
+      INSERT INTO audit_log (actor_user_id, actor_email, actor_role, action, entity_table, entity_id, details, ip_address, user_agent)
+      VALUES (
+        ${actor.id}, ${actor.email}, ${actor.role}, ${action},
+        ${entity.table}, ${entity.id},
+        ${details ?? null},
+        ${c.req.header('cf-connecting-ip') || c.req.header('x-forwarded-for') || null},
+        ${c.req.header('user-agent') || null}
+      )
+    `
+  } catch (e) {
+    console.warn('⚠️  Audit log insert failed (action was NOT blocked):', e)
   }
 }
 
@@ -671,6 +737,14 @@ async function handleChangePassword(c: any) {
       }),
       'password-reset'
     )
+
+    // Audit log (S16, Fase 5 — Hardening) — siempre "propia" en este endpoint
+    // (no existe hoy un flujo de "resetear contraseña de otro usuario" en el
+    // backend; ver nota en el plan maestro, sección S16). Nunca se loggea la
+    // contraseña ni su hash.
+    await recordAuditLog(c, { id: user.id, email: decoded.email, role: decoded.role }, 'user.password_change_self', { table: 'users', id: user.id }, {
+      targetEmail: user.email,
+    })
 
     return c.json({
       ok: true,
@@ -1485,6 +1559,8 @@ app.put('/api/auth/users/:id', async (c) => {
   }
 
   try {
+    const [before] = await sql`SELECT role, is_active, name, cargo, departamento, telefono_personal FROM users WHERE id = ${id}`
+
     const [updated] = await sql`
       UPDATE users SET
         role               = COALESCE(${body.role ?? null}, role),
@@ -1499,6 +1575,45 @@ app.put('/api/auth/users/:id', async (c) => {
     `
 
     if (!updated) return c.json({ error: 'User not found' }, 404)
+
+    // Audit log (S16, Fase 5 — Hardening): un solo evento por PUT con el diff
+    // real de lo que cambió. `action` se etiqueta por el cambio más sensible
+    // presente (role_change > activate/deactivate > update genérico) para que
+    // la UI de auditoría pueda filtrar por acción sin perder ningún campo —
+    // el diff completo siempre queda en `details.changes` sin importar la
+    // etiqueta elegida.
+    if (before) {
+      const changes: Record<string, { before: any; after: any }> = {}
+      if (body.role !== undefined && body.role !== null && body.role !== before.role) {
+        changes.role = { before: before.role, after: updated.role }
+      }
+      if (typeof body.isActive === 'boolean' && body.isActive !== before.is_active) {
+        changes.isActive = { before: before.is_active, after: updated.is_active }
+      }
+      if (body.name !== undefined && body.name !== null && body.name !== before.name) {
+        changes.name = { before: before.name, after: updated.name }
+      }
+      if (body.cargo !== undefined && body.cargo !== null && body.cargo !== before.cargo) {
+        changes.cargo = { before: before.cargo, after: updated.cargo }
+      }
+      if (body.departamento !== undefined && body.departamento !== null && body.departamento !== before.departamento) {
+        changes.departamento = { before: before.departamento, after: updated.departamento }
+      }
+      if (body.telefonoPersonal !== undefined && body.telefonoPersonal !== null && body.telefonoPersonal !== before.telefono_personal) {
+        changes.telefonoPersonal = { before: before.telefono_personal, after: updated.telefono_personal }
+      }
+
+      if (Object.keys(changes).length > 0) {
+        let action = 'user.update'
+        if (changes.role) action = 'user.role_change'
+        else if (changes.isActive) action = changes.isActive.after === false ? 'user.deactivate' : 'user.activate'
+
+        await recordAuditLog(c, authUser, action, { table: 'users', id: updated.id }, {
+          targetEmail: updated.email,
+          changes,
+        })
+      }
+    }
 
     return c.json({
       ok: true,
@@ -1532,13 +1647,21 @@ app.delete('/api/auth/users/:id', async (c) => {
 
   const { id } = c.req.param()
   try {
-    const [target] = await sql`SELECT id, role FROM users WHERE id = ${id}`
+    const [target] = await sql`SELECT id, email, role, is_active FROM users WHERE id = ${id}`
     if (!target) return c.json({ error: 'User not found' }, 404)
     if (target.role === 'owner') {
       return c.json({ error: 'No se puede eliminar una cuenta owner' }, 403)
     }
 
     await sql`UPDATE users SET is_active = false, updated_at = NOW() WHERE id = ${id}`
+
+    // Audit log (S16, Fase 5 — Hardening).
+    await recordAuditLog(c, authUser, 'user.deactivate', { table: 'users', id }, {
+      targetEmail: target.email,
+      changes: { isActive: { before: target.is_active, after: false } },
+      via: 'DELETE /api/auth/users/:id (soft-delete)',
+    })
+
     return c.json({ ok: true })
   } catch (err) {
     console.error('Delete user error:', err)
@@ -2932,9 +3055,17 @@ app.post('/api/deliveries/:id/status', async (c) => {
 // table/business logic — only the list+assign HTTP surface was missing.
 // ============================================================================
 
+// S16 (Fase 5 — Hardening): estaba solo con getAuthUser() (cualquier rol
+// autenticado, incluyendo 'delivery'/'viewer') pese a devolver PII de clientes
+// (nombre/teléfono/dirección) de TODAS las entregas de la tienda, no solo las
+// propias. Grep confirmó los únicos 2 consumidores reales (despacho/page.tsx
+// en cerebro, dispatch-bifurcation-panel.tsx en pos) son ambos pantallas de
+// staff — apps/repartidor solo llama /assignments/mine, nunca este endpoint —
+// así que restringir a los mismos roles que su hermano PUT .../:id/assign
+// (owner/admin/staff) no regresiona nada real.
 app.get('/api/delivery/assignments', async (c) => {
-  const authUser = await getAuthUser(c)
-  if (!authUser) return c.json({ error: 'Not authenticated' }, 401)
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
 
   try {
     const rows = await sql`
@@ -3524,11 +3655,26 @@ app.put('/api/tienda-config/:key', async (c) => {
   if (typeof body.value !== 'string') return c.json({ error: 'Missing value' }, 400)
 
   try {
+    const [before] = await sql`SELECT value FROM tienda_config WHERE key = ${key}`
+
     await sql`
       INSERT INTO tienda_config (key, value, updated_at)
       VALUES (${key}, ${body.value}, NOW())
       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
     `
+
+    // Audit log (S16, Fase 5 — Hardening). `tienda_config` incluye secretos
+    // como `void_pin`/`analytics_pin` — sus valores se enmascaran en el log
+    // (el audit log en sí no debe volverse una forma de leer el PIN vigente
+    // via su historial). El resto de claves (banco, estación Merval, etc.)
+    // se registran completas.
+    const isSecret = /pin/i.test(key)
+    await recordAuditLog(c, authUser, 'tienda_config.update', { table: 'tienda_config', id: key }, {
+      key,
+      before: isSecret ? '••••' : (before?.value ?? null),
+      after: isSecret ? '••••' : body.value,
+    })
+
     return c.json({ ok: true, key, value: body.value })
   } catch (err) {
     console.error('Update tienda-config error:', err)
@@ -3590,7 +3736,15 @@ app.post('/api/admin/seed/users', async (c) => {
 // LEGACY ENDPOINTS
 // ============================================================================
 
+// S16 (Fase 5 — Hardening): este endpoint no tenía NINGÚN auth check — cualquiera
+// con el UUID (aleatorio, pero igual sin protección) podía leer `template_data`,
+// que para el email de bienvenida incluye la contraseña temporal en texto plano
+// (ver templates.initialCredentials). Grep confirmó cero consumidores en las 4
+// apps (endpoint legacy/muerto) — agregar requireSession no regresiona nada real.
 app.get('/api/email-queue/:id', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
   try {
     const { id } = c.req.param()
     const [record] = await sql`SELECT * FROM email_queue WHERE id = ${id}`
@@ -3670,6 +3824,16 @@ app.post('/api/auth/register', async (c) => {
     } catch (emailError) {
       console.error(`⚠️  Register — email error for ${email}:`, emailError)
     }
+
+    // Audit log (S16, Fase 5 — Hardening). Nunca incluye la contraseña temporal
+    // ni su hash — solo los campos no sensibles del usuario creado.
+    await recordAuditLog(c, authUser, 'user.create', { table: 'users', id: created.id }, {
+      email: created.email,
+      name: created.name,
+      role: created.role,
+      cargo: created.cargo,
+      departamento: created.departamento,
+    })
 
     return c.json({
       ok: true,
@@ -4524,6 +4688,75 @@ app.get('/api/returns', async (c) => {
   } catch (err) {
     console.error('Returns list error:', err)
     return c.json({ error: 'Error al listar devoluciones' }, 500)
+  }
+})
+
+// ============================================================================
+// AUDIT LOG (S16, Fase 5 — Hardening)
+// GET /api/audit-log — owner-only, paginado. Consumido por
+// apps/cerebro/.../auditoria/page.tsx. Filtros opcionales: ?action=,
+// ?actorEmail= (match parcial), ?entityTable=, ?from=/?to= (ISO date),
+// ?page=/?pageSize= (default 1/50, máx 200 por página).
+// ============================================================================
+
+app.get('/api/audit-log', async (c) => {
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
+
+  const page = Math.max(parseInt(c.req.query('page') || '1', 10) || 1, 1)
+  const pageSize = Math.min(Math.max(parseInt(c.req.query('pageSize') || '50', 10) || 50, 1), 200)
+  const offset = (page - 1) * pageSize
+
+  const action = c.req.query('action')?.trim() || null
+  const actorEmail = c.req.query('actorEmail')?.trim() || null
+  const entityTable = c.req.query('entityTable')?.trim() || null
+  const from = c.req.query('from')?.trim() || null
+  const to = c.req.query('to')?.trim() || null
+
+  const conditions = []
+  if (action) conditions.push(sql`action = ${action}`)
+  if (actorEmail) conditions.push(sql`actor_email ILIKE ${'%' + actorEmail + '%'}`)
+  if (entityTable) conditions.push(sql`entity_table = ${entityTable}`)
+  if (from) conditions.push(sql`created_at >= ${from}`)
+  if (to) conditions.push(sql`created_at <= ${to}`)
+
+  let whereClause = sql``
+  for (let i = 0; i < conditions.length; i++) {
+    whereClause = i === 0 ? sql`WHERE ${conditions[i]}` : sql`${whereClause} AND ${conditions[i]}`
+  }
+
+  try {
+    const rows = await sql`
+      SELECT id, actor_user_id, actor_email, actor_role, action, entity_table, entity_id,
+             details, ip_address, user_agent, created_at
+      FROM audit_log
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ${pageSize} OFFSET ${offset}
+    `
+    const [countRow] = await sql`SELECT count(*)::int AS n FROM audit_log ${whereClause}`
+
+    return c.json({
+      entries: rows.map((r: any) => ({
+        id: r.id,
+        actorUserId: r.actor_user_id,
+        actorEmail: r.actor_email,
+        actorRole: r.actor_role,
+        action: r.action,
+        entityTable: r.entity_table,
+        entityId: r.entity_id,
+        details: r.details,
+        ipAddress: r.ip_address,
+        userAgent: r.user_agent,
+        createdAt: r.created_at,
+      })),
+      page,
+      pageSize,
+      total: countRow?.n ?? 0,
+    })
+  } catch (err) {
+    console.error('Audit log list error:', err)
+    return c.json({ error: 'Error al listar el registro de auditoría' }, 500)
   }
 })
 
