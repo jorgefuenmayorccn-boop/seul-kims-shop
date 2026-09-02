@@ -15,6 +15,7 @@
 6. [Guía de uso — SEUL DRIVE (el repartidor)](#6-guía-de-uso--seul-drive-el-repartidor)
 7. [Cómo se crean los usuarios del sistema](#7-cómo-se-crean-los-usuarios-del-sistema)
 8. [Checklist de entrega](#8-checklist-de-entrega)
+9. [Cómo activar el despacho automático por Rappi (Rappi Cargo)](#9-cómo-activar-el-despacho-automático-por-rappi-rappi-cargo)
 
 ---
 
@@ -248,6 +249,32 @@ Esto es lo que Seoul Kims recibe con SEUL KING OS v1.0, verificado y funcionando
 ### Soporte post-entrega
 
 VÉRTICE Productions acompaña la puesta en marcha de SEUL KING OS v1.0 con un período de soporte de **30 días** desde la entrega, para resolver cualquier duda o incidencia que surja durante las primeras semanas de uso real del sistema.
+
+---
+
+## 9. Cómo activar el despacho automático por Rappi (Rappi Cargo)
+
+Hoy, cuando un pedido se despacha por Rappi, la cajera lo registra **manualmente** en el panel: escribe a mano el nombre del repartidor y el número de seguimiento. Funciona, pero no es automático.
+
+Rappi tiene un servicio pensado exactamente para esto — se llama **Rappi Cargo** — que permite que cualquier negocio use la flota de repartidores de Rappi conectándose directamente desde su propio sistema, sin pasar por la app de Rappi como comercio del marketplace. Es un producto distinto al de "vender en la app de Rappi" — es solo el servicio de despacho.
+
+**Esto lo tiene que gestionar el dueño de Seoul Kims directamente con Rappi — es una relación comercial entre el negocio y Rappi, nosotros no podemos solicitarla en su nombre.** Una vez que el dueño consiga la clave de acceso, nosotros nos encargamos de toda la conexión técnica — no hace falta que nadie más del equipo entienda nada técnico de esto.
+
+### Qué debe hacer el dueño, paso a paso
+
+1. **Contactar al equipo comercial de Rappi Cargo.** Se solicita directamente con Rappi — el canal más simple es a través del ejecutivo de cuenta de Rappi (si Seoul Kims ya tiene una relación comercial con Rappi por otro motivo) o a través de los canales de contacto para negocios que Rappi tenga publicados en ese momento. Como estos canales cambian con el tiempo, lo más seguro es buscar directamente "Rappi Cargo Chile" o "Rappi para negocios" y pedir hablar con el equipo comercial — ellos guían todo el proceso de alta.
+
+2. **Indicar que es para uso vía API** (integración directa con un sistema propio), no para gestionar pedidos manualmente desde una app de Rappi. Esto es importante decirlo explícitamente, porque Rappi ofrece ambas modalidades y cada una tiene un proceso distinto.
+
+3. **Completar el proceso de alta como comercio/partner.** Rappi normalmente pide: RUT de la empresa, datos de contacto, y a veces información bancaria para la facturación del servicio de despacho. Esto lo define Rappi al momento de la conversación — no es algo que dependa de nosotros.
+
+4. **Una vez aprobado, Rappi entrega credenciales de acceso a su API.** Generalmente son:
+   - Una llave de acceso (`API Key` o `Client ID` + `Client Secret`)
+   - Un identificador de la tienda/local dentro de la plataforma de Rappi
+
+5. **Enviar esas credenciales a VÉRTICE Productions.** Con eso, nosotros conectamos el sistema para que el despacho por Rappi pase a ser automático — el pedido se asigna solo, sin que la cajera tenga que escribir nada a mano.
+
+**En resumen: el dueño solo necesita conseguir la clave de Rappi Cargo y pasárnosla — el resto de la conexión (código, pruebas, puesta en marcha) corre por cuenta de VÉRTICE Productions.**
 
 ---
 
