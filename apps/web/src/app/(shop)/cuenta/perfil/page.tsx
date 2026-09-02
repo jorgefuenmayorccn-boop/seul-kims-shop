@@ -1,18 +1,22 @@
 'use client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useCustomerStore } from '@/lib/customer-store'
+import { useCustomerStore, useCustomerHasHydrated } from '@/lib/customer-store'
 import { ShopFooter } from '@seul/ui/shop/shop-footer'
 
 export default function PerfilPage() {
   const { customer } = useCustomerStore()
+  const hasHydrated = useCustomerHasHydrated()
   const router = useRouter()
 
+  // Hallazgo S17 (auditoría visual final, mismo patrón que dashboard/pedidos):
+  // esperar a que zustand/persist termine de hidratar desde localStorage antes
+  // de decidir "no hay sesión".
   useEffect(() => {
-    if (!customer) router.replace('/cuenta/login')
-  }, [customer, router])
+    if (hasHydrated && !customer) router.replace('/cuenta/login')
+  }, [hasHydrated, customer, router])
 
-  if (!customer) return null
+  if (!hasHydrated || !customer) return null
 
   return (
     <div style={{ background: 'var(--color-baek-pure)', minHeight: '100vh' }}>

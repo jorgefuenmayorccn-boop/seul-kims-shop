@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useCustomerStore } from '@/lib/customer-store'
+import { useCustomerStore, useCustomerHasHydrated } from '@/lib/customer-store'
 import { ShopFooter } from '@seul/ui/shop/shop-footer'
 import { Package } from '@seul/icons'
 
@@ -36,12 +36,18 @@ function statusLabel(s: string) {
 
 export default function PedidosPage() {
   const { customer } = useCustomerStore()
+  const hasHydrated = useCustomerHasHydrated()
   const router = useRouter()
   const [orders, setOrders]     = useState<OrderSummary[]>([])
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState('')
 
+  // Hallazgo S17 (auditoría visual final, mismo patrón que dashboard/perfil):
+  // esperar a que zustand/persist termine de hidratar desde localStorage antes
+  // de decidir "no hay sesión" — si no, una carga de página fresca (URL
+  // directa, recarga) mandaba a un cliente ya logueado de vuelta al login.
   useEffect(() => {
+    if (!hasHydrated) return
     if (!customer) { router.replace('/cuenta/login'); return }
     fetch(`${API_URL}/api/customer/orders`, { credentials: 'include' })
       .then(r => r.json())
@@ -51,9 +57,9 @@ export default function PedidosPage() {
       })
       .catch(() => setError('No se pudo conectar.'))
       .finally(() => setLoading(false))
-  }, [customer, router])
+  }, [hasHydrated, customer, router])
 
-  if (!customer) return null
+  if (!hasHydrated || !customer) return null
 
   return (
     <div style={{ background: 'var(--color-baek-pure)', minHeight: '100vh' }}>

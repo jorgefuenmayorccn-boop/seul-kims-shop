@@ -1,20 +1,27 @@
 'use client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useCustomerStore } from '@/lib/customer-store'
+import { useCustomerStore, useCustomerHasHydrated } from '@/lib/customer-store'
 import { ShopFooter } from '@seul/ui/shop/shop-footer'
 import Link from 'next/link'
 import { Package, User, LogOut } from '@seul/icons'
 
 export default function DashboardPage() {
   const { customer, logout } = useCustomerStore()
+  const hasHydrated = useCustomerHasHydrated()
   const router = useRouter()
 
+  // Hallazgo S17 (auditoría visual final): el store persiste la sesión en
+  // localStorage, pero en una carga de página fresca (URL directa, recarga,
+  // link externo) `customer` empieza en null hasta que zustand/persist termina
+  // de hidratar — sin este guard, esta pantalla mandaba a un cliente ya
+  // logueado de vuelta al login en cada carga directa. Solo se decide "no hay
+  // sesión" una vez que la hidratación terminó.
   useEffect(() => {
-    if (!customer) router.replace('/cuenta/login')
-  }, [customer, router])
+    if (hasHydrated && !customer) router.replace('/cuenta/login')
+  }, [hasHydrated, customer, router])
 
-  if (!customer) return null
+  if (!hasHydrated || !customer) return null
 
   const firstName = customer.name.split(' ')[0]
 
