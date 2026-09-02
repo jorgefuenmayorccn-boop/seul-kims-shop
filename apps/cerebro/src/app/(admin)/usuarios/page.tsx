@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Users, Plus, UserCheck, UserX, ChevronDown, Trash2 } from 'lucide-react'
+import { friendlyErrorMessage } from '@seul/ui'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
@@ -55,7 +56,8 @@ export default function UsuariosPage() {
       const d = await r.json() as { users: User[] }
       setUsers(d.users ?? [])
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error de conexión')
+      console.error('[cerebro/usuarios]', err)
+      setError(friendlyErrorMessage(err instanceof Error ? err.message : undefined, 'Error de conexión'))
     } finally {
       setLoading(false)
     }
@@ -124,9 +126,9 @@ export default function UsuariosPage() {
       </div>
 
       {error && !showForm && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded-lg bg-error-subtle border border-error text-sm text-error flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError('')} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+          <button onClick={() => setError('')} className="ml-4 text-error hover:opacity-70">✕</button>
         </div>
       )}
 
@@ -257,7 +259,7 @@ export default function UsuariosPage() {
                       </button>
                       <button onClick={() => deleteUser(user)}
                         className="text-text-muted hover:text-error transition-colors"
-                        title="Eliminar usuario">
+                        title="Eliminar usuario (desactiva la cuenta, no borra su historial)">
                         <Trash2 size={14} />
                       </button>
                     </div>

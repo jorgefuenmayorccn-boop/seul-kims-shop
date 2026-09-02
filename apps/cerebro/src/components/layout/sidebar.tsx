@@ -77,8 +77,7 @@ export function Sidebar({ user }: Props) {
 
       <div className="px-5 py-4 border-t border-[var(--color-border)]">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold"
-            style={{ background: 'var(--color-brand)', color: '#fff' }}>
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold bg-brand text-text-on-brand">
             {(user.name || user.email || '?').charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">

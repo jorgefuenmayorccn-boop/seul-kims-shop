@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Truck, Train, MapPin, CheckCircle, Clock, AlertCircle, User } from 'lucide-react'
+import { friendlyErrorMessage, EmptyState } from '@seul/ui'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
@@ -72,7 +73,8 @@ export default function DespachoPage() {
       setAssignments(aData.assignments ?? [])
       setDrivers((uData.users ?? []).filter(u => u.role === 'delivery' || u.role === 'staff'))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error de conexión')
+      console.error('[cerebro/despacho]', err)
+      setError(friendlyErrorMessage(err instanceof Error ? err.message : undefined, 'Error de conexión'))
     } finally {
       setLoading(false)
     }
@@ -126,16 +128,16 @@ export default function DespachoPage() {
       </div>
 
       {error && (
-        <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 flex items-center justify-between">
+        <div className="mb-4 px-4 py-3 rounded-lg bg-error-subtle border border-error text-sm text-error flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-4 text-red-500 hover:text-red-700">✕</button>
+          <button onClick={() => setError(null)} className="ml-4 text-error hover:opacity-70">✕</button>
         </div>
       )}
 
       {/* Activos */}
       {active.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--color-border)] py-16 text-center text-sm text-text-muted mb-6">
-          Sin despachos activos
+        <div className="rounded-xl border border-dashed border-[var(--color-border)] mb-6">
+          <EmptyState variant="no-orders" title="Sin despachos activos" description="Las entregas asignadas aparecerán aquí." />
         </div>
       ) : (
         <div className="space-y-3 mb-8">

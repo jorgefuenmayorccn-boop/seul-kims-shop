@@ -53,7 +53,7 @@ function LoginForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-xs font-semibold font-body mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
+        <label className="block text-xs font-semibold font-body mb-1.5 text-text-muted">
           Correo electrónico
         </label>
         <input
@@ -62,13 +62,12 @@ function LoginForm() {
           required
           autoComplete="email"
           placeholder="tu@email.com"
-          className="w-full px-3 py-2.5 rounded text-sm font-body focus:outline-none"
-          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+          className="w-full px-3 py-2.5 rounded text-sm font-body bg-surface border border-[var(--color-border)] text-text focus:outline-none"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-semibold font-body mb-1.5" style={{ color: 'var(--color-text-muted)' }}>
+        <label className="block text-xs font-semibold font-body mb-1.5 text-text-muted">
           Contraseña
         </label>
         <div className="relative">
@@ -78,14 +77,12 @@ function LoginForm() {
             required
             autoComplete="current-password"
             placeholder="••••••••"
-            className="w-full px-3 py-2.5 pr-10 rounded text-sm font-body focus:outline-none"
-            style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+            className="w-full px-3 py-2.5 pr-10 rounded text-sm font-body bg-surface border border-[var(--color-border)] text-text focus:outline-none"
           />
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm focus:outline-none"
-            style={{ color: 'var(--color-text-muted)' }}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-sm text-text-muted focus:outline-none"
             aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
           >
             {showPassword ? (
@@ -98,7 +95,7 @@ function LoginForm() {
       </div>
 
       {error && (
-        <p className="text-xs font-body rounded px-3 py-2" style={{ background: 'var(--color-error-subtle)', color: 'var(--color-error)' }}>
+        <p className="text-xs font-body rounded px-3 py-2 bg-error-subtle text-error">
           {error}
         </p>
       )}
@@ -106,8 +103,7 @@ function LoginForm() {
       <button
         type="submit"
         disabled={isPending}
-        className="w-full py-2.5 rounded font-headline font-bold text-sm transition-opacity disabled:opacity-50"
-        style={{ background: 'var(--color-brand)', color: '#fff' }}
+        className="w-full py-2.5 rounded font-headline font-bold text-sm text-text-on-brand bg-brand transition-opacity disabled:opacity-50"
       >
         {isPending ? 'Ingresando…' : 'Ingresar'}
       </button>
@@ -117,21 +113,20 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-background)' }}>
-      <div className="w-full max-w-sm rounded-xl border p-8 shadow-sm"
-        style={{ background: 'var(--color-surface-elevated)', borderColor: 'var(--color-border)' }}>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-full max-w-sm rounded-xl border p-8 shadow-sm bg-elevated border-[var(--color-border)]">
 
         <div className="mb-8 text-center">
-          <p className="font-korean font-black text-3xl" style={{ color: 'var(--color-brand)' }}>서울킴스</p>
-          <p className="font-headline font-bold text-lg mt-1" style={{ color: 'var(--color-text)' }}>SEUL KING OS V1.0</p>
-          <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--color-text-muted)' }}>Panel Administrativo</p>
+          <p className="font-korean font-black text-3xl text-brand">서울킴스</p>
+          <p className="font-headline font-bold text-lg mt-1 text-text">SEUL KING OS V1.0</p>
+          <p className="text-xs font-mono mt-0.5 text-text-muted">Panel Administrativo</p>
         </div>
 
         <Suspense fallback={<div className="h-40 animate-pulse bg-surface rounded" />}>
           <LoginForm />
         </Suspense>
 
-        <p className="text-center text-[10px] font-mono mt-6" style={{ color: 'var(--color-text-disabled)' }}>
+        <p className="text-center text-[10px] font-mono mt-6 text-text-disabled">
           SEUL KING OS v1.0 · Acceso restringido
         </p>
       </div>
