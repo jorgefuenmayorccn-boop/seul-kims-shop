@@ -1,9 +1,11 @@
 'use client'
 import { useState } from 'react'
 import { formatCLP } from '@seul/ui'
+import { POSNumpad } from '@seul/ui/pos/numpad'
 import { calcRemaining, isCovered, tenderMethodLabel, type Tender } from '@/lib/payment-methods'
 import { PayCash } from './pay-cash'
 import { PayCard } from './pay-card'
+import { PayQR } from './pay-qr'
 import { IconClose, IconCheck } from '../../icons/pos-icons'
 
 interface PayMixedProps {
@@ -15,26 +17,57 @@ interface PayMixedProps {
   onNotReady: () => void
 }
 
-type ActiveMethod = 'cash' | 'debit' | 'credit' | null
+type SplitMethod = 'debit' | 'credit' | 'qr'
+type Active =
+  | { method: 'cash' }
+  | { method: SplitMethod; step: 'amount' | 'terminal' }
+  | null
+
+const SPLITTABLE_METHODS: Array<{ id: 'cash' | SplitMethod; label: string }> = [
+  { id: 'cash',   label: 'Efectivo' },
+  { id: 'debit',  label: 'Débito' },
+  { id: 'credit', label: 'Crédito' },
+  { id: 'qr',     label: 'QR / Transf.' },
+]
+
+const SPLIT_METHOD_LABEL: Record<SplitMethod, string> = {
+  debit:  'Débito',
+  credit: 'Crédito',
+  qr:     'QR / Transferencia',
+}
 
 export function PayMixed({
   total, tenders, onAddTender, onRemoveTender, onReady, onNotReady,
 }: PayMixedProps) {
-  const [activeMethod, setActiveMethod] = useState<ActiveMethod>(null)
+  const [active, setActive] = useState<Active>(null)
+  // Monto elegido para el método activo (débito/crédito/QR) — por defecto el
+  // restante completo, pero editable: así se puede dividir aunque el primer
+  // método elegido no sea efectivo (antes esto SIEMPRE cobraba el total
+  // restante de una sola vez en tarjeta/QR, haciendo imposible partir el pago
+  // si no se empezaba por efectivo — reportado por el dueño 2026-09-02).
+  const [splitAmount, setSplitAmount] = useState('0')
+
   const remaining = calcRemaining(total, tenders)
   const covered   = isCovered(total, tenders)
+  const splitAmountNum = Math.min(parseInt(splitAmount, 10) || 0, remaining)
+
+  function openSplitMethod(method: SplitMethod) {
+    setSplitAmount(String(remaining))
+    setActive({ method, step: 'amount' })
+  }
 
   function addCash(received: number) {
     const amount = Math.min(received, remaining)
     onAddTender({ method: 'cash', amount })
-    setActiveMethod(null)
+    setActive(null)
     if (isCovered(total, [...tenders, { method: 'cash', amount }])) onReady()
   }
 
-  function addCard(method: 'debit' | 'credit') {
-    onAddTender({ method, amount: remaining })
-    setActiveMethod(null)
-    onReady()
+  function addSplit(method: SplitMethod, amount: number) {
+    const capped = Math.min(Math.max(amount, 1), remaining)
+    onAddTender({ method, amount: capped })
+    setActive(null)
+    if (isCovered(total, [...tenders, { method, amount: capped }])) onReady()
   }
 
   return (
@@ -106,7 +139,7 @@ export function PayMixed({
       </div>
 
       {/* Selector siguiente método */}
-      {!covered && !activeMethod && (
+      {!covered && !active && (
         <div>
           <p
             className="font-body text-[10px] font-semibold tracking-widest mb-2"
@@ -114,11 +147,11 @@ export function PayMixed({
           >
             AGREGAR PAGO PARCIAL
           </p>
-          <div className="grid grid-cols-3 gap-2">
-            {(['cash', 'debit', 'credit'] as const).map(m => (
+          <div className="grid grid-cols-2 gap-2">
+            {SPLITTABLE_METHODS.map(m => (
               <button
-                key={m}
-                onClick={() => setActiveMethod(m)}
+                key={m.id}
+                onClick={() => m.id === 'cash' ? setActive({ method: 'cash' }) : openSplitMethod(m.id)}
                 className="rounded py-3 font-body text-sm font-semibold transition-all active:scale-95"
                 style={{
                   background: 'var(--color-surface)',
@@ -126,22 +159,22 @@ export function PayMixed({
                   color:      'var(--color-text)',
                 }}
               >
-                {m === 'cash' ? 'Efectivo' : m === 'debit' ? 'Débito' : 'Crédito'}
+                {m.label}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      {/* UI del método activo */}
-      {activeMethod === 'cash' && !covered && (
+      {/* Efectivo — ya soporta monto parcial vía numpad propio */}
+      {active?.method === 'cash' && !covered && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="font-body text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
               Efectivo — hasta {formatCLP(remaining)}
             </p>
             <button
-              onClick={() => setActiveMethod(null)}
+              onClick={() => setActive(null)}
               className="font-body text-xs underline"
               style={{ color: 'var(--color-text-muted)' }}
             >
@@ -156,24 +189,115 @@ export function PayMixed({
         </div>
       )}
 
-      {(activeMethod === 'debit' || activeMethod === 'credit') && !covered && (
+      {/* Paso 1 para débito/crédito/QR dentro de mixto: elegir CUÁNTO de este
+          método (antes se cobraba siempre el restante completo, impidiendo
+          dividir si no se empezaba por efectivo). */}
+      {active && active.method !== 'cash' && active.step === 'amount' && !covered && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="font-body text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
-              {activeMethod === 'debit' ? 'Débito' : 'Crédito'} — {formatCLP(remaining)}
+              {SPLIT_METHOD_LABEL[active.method]} — monto a cobrar
             </p>
             <button
-              onClick={() => setActiveMethod(null)}
+              onClick={() => setActive(null)}
               className="font-body text-xs underline"
               style={{ color: 'var(--color-text-muted)' }}
             >
               Cancelar
             </button>
           </div>
+
+          <div
+            className="rounded px-4 py-3"
+            style={{ background: 'var(--color-surface)' }}
+          >
+            <p
+              className="font-body text-xs font-semibold tracking-widest mb-1"
+              style={{ color: 'var(--color-text-muted)', letterSpacing: '0.12em' }}
+            >
+              MONTO (máx. {formatCLP(remaining)})
+            </p>
+            <p className="font-mono font-black leading-none" style={{ fontSize: 40, color: 'var(--color-text)' }}>
+              {formatCLP(splitAmountNum)}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setSplitAmount(String(remaining))}
+              className="rounded py-2.5 font-body font-semibold text-sm transition-all active:scale-95"
+              style={{
+                background: splitAmountNum === remaining ? 'var(--color-celadon, #7ca38e)' : 'var(--color-surface)',
+                color:      splitAmountNum === remaining ? '#fff' : 'var(--color-text)',
+                border:     `1px solid ${splitAmountNum === remaining ? 'var(--color-celadon, #7ca38e)' : 'var(--color-border)'}`,
+              }}
+            >
+              Todo el restante
+            </button>
+            <button
+              onClick={() => setSplitAmount(String(Math.round(remaining / 2)))}
+              className="rounded py-2.5 font-body font-semibold text-sm transition-all active:scale-95"
+              style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-text)' }}
+            >
+              Mitad ({formatCLP(Math.round(remaining / 2))})
+            </button>
+          </div>
+
+          <POSNumpad value={splitAmount} onChange={setSplitAmount} mode="integer" />
+
+          <button
+            disabled={splitAmountNum <= 0}
+            onClick={() => setActive({ method: active.method, step: 'terminal' })}
+            className="w-full rounded py-3 font-body font-semibold text-sm transition-all active:scale-95 disabled:opacity-40"
+            style={{ background: 'var(--heuk-950, #0a0a0a)', color: '#f5f5f2' }}
+          >
+            Continuar con {formatCLP(splitAmountNum)}
+          </button>
+        </div>
+      )}
+
+      {/* Paso 2: terminal de tarjeta para el monto ya elegido */}
+      {active && (active.method === 'debit' || active.method === 'credit') && active.step === 'terminal' && !covered && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="font-body text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              {SPLIT_METHOD_LABEL[active.method]} — {formatCLP(splitAmountNum)}
+            </p>
+            <button
+              onClick={() => setActive({ method: active.method, step: 'amount' })}
+              className="font-body text-xs underline"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Cambiar monto
+            </button>
+          </div>
           <PayCard
-            total={remaining}
-            type={activeMethod}
-            onReady={() => addCard(activeMethod)}
+            total={splitAmountNum}
+            type={active.method}
+            onReady={() => addSplit(active.method, splitAmountNum)}
+          />
+        </div>
+      )}
+
+      {/* Paso 2: QR/transferencia para el monto ya elegido */}
+      {active?.method === 'qr' && active.step === 'terminal' && !covered && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="font-body text-sm font-semibold" style={{ color: 'var(--color-text)' }}>
+              QR / Transferencia — {formatCLP(splitAmountNum)}
+            </p>
+            <button
+              onClick={() => setActive({ method: 'qr', step: 'amount' })}
+              className="font-body text-xs underline"
+              style={{ color: 'var(--color-text-muted)' }}
+            >
+              Cambiar monto
+            </button>
+          </div>
+          <PayQR
+            total={splitAmountNum}
+            onReady={() => addSplit('qr', splitAmountNum)}
+            onNotReady={() => {}}
           />
         </div>
       )}
