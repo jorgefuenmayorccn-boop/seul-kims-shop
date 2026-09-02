@@ -513,6 +513,24 @@ Commits: `a3f68e7` (tokens compartidos + `@seul/ui`), `e8294cb` (fix checkboxes/
 
 ---
 
+## Adición fuera de fase — Fotos reales de producto (2-sep-2026)
+
+Fuera de la numeración S01-S17 — tarea puntual pedida por el dueño, mismo patrón que "Nota de Venta" y "Comandas en POS" (ver arriba). Contexto: de los 81 productos en `products`, 59 tenían `image_url` apuntando a `picsum.photos` (fotos aleatorias sin relación al producto, placeholders de desarrollo) y 22 tenían `image_url = NULL`. El dueño autorizó explícitamente usar como referencia fotos de empaque de `seulmarket.cl` (tienda coreana con los mismos productos) y de sitios oficiales de marca/distribuidor, exigiendo que la imagen coincida con el producto real (mismo empaque/marca/gramaje), nunca una foto genérica no relacionada.
+
+**Arquitectura elegida:** sin credenciales de Cloudflare R2 configuradas (verificado, cero env vars `R2_*`), se optó por servir las imágenes directamente desde `apps/web/public/products/<sku>.jpg` (carpeta pública de Next.js/Vercel) en vez de construir infraestructura R2 nueva — accesible por igual desde las 4 apps sin dependencias nuevas. `products.image_url` actualizado a `https://seoulshop.cl/products/<sku>.jpg`.
+
+**Método:** en vez de navegar producto por producto con browser, se usó el endpoint público `/products.json` de Shopify (que expone `seulmarket.cl` y varios retailers coreano-americanos también construidos en Shopify — `mandu.market`, `exoticsnacks.com`, `gohanmarket.com`) para obtener catálogos completos con URLs de imagen directas en una sola llamada HTTP, y luego emparejar por nombre/marca/gramaje contra los 81 productos de la BD. Para marcas puntuales no disponibles en esos catálogos (COSRX, Bibigo, CJ Haechandle, Jongga) se usó WebSearch + WebFetch dirigido a la tienda oficial o a un retailer que expusiera la imagen sin bloqueo de bot. Cada imagen candidata se verificó visualmente (lectura multimodal) antes de aceptarla — se detectó y corrigió un error real en el proceso: el primer candidato para `CHOCO-PIE-12` (marca `Orion` en la BD) resultó ser Choco Pie de **Lotte**, un competidor — descartado y reemplazado por el Choco Pie de Orion correcto antes de subir nada.
+
+**Resultado: 26 de 81 productos con foto real**, procesadas a JPEG máx. 800×800 (Pillow) y comiteadas en `apps/web/public/products/`. `image_url` de esos 26 actualizado en Neon vía `railway run node` con el patrón `postgres` estándar del repo. Los otros 55 quedan sin tocar (41 siguen con picsum, 14 siguen NULL) — no se inventó ninguna imagen genérica para ellos. Motivo del corte, por categoría:
+- **Sin marca en el nombre de la BD y sin equivalente vendido por ninguna fuente consultada** (arroz crudo 5kg, sal marina, semillas de sésamo, agua mineral, banchan "surtido del día", pescado/odeng congelado, productos frescos como rábano/perilla/brotes de soja, insumos desechables de delivery): no existe un producto real único al que apuntar sin adivinar.
+- **Marca sí especificada pero sin match confiable encontrado** dentro del tiempo disponible (Pocari/Bacchus ya resueltos; pendientes ej. Yakult, Melona, Chilsung Cider, Saeukkang en 90g exacto, Turtle Chips sabor Original, soju Chamisul/Jinro, makgeolli Seoul Jangsu, Bibigo Mandu Kimchi) — Amazon/Walmart/H-Mart bloquean el fetch de bot; quedó fuera de alcance seguir insistiendo con más buscadores.
+
+**Verificación:** `SELECT` directo en Neon confirma 26 filas con `image_url LIKE '%seoulshop.cl%'`, 41 con picsum, 14 NULL (81 total). `curl` a 26 URLs `https://seoulshop.cl/products/<sku>.jpg` → 200 + `content-type: image/jpeg` en todas (incluye verificación cruzada con 404 en SKUs no resueltos, confirmando que no es un catch-all). Deploy Vercel del proyecto `web` confirmado `Ready` con `vercel inspect` (alias `seoulshop.cl` activo) tras el push. No se corrió Playwright contra producción (browser de Chromium no instalado en este entorno y reinstalarlo no se justificaba solo para una captura visual, dado que el curl + revisión visual de cada imagen fuente ya verifica el resultado).
+
+**No tocado:** auth/RBAC/rate-limiter/checkout/POS/B2B/impresión/ARCOP/analítica ni archivos de diseño compartido (S15 trabajaba en paralelo sobre tokens de diseño durante esta sesión — cero solapamiento, se confirmó `git status` limpio salvo `apps/web/public/`).
+
+---
+
 ## Fuentes (investigación de arquitectura y diseño, 31-ago-2026)
 
 - [Enterprise CRM Security Framework: Comprehensive Protection Strategies](https://www.stacksync.com/blog/enterprise-crm-security-framework-comprehensive-protection-strategies-for-2025)
