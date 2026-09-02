@@ -652,6 +652,28 @@ Commit: `4ea055b` (los 4 puntos, un solo commit dado que todo vivía en un únic
 
 ---
 
+## Adición post-entrega — Subida de fotos de producto + header B2B con sesión (2-sep-2026)
+
+Fuera de la numeración S01-S17, pedida puntualmente por el dueño tras revisar el sistema ya entregado. Dos puntos independientes, cada uno con su propio commit.
+
+**1. `POST`/`DELETE /api/products/:productId/images` — 404 hoy, el botón de subir foto en `apps/cerebro` no tenía backend.** `image-uploader.tsx` ya llamaba a ambos endpoints (multipart, campo `file`). Mismo patrón pragmático que `POST /api/delivery/assignments/:id/pod` (S16): sin credenciales R2 configuradas, la foto se guarda en disco local del servicio Railway (`uploads/products/`, efímero) y se sirve vía `GET /product-photos/:filename` (ruta pública nueva, mismo criterio de filename no-enumerable + sanitización a basename que `/pod/:filename`). Rol `owner`/`admin`, igual que crear/editar producto. `product_images.r2_key` guarda hoy el nombre de archivo local, no una key real de R2 — cuando exista R2, ese campo pasa a contener la key real sin cambiar el shape de la tabla.
+
+Decisión de producto tomada en esta sesión (el brief pedía criterio propio): si el producto no tenía `image_url` (la portada que usa el catálogo público) y esta es su primera foto subida, se auto-asigna como portada — así aparece en la tienda sin un paso manual extra en el form. Como consecuencia directa, se agregó `api.seoulshop.cl` a `apps/web/next.config.js` (`images.remotePatterns`) — sin esto, `next/image` habría rechazado esa portada auto-asignada con el mismo 400 `INVALID_IMAGE_OPTIMIZE_REQUEST` que S17 ya diagnosticó para hosts no declarados. El `DELETE` es simétrico: si la imagen borrada era la portada, promueve la siguiente imagen restante o limpia `image_url` si no queda ninguna, para no dejar el catálogo apuntando a un archivo borrado.
+
+Verificado con producto y foto desechables (SKU `QA-TEST-IMG-001`, creado y borrado por API/SQL directo en esta sesión, servidor local apuntando a la DB de Neon real): subida → fila en `product_images` con `sort_order` correcto → `products.image_url` auto-asignada → URL pública `200` con `content-type: image/png` y tamaño correcto → `GET /api/products/id/:id` devuelve `images[].url` absoluta (shape que espera `image-uploader.tsx`) → `DELETE` limpia fila + archivo físico + `image_url` → URL pública pasa a `404`. Confirmado además `401` sin sesión y `403` con rol `delivery` (rechazo de rol incorrecto).
+
+**2. Header del portal B2B (`apps/web/(b2b)/layout.tsx`) no reflejaba sesión de empresa iniciada — siempre mostraba "Iniciar sesión"/"Solicitar cuenta".** Era Server Component y nunca revisaba la cookie `seul_customer_session` (httpOnly). Se extrajo el nav a un Client Component nuevo (`components/b2b/b2b-auth-nav.tsx`) que confirma la sesión contra `GET /api/b2b/empresa/me` con `credentials:'include'` al montar (mismo patrón que `b2b/dashboard` y `b2b/credito`, S11). Con empresa asociada: muestra la razón social (link a `/b2b/dashboard`) + botón de cerrar sesión. Sin sesión: comportamiento anterior sin cambios.
+
+Bug real encontrado y corregido durante la verificación con Playwright, no en el brief original: el nav vive en el layout compartido del grupo de rutas `(b2b)`, que el App Router de Next.js **no remonta** al navegar de `/b2b/login` a `/b2b/dashboard` tras un login exitoso (`router.replace` dentro del mismo grupo) — sin refetch en ese cambio de ruta, el header se quedaba pegado en "Iniciar sesión" después de loguearse hasta un refresh manual completo. Se agregó `usePathname()` a las dependencias del `useEffect` de sesión para refrescarla en cada navegación dentro del portal.
+
+Verificado end-to-end con Playwright (`channel:'chrome'`) contra `apps/web` local (puerto 3000) + API local (puerto 8787, misma DB de Neon real): empresa B2B desechable registrada por API (RUT válido generado, email `qa-test-b2b-header@example.com`), contraseña temporal extraída de `email_queue.template_data` (el correo real vía Resend nunca se verificó, solo se leyó el contenido ya encolado) → header sin sesión muestra "Iniciar sesión"/"Solicitar cuenta" → login por formulario real → header cambia a la razón social + "Cerrar sesión" → click en cerrar sesión → header vuelve al estado original. Empresa, cliente y fila de `email_queue` de prueba borrados al cerrar (`SELECT` posterior confirma 0 filas).
+
+**No tocado:** login/RBAC/checkout/POS/impresión/ARCOP/analítica/audit-log/sistema-de-diseño ni ningún otro endpoint ya construido. La cuenta `ceojorge@verticeproductions.com` (único usuario staff activo) no fue tocada ni usada para las pruebas — se usó un JWT firmado localmente con el secreto de desarrollo (`seul-king-os-secret-dev`, inválido contra producción) para las pruebas del punto 1, y una empresa/cliente 100% desechables para el punto 2.
+
+Commits: `ce8178b` (punto 1: `feat(api): construye subida de fotos de producto` + `next.config.js`) y `0b80856` (punto 2: `fix(web): header B2B refleja sesión de empresa iniciada`) — ambos pusheados a `main`. Railway (`sparkling-fulfillment`) y Vercel (proyecto `web`, alias `seoulshop.cl`) redesplegados automáticamente y verificados: `/health` en `200` post-deploy, build de Vercel `Ready` sobre el commit `0b80856` con alias confirmado a `https://seoulshop.cl`.
+
+---
+
 ## Fuentes (investigación de arquitectura y diseño, 31-ago-2026)
 
 - [Enterprise CRM Security Framework: Comprehensive Protection Strategies](https://www.stacksync.com/blog/enterprise-crm-security-framework-comprehensive-protection-strategies-for-2025)
