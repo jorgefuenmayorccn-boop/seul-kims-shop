@@ -66,8 +66,10 @@ export function CheckoutShell({
   const [cashReceived, setCashReceived] = useState(0)
   const [loading,      setLoading]      = useState(false)
 
-  // DTE state
-  const [dteType,   setDteType]   = useState<DteType>('boleta')
+  // DTE state — default y única opción real hoy es 'nota_venta' (ver botones
+  // DOCUMENTO más abajo: Boleta/Factura están deshabilitadas hasta que se
+  // conecte un proveedor DTE real, decisión de negocio pendiente post-v1.0).
+  const [dteType,   setDteType]   = useState<DteType>('nota_venta')
   const [receiver,  setReceiver]  = useState<Receiver>({ rut: '', razonSocial: '', giro: '', direccion: '', comuna: '' })
   const [rutError,  setRutError]  = useState('')
 
@@ -352,7 +354,11 @@ export function CheckoutShell({
                 rappiOnly={isRappi}
               />
 
-              {/* Selector tipo de documento */}
+              {/* Selector tipo de documento — Boleta/Factura quedan deshabilitadas
+                  hasta que se conecte un proveedor DTE real (Haulmer/OpenFactura/
+                  SimpleAPI, decisión de negocio pendiente, ver PLAN_MAESTRO_SEUL_KING_OS.md).
+                  Se dejan visibles (no se ocultan) para que el layout de 3 columnas
+                  ya esté listo el día que se activen — solo "enchufar", sin rediseñar. */}
               <div className="mt-5">
                 <p
                   className="font-body text-[10px] font-semibold tracking-widest mb-3"
@@ -362,18 +368,23 @@ export function CheckoutShell({
                 </p>
                 <div className="grid grid-cols-3 gap-2">
                   {([
-                    { id: 'nota_venta' as DteType, label: 'Nota de venta', sub: 'Interna' },
-                    { id: 'boleta'     as DteType, label: 'Boleta',        sub: 'Electrónica' },
-                    { id: 'factura'    as DteType, label: 'Factura',       sub: 'Electrónica' },
+                    { id: 'nota_venta' as DteType, label: 'Nota de venta', sub: 'Disponible',    disabled: false },
+                    { id: 'boleta'     as DteType, label: 'Boleta',        sub: 'Próximamente',   disabled: true },
+                    { id: 'factura'    as DteType, label: 'Factura',       sub: 'Próximamente',   disabled: true },
                   ]).map(opt => (
                     <button
                       key={opt.id}
-                      onClick={() => setDteType(opt.id)}
+                      type="button"
+                      disabled={opt.disabled}
+                      onClick={() => !opt.disabled && setDteType(opt.id)}
+                      title={opt.disabled ? 'Disponible cuando se conecte la boleta electrónica SII' : undefined}
                       className="flex flex-col items-center px-3 py-3 rounded border text-center transition-all"
                       style={{
                         borderColor: dteType === opt.id ? 'var(--heuk-950, #0a0a0a)' : 'var(--color-border)',
                         background:  dteType === opt.id ? 'var(--heuk-950, #0a0a0a)' : 'transparent',
                         color:       dteType === opt.id ? '#f5f5f2' : 'var(--color-text)',
+                        opacity:     opt.disabled ? 0.4 : 1,
+                        cursor:      opt.disabled ? 'not-allowed' : 'pointer',
                       }}
                     >
                       <span className="font-headline font-bold text-sm">{opt.label}</span>
