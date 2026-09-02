@@ -228,6 +228,12 @@ importers:
       '@seul/db':
         specifier: workspace:*
         version: link:../db
+      '@seul/dte':
+        specifier: workspace:*
+        version: link:../dte
+      '@seul/pdf-templates':
+        specifier: workspace:*
+        version: link:../pdf-templates
       bcryptjs:
         specifier: ^2.4.3
         version: 2.4.3

@@ -10,6 +10,8 @@
   "dependencies": {
     "@hono/node-server": "^1.14.0",
     "@seul/db": "workspace:*",
+    "@seul/dte": "workspace:*",
+    "@seul/pdf-templates": "workspace:*",
     "bcryptjs": "^2.4.3",
     "drizzle-orm": "^0.37.0",
     "hono": "^4.6.0",

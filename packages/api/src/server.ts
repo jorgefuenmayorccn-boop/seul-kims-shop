@@ -13,6 +13,13 @@ import { AuthService } from './services/auth.service'
 import { PasswordService } from './services/password.service'
 import { requireAuthMiddleware, requireScopeMiddleware, requireSession, getOptionalSession, requireCustomerSession, getOptionalCustomerSession } from './middleware/auth.middleware'
 import { emitPosEvent, emitDeliveryEvent, onPosEvent, onDeliveryEvent } from './sse-broadcaster'
+// SEUL_SESSION_boletas-80mm (adición fuera de numeración S01-S17): seam para
+// el DTE real futuro. `emitDte` ya soportaba 'mock' | 'openfactura' vía
+// DTE_PROVIDER — hoy se llama SIEMPRE con DTE_PROVIDER: 'mock' explícito
+// (nunca leyendo env), así nunca contacta un proveedor real aunque alguien
+// configure DTE_API_KEY en Railway antes de tiempo. Ver POST /api/orders.
+import { emitDte, type DteRequest } from '@seul/dte'
+import { STORE_INFO } from '@seul/pdf-templates/client'
 
 // ============================================================================
 // SESSION COOKIE
@@ -1826,7 +1833,16 @@ app.post('/api/till-sessions/:id/close', async (c) => {
 app.use('/api/orders*', requireAuthMiddleware)
 app.use('/api/orders*', requireScopeMiddleware(['orders:write']))
 
-// POST /api/orders
+// POST /api/orders — checkout real de POS (SEUL_SESSION_boletas-80mm, fuera de
+// numeración S01-S17). Este endpoint solía asumir el shape de un pedido web
+// (customer_email/items/total planos) que apps/pos/.../checkout-shell.tsx
+// (la UI de cobro realmente montada en apps/pos/src/app/page.tsx) NUNCA
+// llamó con esa forma — toda venta en caja fallaba con 400 "Missing fields"
+// antes de llegar siquiera a intentar el INSERT. Reescrito para el payload
+// real que envía handleConfirm() en apps/pos/src/app/page.tsx: items con
+// productId/quantity/unitPrice/isBaes, payments[], shiftId/tillSessionId,
+// dteType, receiver opcional (factura). El endpoint de web público vive
+// aparte en POST /api/public/orders (ver comentario ahí) y no se toca acá.
 app.post('/api/orders', async (c) => {
   // Rate limit (S02, bloqueador P0 #3): 20 pedidos / 5 min por usuario o IP.
   const rl = await checkAndRecordRateLimit(c, 'orders:create', { limit: 20, windowMinutes: 5 })
@@ -1834,70 +1850,195 @@ app.post('/api/orders', async (c) => {
     return c.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
   }
 
+  const auth = c.get('auth') as { userId?: string } | undefined
+
   try {
-    const { customer_email, customer_name, items, total, delivery_mode } = await c.req.json()
-    if (!customer_email || !items || !total) return c.json({ error: 'Missing fields' }, 400)
+    const body = await c.req.json().catch(() => null)
+    if (!body) return c.json({ error: 'JSON inválido' }, 400)
 
-    const order_number = Math.floor(Math.random() * 100000)
-    const [order] = await sql`
-      INSERT INTO orders (number, channel, delivery_mode, status, subtotal, total)
-      VALUES (${order_number}, 'web', ${delivery_mode || 'delivery'}, 'nueva', ${total}, ${total})
-      RETURNING id, number
-    `
+    const items: Array<{ productId?: string; quantity?: number; unitPrice?: number; isBaes?: boolean; name?: string }> =
+      Array.isArray(body.items) ? body.items : []
+    const payments: Array<{ method?: string; amount?: number; meta?: unknown }> =
+      Array.isArray(body.payments) ? body.payments : []
+    const receiver = body.receiver as
+      | { rut?: string; razonSocial?: string; giro?: string; direccion?: string; comuna?: string }
+      | undefined
+    const deliveryMode = typeof body.deliveryMode === 'string' ? body.deliveryMode : 'pickup'
 
-    // Email confirmación
-    const queueIdConfirmation = await enqueueEmail(
-      customer_email,
-      `✅ Orden Confirmada #${order.number}`,
-      templates.orderConfirmation(order),
-      'order-confirmation'
-    )
+    if (items.length === 0) return c.json({ error: 'El pedido no tiene productos' }, 400)
+    for (const it of items) {
+      if (!it.productId || !(Number(it.quantity) > 0) || !(Number(it.unitPrice) >= 0)) {
+        return c.json({ error: 'Ítem inválido en el pedido' }, 400)
+      }
+    }
 
-    // Email admin
-    const queueIdAdminNotice = await enqueueEmail(
-      ADMIN_EMAIL,
-      `📦 Nueva Orden #${order.number}`,
-      `<p>Nueva orden de ${customer_name}. Total: $${total}</p>`,
-      'order-confirmation'
-    )
+    const subtotal = items.reduce((acc, it) => acc + Number(it.unitPrice) * Number(it.quantity), 0)
+    const baesAmount = items
+      .filter(it => it.isBaes)
+      .reduce((acc, it) => acc + Number(it.unitPrice) * Number(it.quantity), 0)
+    const total = subtotal - baesAmount
 
-    const queue_ids = [queueIdConfirmation, queueIdAdminNotice]
+    // DTE real (Haulmer/OpenFactura/SimpleAPI) es decisión de negocio pendiente,
+    // post-entrega v1.0 — ver PLAN_MAESTRO_SEUL_KING_OS.md. Hoy TODO pedido de
+    // POS se fuerza a 'nota_venta' (documento no tributario, legal de emitir
+    // sin timbre SII) sin importar lo que envíe el cliente — defensa en
+    // profundidad; la UI de POS (checkout-shell.tsx) ya solo deja elegir Nota
+    // de Venta, esto es el respaldo del lado servidor. Cuando el dueño
+    // conecte un proveedor real: (1) leer `body.dteType` acá en vez de forzar
+    // la constante, (2) pasar DTE_PROVIDER/DTE_API_KEY reales a emitDte() más
+    // abajo. El resto (checkout, impresión, order_items, dte_events) no
+    // necesita cambios — ese es el punto del seam en @seul/dte.
+    const dteType = 'nota_venta' as const
 
-    // SSE (S08, Fase 2): notify every connected POS terminal in real time —
-    // emit at the moment of change, no polling. Channel is hardcoded 'web'
-    // above (this endpoint has no other caller today), which is exactly the
-    // "external channel" the POS client-side filter (`data.channel !== 'pos'`
-    // in apps/pos/src/lib/order-events.ts) is built to surface.
+    const order = await sql.begin(async (tx: any) => {
+      // orders.number no tiene constraint UNIQUE (migración 0000) — se
+      // serializa la asignación con un advisory lock en vez de agregar una
+      // migración nueva solo para esto.
+      await tx`SELECT pg_advisory_xact_lock(778899123)`
+      const [{ next_number }] = await tx`
+        SELECT COALESCE(MAX(number), 0) + 1 AS next_number FROM orders
+      `
+
+      const [ord] = await tx`
+        INSERT INTO orders (
+          number, channel, customer_id, delivery_mode, delivery_address,
+          subtotal, baes_amount, total, dte_type, dte_status,
+          receiver_rut, receiver_name, receiver_giro, receiver_address, receiver_comuna,
+          guest_name, guest_phone, guest_email,
+          shift_id, till_session_id, cashier_id
+        ) VALUES (
+          ${next_number}, 'pos', ${body.customerId || null}, ${deliveryMode}, ${body.deliveryAddress || null},
+          ${subtotal}, ${baesAmount}, ${total}, ${dteType}, 'pending',
+          ${receiver?.rut || null}, ${receiver?.razonSocial || null}, ${receiver?.giro || null}, ${receiver?.direccion || null}, ${receiver?.comuna || null},
+          ${body.guestName || null}, ${body.guestPhone || null}, ${body.guestEmail || null},
+          ${body.shiftId || null}, ${body.tillSessionId || null}, ${auth?.userId || null}
+        )
+        RETURNING id, number
+      `
+
+      for (const it of items) {
+        await tx`
+          INSERT INTO order_items (order_id, product_id, quantity, unit_price, is_baes, subtotal)
+          VALUES (${ord.id}, ${it.productId}, ${it.quantity}, ${it.unitPrice}, ${!!it.isBaes}, ${Number(it.unitPrice) * Number(it.quantity)})
+        `
+      }
+
+      for (const p of payments) {
+        if (!p.method || !(Number(p.amount) >= 0)) continue
+        // postgres.js serializa objetos JS a jsonb automáticamente para una
+        // columna jsonb — pasar JSON.stringify(...) (ya un string) hace que
+        // lo serialice OTRA VEZ, guardando un string-escapado en vez de un
+        // objeto real. El objeto JS directo (sin stringify, sin ::jsonb) es
+        // lo correcto acá.
+        await tx`
+          INSERT INTO order_payments (order_id, method, amount, meta)
+          VALUES (${ord.id}, ${p.method}, ${p.amount}, ${p.meta ?? {}})
+        `
+      }
+
+      return ord
+    })
+
+    // MockDTEProvider (único activo hoy): registra el intento en dte_events
+    // con provider:'mock', sin ninguna llamada de red externa — ver
+    // packages/dte/src/providers/mock.ts + factory.ts.
+    let dteStatus: 'issued' | 'failed' = 'issued'
+    try {
+      const dteReq: DteRequest = {
+        type: dteType,
+        idempotencyKey: `${order.id}-1`,
+        emitter: {
+          rut: STORE_INFO.rut,
+          razonSocial: STORE_INFO.name,
+          giro: STORE_INFO.giro,
+          direccion: STORE_INFO.address,
+          comuna: '', // no centralizado aún en STORE_INFO — ver constants.ts
+        },
+        items: items.map(it => ({
+          sku: it.productId,
+          name: it.name ?? '',
+          qty: Number(it.quantity),
+          unitPrice: Number(it.unitPrice),
+        })),
+        payments: payments
+          .filter(p => p.method && Number(p.amount) >= 0)
+          .map(p => ({ method: String(p.method), amount: Number(p.amount) })),
+        totalNet: subtotal,
+        totalIva: 0,
+        totalGross: total,
+      }
+      const dteRes = await emitDte(dteReq, { DTE_PROVIDER: 'mock' })
+
+      await sql`
+        UPDATE orders SET dte_status = 'issued', dte_provider = 'mock', dte_track_id = ${dteRes.trackId}, updated_at = NOW()
+        WHERE id = ${order.id}
+      `
+      // Mismo motivo que el comentario en order_payments.meta arriba: objeto
+      // JS directo, sin JSON.stringify ni ::jsonb — postgres.js ya sabe
+      // serializarlo para una columna jsonb.
+      await sql`
+        INSERT INTO dte_events (order_id, attempt, status, provider, request_payload, response_payload)
+        VALUES (${order.id}, 1, 'sent', 'mock', ${dteReq}, ${dteRes})
+      `
+    } catch (dteErr) {
+      // La venta YA está guardada (orders/order_items/order_payments) — un
+      // fallo del mock (no debería ocurrir, no hay red de por medio) nunca
+      // debe tumbar el checkout. Se registra en dte_events como 'error' y el
+      // pedido queda con dte_status='failed' para revisión, pero el ticket
+      // igual se imprime como nota_venta desde el POS.
+      dteStatus = 'failed'
+      console.error('DTE mock error:', dteErr)
+      await sql`UPDATE orders SET dte_status = 'failed', dte_provider = 'mock', updated_at = NOW() WHERE id = ${order.id}`
+      await sql`
+        INSERT INTO dte_events (order_id, attempt, status, provider, error_message)
+        VALUES (${order.id}, 1, 'error', 'mock', ${dteErr instanceof Error ? dteErr.message : String(dteErr)})
+      `
+    }
+
+    // SSE (S08, Fase 2): notifica a las demás terminales POS en tiempo real.
+    // channel:'pos' (antes decía 'web' por error — este endpoint nunca lo
+    // llamó un cliente web real). El filtro `data.channel !== 'pos'` en
+    // apps/pos/src/lib/order-events.ts ya está pensado para esto: cada
+    // terminal ignora el eco de sus propias ventas y solo reacciona a
+    // pedidos creados por OTROS canales/terminales.
     emitPosEvent({
       type: 'order.created',
-      channel: 'web',
+      channel: 'pos',
       payload: {
         orderId: order.id,
         number: order.number,
-        channel: 'web',
-        total: Number(total),
-        deliveryMode: delivery_mode || 'delivery',
-        itemCount: Array.isArray(items) ? items.length : 0,
+        channel: 'pos',
+        total,
+        deliveryMode,
+        itemCount: items.length,
         createdAt: new Date().toISOString(),
       },
     })
 
-    // Alerta de pedido grande
-    if (Number(total) >= 2_000_000) {
-      const queueIdLargeOrder = await enqueueEmail(
-        ADMIN_EMAIL,
-        `⚠️ Pedido grande: $${Number(total).toLocaleString('es-CL')}`,
-        templates.largeOrderAlert(order),
-        'large-order-alert'
-      )
-      queue_ids.push(queueIdLargeOrder)
-    }
-
-    console.log(`✅ Order created: #${order.number}`)
-    return c.json({ ok: true, order_id: order.id, order_number: order.number, queue_ids })
+    console.log(`✅ POS order created: #${order.number} (dte:${dteStatus})`)
+    return c.json({ orderId: order.id, number: order.number, total, dteStatus })
   } catch (err) {
-    console.error('Order error:', err)
-    return c.json({ error: 'Error creating order' }, 500)
+    console.error('POS order error:', err)
+    return c.json({ error: 'Error al crear el pedido' }, 500)
+  }
+})
+
+// GET /api/orders/:id/dte-status — usado por el polling de checkout-shell.tsx
+// tras confirmar una venta. Con MockDTEProvider el estado ya queda resuelto
+// (issued/failed) en el mismo POST /api/orders, así que esto normalmente
+// responde de inmediato en el primer poll; queda listo para cuando el DTE
+// real sea asíncrono (proveedor real → 'pending'/'sending' por más tiempo).
+app.get('/api/orders/:id/dte-status', async (c) => {
+  const { id } = c.req.param()
+  try {
+    const [row] = await sql`
+      SELECT dte_status, dte_folio, pdf_url FROM orders WHERE id = ${id}
+    `
+    if (!row) return c.json({ error: 'Pedido no encontrado' }, 404)
+    return c.json({ status: row.dte_status, folio: row.dte_folio ?? undefined, pdfUrl: row.pdf_url ?? undefined })
+  } catch (err) {
+    console.error('DTE status error:', err)
+    return c.json({ error: 'Error' }, 500)
   }
 })
 
