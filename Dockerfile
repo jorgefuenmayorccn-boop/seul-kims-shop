@@ -18,6 +18,13 @@ RUN npm install -g pnpm@9
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/api ./packages/api
 COPY --from=builder /app/packages/db ./packages/db
+# @seul/dte + @seul/pdf-templates (SEUL_SESSION_boletas-80mm): @seul/api ahora
+# los importa (emitDte del MockDTEProvider + STORE_INFO) — sin esto, node_modules
+# tiene el symlink de pnpm pero el destino no existe en esta imagen y el
+# arranque revienta con ERR_MODULE_NOT_FOUND. Cualquier package nuevo del que
+# @seul/api pase a depender debe agregarse acá también.
+COPY --from=builder /app/packages/dte ./packages/dte
+COPY --from=builder /app/packages/pdf-templates ./packages/pdf-templates
 COPY --from=builder /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/package.json ./
 
