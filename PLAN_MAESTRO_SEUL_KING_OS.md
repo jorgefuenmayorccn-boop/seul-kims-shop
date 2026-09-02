@@ -717,6 +717,46 @@ Hoy un pedido web (`channel='web'`, creado por `POST /api/public/orders`) se cre
 
 Commits: `14cde2f` (punto 2), `e547bd4` (punto 3 — backend: migración 0021 + 3 endpoints + email), `b6d8d57` (punto 3 — UI Comandas). Railway y Vercel (`cerebro`) redesplegados automáticamente y verificados: `/health` en `200`, build de `cerebro` `Ready` con `/comandas` compilando a `9.34 kB` (incluye el nuevo código de impresión).
 
+## Adición post-entrega — Pago mixto POS, manual Rappi Cargo, crédito B2B + inventario consolidado, reset de credenciales (2-sep-2026)
+
+### Punto 1 — Pago mixto no permitía dividir si no se empezaba por efectivo
+
+`apps/pos/.../checkout/pay-mixed.tsx`: `addCard()` cobraba siempre el `remaining` completo en la primera tarjeta/QR que se tocaba, sin importar la intención de dividir — reportado por el dueño ("no deja pagar mixto, me deja elegir un solo pago"). Reescrito con un paso intermedio "elegir monto" (`Active` union type con `step: 'amount' | 'terminal'`) antes de ir al terminal de tarjeta/QR, con botones rápidos "todo el restante"/"mitad" + numpad editable. Se agregó QR como 4° método divisible (antes solo efectivo/débito/crédito). BAES se mantiene excluido a propósito — es un mecanismo aparte, auto-calculado, no un tender manual. Verificado con `npx tsc --noEmit -p .` sin errores antes de pushear. Commit `2ed8e28`.
+
+### Punto 2 — Manual del cliente: cómo conseguir la API key de Rappi Cargo
+
+Sección 9 nueva en `SEUL_KING_OS_v1.0_MANUAL_CLIENTE.md` — guía de 5 pasos para que el dueño la obtenga directo del equipo comercial de Rappi, explicitando que VÉRTICE se encarga de toda la conexión técnica una vez entregada la clave. Sin URLs inventadas ni menciones a infraestructura interna (Vercel/Railway/etc). Commit `895cee9`.
+
+### Punto 3 — Flujo de aprobación de crédito B2B + inventario consolidado en Editar Producto
+
+Pedido explícito y extenso del dueño, construido por un agente en background y **revisado línea por línea antes de comitear** (diff completo de ~1.480 líneas leído íntegro, no solo el resumen del agente — mismo criterio de verificación que el resto de la sesión). El agente terminó su trabajo real pero quedó en un loop de espera a un Monitor que nunca resolvió (nunca comiteó) — se detuvo la tarea (`TaskStop`), se revisó el diff completo desde el working tree, se corrigió 1 bug real encontrado en revisión (`product-inventory.tsx`: `.map()` devolvía fragmentos `<>` sin `key` — React exige key en el elemento raíz de cada iteración; se corrigió a `<Fragment key={lot.id}>`), se corrió `tsc --noEmit` en `apps/cerebro` y `apps/pos` (limpio en ambos; `packages/api` tiene un `tsconfig.json` con `module`/`moduleResolution` incompatibles preexistente a esta sesión, no se pudo tipar ahí — se compensó con revisión manual exhaustiva del diff completo), y se comiteó (`072cec4`) + pusheó.
+
+**Aprobación de crédito B2B** (solo `owner`, antes `owner+admin` — pedido explícito: "solo el jefe/gerente"):
+- `PATCH /api/b2b/credit-requests/:id/review` ahora exige rol `owner`; `admin` conserva solo lectura.
+- Monto aprobado editable en el momento de aprobar (mín. $100.000), puede ser distinto al solicitado.
+- Comisión automática sobre el monto aprobado, % configurable en `tienda_config` (`b2b_credit_commission_pct`, default 2%), guardada como snapshot en la fila (no cambia retroactivamente si el default se edita después).
+- Documentos de respaldo obligatorios antes de aprobar: `GET/POST /api/b2b/credit-requests/:id/documents`, mismo patrón de disco local que fotos de producto/POD (sin R2 configurado), servidos por `GET /b2b-docs/:filename` con acceso restringido (staff owner/admin, o la propia empresa dueña — a diferencia de `/pod` y `/product-photos`, que son públicos, estos son documentos financieros/de identidad).
+- `GET /api/b2b/credit-suggestions` (owner-only): compara volumen de compra (`orders.company_id`) de los últimos 30 días vs. los 30 anteriores, sugiere subir línea de crédito si el crecimiento es ≥20% y el sugerido (2x volumen reciente, redondeado a $50.000) supera el límite actual.
+- Venta B2B presencial en POS: `GET /api/b2b/companies` (búsqueda por RUT/razón social), toggle "B2B" en `TopBar` + `B2BCompanyModal`, `orders.company_id` nuevo (canal se mantiene `'pos'` — la plata entra por caja igual, `company_id` es el diferenciador para reportes/futuro SII), precios B2B automáticos en el carrito para ítems agregados después de seleccionar la empresa (los ya agregados no se recalculan, evita sorpresas de precio).
+
+**Inventario consolidado en Editar Producto** (reemplaza un flujo que estaba 100% roto): el modal "Ingresar lote de inventario" y las acciones inline (+/-/marcar vencido) de la vista general de Inventario llamaban a 3 endpoints que **nunca existieron en el backend** (`POST /api/inventory/lot`, `POST /api/inventory/adjust`, `GET /api/inventory/:productId/movements` — confirmado por grep contra el código pre-sesión, 0 resultados — 404 en silencio desde que se escribieron esos botones). Reemplazados por `GET/POST /api/products/:id/inventory`, `GET /api/products/:id/inventory/movements`, `PATCH /api/inventory/:lotId` — todos dentro de la ficha del producto (`product-inventory.tsx`, nuevo). Ajustar la cantidad de un lote **exige motivo** (`reason` obligatorio, 400 si viene vacío) — pedido explícito del dueño para llevar control de auditoría real. La vista general de Inventario queda de solo lectura, con link a Editar Producto.
+
+Migración `0022` (auto-run, mismo patrón idempotente que `0014`-`0021`): `b2b_credit_requests.approved_amount_clp`/`commission_pct`/`commission_clp`, tabla nueva `b2b_credit_documents`, `orders.company_id`. Verificado post-deploy: `/health` en `200` con `db: connected`.
+
+**No verificado end-to-end en vivo por falta de tiempo en esta sesión** (a diferencia del resto de puntos de este documento, que sí tuvieron prueba curl/SQL completa): el flujo de aprobación de crédito B2B y la venta presencial B2B en POS quedan pendientes de una prueba real por el dueño o una sesión de QA dedicada — la revisión de código fue exhaustiva pero no reemplaza una prueba funcional en vivo.
+
+### Punto 4 — Reset y reenvío de credenciales de los 3 usuarios reales
+
+Pedido explícito del dueño tras confirmar que el sistema completo estaba listo: reenviar contraseñas nuevas a `ceojorge@verticeproductions.com` (owner), `marioulloa22@verticeproductions.com` (staff) y `jorgefuenmayor.ccn@gmail.com` (delivery) — contraseñas temporales nuevas generadas (`PasswordService.hashPassword`, formato `$pbkdf2$` correcto), `must_change_password=true` en los 3, email de credenciales (`templates.initialCredentials`) encolado y **confirmado `status='sent'`** en `email_queue` para los 3 antes de reportar éxito (patrón establecido: nunca cerrar sin confirmar el envío real).
+
+Se verificó además, con una cuenta QA 100% desechable (creada y borrada en el mismo bloque de trabajo, `SELECT COUNT(*)=0` posterior confirmado) que el flujo de "cambiar contraseña obligatoria en el primer login" **se dispara exactamente una vez**: login con contraseña temporal → `mustChangePassword:true` → `POST /api/auth/change-password` → logout real (`POST /api/auth/logout`) → login de nuevo con la contraseña NUEVA → `mustChangePassword:false`. Confirmado también, previo a este reset, que 2 de los 3 usuarios reales ya habían completado ese ciclo exitosamente en sesiones anteriores del mismo día (`password_changed_at` con timestamp real en BD) — la mecánica ya venía funcionando, este reset solo emite credenciales frescas para que el dueño pruebe todo de cero.
+
+Limpieza de usuarios confirmada vigente: exactamente 3 cuentas activas en producción (las 3 de arriba) + 1 cuenta de prueba histórica (`repartidor.test@seoulshop.cl`) desactivada por decisión explícita del dueño (mantener en vez de borrar, por 4 registros de `delivery_assignments` enlazados por FK).
+
+**No tocado**: auth/RBAC base, checkout, POS (fuera del punto 1 de pago mixto y el toggle B2B del punto 3), impresión, ARCOP, SII/DTE real, WhatsApp.
+
+Commit: `072cec4` (punto 3, backend + frontend + migración). Puntos 1, 2 y 4 no generan cambios de código adicionales a los ya comiteados en sesiones previas (2ed8e28, 895cee9) o son operaciones de datos (punto 4).
+
 ---
 
 ## Fuentes (investigación de arquitectura y diseño, 31-ago-2026)
