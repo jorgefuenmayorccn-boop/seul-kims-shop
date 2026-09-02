@@ -210,6 +210,64 @@ async function runMigrationsIfNeeded() {
       await sql`ALTER TABLE arcop_requests ADD COLUMN IF NOT EXISTS email TEXT`
       console.log('✅ Migration 0017 applied')
     }
+
+    // 0018 (S14, Fase 4): faq_entries — la tabla YA existía en producción
+    // (creada por un `drizzle push` completo del schema en algún momento
+    // anterior a esta sesión, confirmado con information_schema antes de
+    // escribir esto: columnas idénticas a packages/db/src/schema/faq.ts,
+    // incluyendo el default `gen_random_uuid()`) pero vacía (0 filas) y sin
+    // ningún endpoint que la sirviera. apps/web/.../faq/page.tsx ya hace fetch
+    // a GET /api/faq con fallback silencioso a un FAQ estático (STATIC_FAQ) si
+    // el endpoint 404-ea o devuelve 0 entries — así que se siembra la tabla
+    // con ese mismo contenido la primera vez que arranca con la tabla vacía,
+    // para que el dueño tenga algo real y editable desde el día uno en vez de
+    // quedarse indefinidamente en el fallback estático. `CREATE TABLE IF NOT
+    // EXISTS` se mantiene por si esto corre contra un ambiente donde la tabla
+    // de verdad no existe todavía (ej. una DB de desarrollo nueva).
+    await sql`
+      CREATE TABLE IF NOT EXISTS faq_entries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        question_es TEXT NOT NULL,
+        question_ko TEXT,
+        question_en TEXT,
+        answer_es TEXT NOT NULL,
+        answer_ko TEXT,
+        answer_en TEXT,
+        category TEXT NOT NULL DEFAULT 'general',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `
+    await sql`CREATE INDEX IF NOT EXISTS faq_entries_category_idx ON faq_entries(category, sort_order)`
+
+    const [faqCount] = await sql`SELECT count(*)::int AS n FROM faq_entries`
+    if (faqCount.n === 0) {
+      console.log('🔄 Running migration 0018 (seed faq_entries)...')
+
+      const seed: Array<{ q: string; a: string; cat: string }> = [
+        { cat: 'Pedidos', q: '¿Cómo puedo hacer un pedido?', a: 'Puedes pedir directamente en nuestra tienda online, seleccionando tus productos y eligiendo el método de entrega. También puedes escribirnos por WhatsApp al +56 9 3645 1991 y te ayudamos a gestionar tu pedido.' },
+        { cat: 'Pedidos', q: '¿Puedo modificar o cancelar un pedido?', a: 'Puedes modificar o cancelar tu pedido dentro de los 30 minutos siguientes a su confirmación. Pasado ese plazo, el pedido ya está en preparación y no es posible hacer cambios.' },
+        { cat: 'Envíos', q: '¿Cuáles son los métodos de entrega?', a: 'Ofrecemos: (1) Retiro gratis en Estación Miramar del Merval, (2) Delivery con Rappi en menos de 60 minutos para Viña del Mar, Reñaca y Concón, (3) Despacho por Starken o Chilexpress para el resto de Chile (solo productos sin cadena de frío).' },
+        { cat: 'Envíos', q: '¿Despachan productos congelados o refrigerados a regiones?', a: 'No. Los productos con cadena de frío (congelados y refrigerados) solo se pueden retirar en tienda o recibir mediante Rappi dentro de la zona de cobertura del Gran Valparaíso. Esto es para garantizar la calidad del producto.' },
+        { cat: 'Productos', q: '¿Son productos originales de Corea?', a: 'Sí. Todos nuestros productos son importados directamente desde Corea del Sur, con sus respectivos registros sanitarios en Chile. Vendemos marcas reconocidas como Nongshim, Ottogi, Samyang, CJ, Lotte y muchas más.' },
+        { cat: 'Productos', q: '¿Tienen productos veganos o sin gluten?', a: 'Tenemos algunos productos aptos para dietas veganas o sin gluten. Filtra por alérgenos en nuestra tienda o pregúntanos por WhatsApp para orientarte según tus necesidades.' },
+        { cat: 'Pagos', q: '¿Qué medios de pago aceptan?', a: 'Aceptamos tarjetas de débito y crédito (Visa, Mastercard, American Express), transferencia bancaria y pago en efectivo al retirar en tienda. Para pedidos Rappi, el pago se gestiona directamente en la app.' },
+        { cat: 'Pagos', q: '¿Puedo usar tarjeta JUNAEB (TNE)?', a: 'Sí, en nuestra tienda física (POS). Los productos elegibles BAES están marcados. El sistema valida automáticamente los montos aplicables al subsidio JUNAEB.' },
+        { cat: 'Privacidad', q: '¿Cómo protegen mis datos personales?', a: 'Cumplimos con la Ley 21.719 de Protección de Datos Personales de Chile. Tus datos se utilizan exclusivamente para gestionar tus pedidos y, si diste tu consentimiento, para enviarte comunicaciones de marketing. Puedes ejercer tus derechos de acceso, rectificación y supresión en cualquier momento desde tu cuenta o enviando un correo a contacto@seoulshop.cl.' },
+        { cat: 'Privacidad', q: '¿Cómo puedo eliminar mi cuenta?', a: 'Puedes solicitar la eliminación de tu cuenta desde tu perfil en "Mi Cuenta". Tu información se anonimizará en un plazo de 15 días hábiles, conservando solo los registros contables obligatorios por ley.' },
+        { cat: 'Devoluciones', q: '¿Cuál es la política de devoluciones?', a: 'Aceptamos devoluciones dentro de los 10 días hábiles desde la recepción del producto, siempre que esté en su estado original y sellado. Productos perecederos o refrigerados no tienen devolución salvo defecto de fábrica. Inicia tu solicitud en /devoluciones.' },
+        { cat: 'Devoluciones', q: '¿Qué hago si recibí un producto en mal estado?', a: 'Toma fotos del producto y del embalaje, y contáctanos en las primeras 24 horas por WhatsApp o email. Te reponemos el producto o te hacemos el reembolso total según prefieras.' },
+      ]
+      for (let i = 0; i < seed.length; i++) {
+        const e = seed[i]
+        await sql`
+          INSERT INTO faq_entries (question_es, answer_es, category, sort_order)
+          VALUES (${e.q}, ${e.a}, ${e.cat}, ${i})
+        `
+      }
+      console.log(`✅ Migration 0018 applied (${seed.length} FAQ entries seeded)`)
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -4466,6 +4524,146 @@ app.get('/api/returns', async (c) => {
   } catch (err) {
     console.error('Returns list error:', err)
     return c.json({ error: 'Error al listar devoluciones' }, 500)
+  }
+})
+
+// ============================================================================
+// ANALYTICS + FAQ (S14, Fase 4)
+// GET /api/analytics/sales + POST /api/analytics/pin-check — el único consumidor
+// real (confirmado por grep en las 4 apps) es apps/pos/.../sales-history-panel.tsx:
+// un drawer "Ventas de caja" en el POS gateado por un PIN de 4 dígitos propio
+// (`analytics_pin` en tienda_config — clave DISTINTA de `void_pin`, el PIN
+// maestro que autoriza anular una venta ya construido en el flujo de Ajustes/
+// Seguridad). No existe pantalla "Reportes" en cerebro hoy (grep confirmó cero
+// resultados) pese a que la matriz de roles de la sección 6.1 la menciona para
+// `viewer` — construir esa pantalla no está en el alcance de S14 (ningún
+// frontend la espera todavía), así que este endpoint solo cubre el contrato
+// exacto que sales-history-panel.tsx ya tiene escrito, filtrado siempre por
+// tillSessionId (nunca "todas las ventas de la tienda" sin acotar).
+// ============================================================================
+
+app.post('/api/analytics/pin-check', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  // Rate limit — 4 dígitos son solo 10.000 combinaciones, así que esto es lo
+  // único que protege el PIN de un ataque de fuerza bruta desde una sesión
+  // válida de cajero. Mismo patrón (bucket por usuario) que auth:register.
+  const rl = await checkAndRecordRateLimit(c, 'analytics:pin-check', { limit: 10, windowMinutes: 5 }, authUser.id)
+  if (!rl.allowed) {
+    return c.json({ ok: false, error: `Demasiados intentos. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ ok: false, error: 'JSON inválido' }, 400) }
+  const pin = String(body.pin ?? '')
+  if (!pin) return c.json({ ok: false, error: 'PIN requerido' }, 400)
+
+  try {
+    const [row] = await sql`SELECT value FROM tienda_config WHERE key = 'analytics_pin'`
+    // Sin PIN configurado todavía → deniega por defecto (nunca un fallback
+    // hardcodeado tipo 'abcd' como el bug ya documentado de getVoidPin en
+    // seguridad/page.tsx — ver fix en el mismo commit de esta sesión).
+    const ok = row?.value != null && row.value === pin
+    return c.json({ ok })
+  } catch (err) {
+    console.error('Analytics pin-check error:', err)
+    return c.json({ ok: false, error: 'Error' }, 500)
+  }
+})
+
+app.get('/api/analytics/sales', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const tillSessionId = c.req.query('tillSessionId')
+  if (!tillSessionId) return c.json({ error: 'Falta tillSessionId' }, 400)
+
+  try {
+    const orderRows = await sql`
+      SELECT id, number, total, status, dte_type, created_at, voided_at, void_reason
+      FROM orders
+      WHERE till_session_id = ${tillSessionId}
+      ORDER BY created_at DESC
+      LIMIT 500
+    `
+    const paymentRows = await sql`
+      SELECT op.id, op.order_id, op.method, op.amount
+      FROM order_payments op
+      JOIN orders o ON o.id = op.order_id
+      WHERE o.till_session_id = ${tillSessionId}
+    `
+    const paymentsByOrder = new Map<string, Array<{ id: string; method: string; amount: string }>>()
+    for (const p of paymentRows) {
+      const arr = paymentsByOrder.get(p.order_id) ?? []
+      arr.push({ id: p.id, method: p.method, amount: p.amount })
+      paymentsByOrder.set(p.order_id, arr)
+    }
+
+    // Mismos agregados que computeTillZReport (Turnos/Z-report) — status
+    // 'cancelada' se excluye del revenue/ticket promedio/desglose por método,
+    // pero SÍ aparece en el listado de `orders` (con opacidad reducida en la
+    // UI) para que el cajero vea qué se anuló durante su turno.
+    const [agg] = await sql`
+      SELECT
+        COUNT(*) FILTER (WHERE status != 'cancelada') AS order_count,
+        COALESCE(SUM(total) FILTER (WHERE status != 'cancelada'), 0) AS total_revenue
+      FROM orders WHERE till_session_id = ${tillSessionId}
+    `
+    const methodRows = await sql`
+      SELECT op.method, COALESCE(SUM(op.amount), 0) AS amount
+      FROM order_payments op
+      JOIN orders o ON o.id = op.order_id
+      WHERE o.till_session_id = ${tillSessionId} AND o.status != 'cancelada'
+      GROUP BY op.method
+    `
+    const byMethod: Record<string, number> = {}
+    for (const r of methodRows) byMethod[r.method] = Number(r.amount)
+
+    const orderCount = Number(agg.order_count)
+    const totalRevenue = Number(agg.total_revenue)
+
+    return c.json({
+      kpis: {
+        totalRevenue,
+        orderCount,
+        avgTicket: orderCount > 0 ? totalRevenue / orderCount : 0,
+        byMethod,
+      },
+      orders: orderRows.map((o: any) => ({
+        id: o.id, number: o.number, total: o.total, status: o.status,
+        dteType: o.dte_type, createdAt: o.created_at,
+        voidedAt: o.voided_at, voidReason: o.void_reason,
+        payments: paymentsByOrder.get(o.id) ?? [],
+      })),
+    })
+  } catch (err) {
+    console.error('Analytics sales error:', err)
+    return c.json({ error: 'Error al calcular ventas' }, 500)
+  }
+})
+
+// GET /api/faq — público, sin sesión (apps/web/.../faq/page.tsx, Server
+// Component sin credentials). Ya tiene fallback a STATIC_FAQ si `ok:false` o
+// `entries` viene vacío, así que un error acá degrada con gracia, nunca
+// crashea la página pública. Tabla poblada por la migración 0018 arriba.
+app.get('/api/faq', async (c) => {
+  try {
+    const rows = await sql`
+      SELECT id, question_es, answer_es, category
+      FROM faq_entries
+      WHERE active = true
+      ORDER BY category ASC, sort_order ASC, created_at ASC
+    `
+    return c.json({
+      ok: true,
+      entries: rows.map((r: any) => ({
+        id: r.id, question: r.question_es, answer: r.answer_es, category: r.category,
+      })),
+    })
+  } catch (err) {
+    console.error('FAQ list error:', err)
+    return c.json({ ok: false, entries: [] }, 500)
   }
 })
 
