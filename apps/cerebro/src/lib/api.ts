@@ -186,3 +186,17 @@ export async function getReturns(status = 'pending') {
   try { return (await serverFetch<{ returns: ReturnRequest[] }>(`/api/returns?status=${status}`)).returns }
   catch { return [] as ReturnRequest[] }
 }
+
+// getVoidPin (S14, Fase 4 — fix del bug documentado en el cierre de S06/Fase 1):
+// seguridad/page.tsx llamaba `fetch()` directo a `${API}/api/tienda-config`
+// (SIN key, sin reenviar la cookie de sesión) — no coincide con la ruta real
+// (`GET /api/tienda-config/:key`, que además exige requireSession), así que
+// SIEMPRE fallaba y la página mostraba el PIN por defecto hardcodeado 'abcd'
+// en vez del valor real guardado por PinMaestroSection. Mismo patrón
+// serverFetch que el resto de este archivo — la key es 'void_pin' (el PIN
+// maestro que autoriza anulaciones de venta en POS; NO 'analytics_pin', que es
+// un PIN distinto que gatea el drawer "Ventas de caja", ver S14 en el plan).
+export async function getVoidPin(): Promise<string> {
+  try { return (await serverFetch<{ key: string; value: string | null }>('/api/tienda-config/void_pin')).value ?? 'abcd' }
+  catch { return 'abcd' }
+}

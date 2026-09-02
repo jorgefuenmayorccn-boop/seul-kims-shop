@@ -1,18 +1,9 @@
 import { Suspense } from 'react'
 import { Shield, RotateCcw, AlertTriangle } from 'lucide-react'
 import { PinMaestroSection } from './pin-maestro-section'
-import { getARCOP, getReturns } from '@/lib/api'
+import { getARCOP, getReturns, getVoidPin } from '@/lib/api'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
-
-async function getVoidPin(): Promise<string> {
-  try {
-    const res = await fetch(`${API}/api/tienda-config`, { cache: 'no-store' })
-    if (!res.ok) return 'abcd'
-    const d = await res.json() as { config: Record<string, string> }
-    return d.config.void_pin ?? 'abcd'
-  } catch { return 'abcd' }
-}
 
 async function SeguridadContent() {
   const [arcop, devoluciones, voidPin] = await Promise.all([getARCOP(), getReturns(), getVoidPin()])
