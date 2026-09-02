@@ -20,8 +20,8 @@ pnpm --filter @seul/pos dev        # localhost:3001 — POS táctil
 pnpm --filter @seul/repartidor dev # localhost:3002 — PWA repartidor
 pnpm --filter @seul/cerebro dev    # localhost:3003 — Panel admin (El Cerebro)
 
-# API (Cloudflare Workers)
-pnpm --filter @seul/api dev     # wrangler dev
+# API (Node.js + Hono, corre en Railway en producción)
+pnpm --filter @seul/api dev     # tsx watch — servidor Node local en localhost:8787
 
 # Build completo
 pnpm build
@@ -57,7 +57,7 @@ seul-kims-os/
 │   ├── pos/          # @seul/pos — POS táctil (tablet 10"/12") · puerto 3001
 │   └── repartidor/   # @seul/repartidor — PWA offline-capable · puerto 3002
 ├── packages/
-│   ├── api/          # @seul/api — Hono en Cloudflare Workers
+│   ├── api/          # @seul/api — Hono en Node.js, desplegado en Railway (ver nota abajo)
 │   ├── db/           # @seul/db — Drizzle ORM + schema PostgreSQL
 │   ├── ui/           # @seul/ui — componentes React compartidos
 │   ├── tokens/       # @seul/tokens — CSS custom properties (3 capas)
@@ -68,12 +68,15 @@ seul-kims-os/
 
 ### "El Cerebro" — API única
 
-Todos los canales consumen `@seul/api` (Hono en Cloudflare Workers). La API maneja:
+Todos los canales consumen `@seul/api` — **Hono corriendo sobre Node.js (`tsx`/Node runtime, no Cloudflare Workers), desplegado en Railway** (proyecto `seul-kims-db`, servicio `sparkling-fulfillment`, auto-deploy desde GitHub `main`, dominio `api.seoulshop.cl`). El diseño original (Fase 0 del plan) contemplaba Cloudflare Workers — quedó descartado durante el desarrollo y el runtime real es Node.js estable en Railway desde hace varias sesiones (confirmado con `railway status` → `Online`). `packages/api/wrangler.toml` sigue presente en el repo pero es **legacy, no usado por el deploy real** — no borrar (puede tener valor histórico), pero no seguir sus instrucciones de `wrangler dev`/Workers al operar este proyecto.
+
+La API maneja:
 - Inventario y lotes (con semáforo de vencimiento)
 - Pedidos y comandas (multicanal: POS, web, B2B, WhatsApp)
-- Boleta electrónica SII (cola BullMQ → Upstash Redis — **nunca puede fallar**)
-- PDF 80mm (generado en Worker, almacenado en R2 con token 16 chars, TTL 48h)
-- Sesiones en KV, carritos en KV
+- Boleta electrónica SII (DTE) — **pospuesta post-entrega por decisión del cliente**; v1.0 emite Nota de Venta (documento no tributario) vía el seam `@seul/dte` (`MockDTEProvider`), listo para conectar un proveedor real (Haulmer/OpenFactura/SimpleAPI) sin rediseño cuando el cliente decida
+- PDF/impresión 80mm (HTML renderizado server-side vía `packages/pdf-templates`, servido al Print Agent local del POS o como popup de fallback)
+- Sesiones vía cookie firmada (JWT) — dominio `.seoulshop.cl`, sin KV de Cloudflare
+- Base de datos: Neon Postgres (`packages/db`, Drizzle ORM) — el pool de conexión (`postgres.js`, `max: 10`) vive en el proceso Node de Railway, no en un Worker
 
 ### Design tokens — 3 capas
 
@@ -114,7 +117,7 @@ import { ProductCard } from '@seul/ui/shop/product-card'
 ## Critical business rules
 
 ### Boleta electrónica SII (DTE)
-La emisión de boleta electrónica **nunca puede fallar silenciosamente**. Todo pedido que genere un DTE va a una cola Cloudflare Queue → Workers consumer. Si falla, el estado queda `dte-failed` (visible como alerta crítica en dashboard), se reintenta automáticamente x3, y dispara alerta Sentry. El dueño debe ver esto antes que cualquier otra alerta.
+**Estado real (2-sep-2026): la integración SII/DTE está pospuesta post-entrega por decisión explícita del cliente.** v1.0 emite **Nota de Venta** (documento no tributario, legal de emitir sin timbre SII) en cada venta de POS — no boleta electrónica real. El diseño original de este párrafo (cola Cloudflare Queue → Workers consumer, Sentry) describía una arquitectura de Workers que nunca se construyó así: el seam real es `@seul/dte` (`packages/dte`), con un `MockDTEProvider` forzado en el servidor (nunca lee env vars de proveedor real) y cada intento registrado en la tabla `dte_events`. Cuando el cliente confirme proveedor (Haulmer/OpenFactura/SimpleAPI) en una sesión futura, ese seam se conecta sin rediseñar el resto del flujo — no hay cola ni consumer que migrar, es un cambio de implementación de una función (`emitDte`) dentro del proceso Node de la API en Railway.
 
 ### BAES (Subsidio JUNAEB)
 El POS valida la TNE (Tarjeta Nacional Estudiantil) y marca productos como `is_baes_eligible`. Al cobrar, la boleta debe mostrar 2 subtotales: monto BAES y monto otro medio. Productos no elegibles NO pueden cobrarse con BAES aunque el cliente insista — el sistema lo bloquea.
@@ -151,7 +154,7 @@ v1.0 usa wa.me links (sin WhatsApp Business API). El mensaje incluye la URL del 
 ## Environment variables
 
 ```bash
-# packages/api (.dev.vars para local, wrangler secret para producción)
+# packages/api (.dev.vars para local — Node.js/tsx, no Cloudflare Workers; variables de entorno en el servicio Railway para producción, no `wrangler secret`)
 DATABASE_URL=          # Neon PostgreSQL connection string
 DTE_API_KEY=           # Clave proveedor DTE (Bsale/Toku/Haulmer)
 DTE_RUT_EMPRESA=       # RUT empresa para emisión de boletas
