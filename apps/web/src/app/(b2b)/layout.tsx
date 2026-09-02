@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ShoppingBag, LayoutDashboard, BookOpen, LogIn } from 'lucide-react'
+import { BookOpen } from 'lucide-react'
+import { B2BAuthNav } from '@/components/b2b/b2b-auth-nav'
 
 export const metadata: Metadata = {
   title: 'Portal B2B — SEUL SHOP',
@@ -26,27 +27,11 @@ export default function B2BLayout({ children }: { children: React.ReactNode }) {
               <BookOpen className="size-4" />
               Catálogo
             </Link>
-            <Link
-              href="/b2b/dashboard"
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text)]"
-            >
-              <LayoutDashboard className="size-4" />
-              Mi Cuenta
-            </Link>
-            <Link
-              href="/b2b/login"
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-raised)] hover:text-[var(--color-text)]"
-            >
-              <LogIn className="size-4" />
-              Iniciar sesión
-            </Link>
-            <Link
-              href="/b2b/registro"
-              className="flex items-center gap-1.5 rounded-lg bg-[var(--color-brand)] px-3 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              <ShoppingBag className="size-4" />
-              Solicitar cuenta
-            </Link>
+            {/* "Mi Cuenta" (link estático a /b2b/dashboard) se reemplazó por
+                B2BAuthNav: ese link ya vive dentro de ella cuando hay sesión
+                (nombre de la empresa → /b2b/dashboard), y sin sesión el
+                dashboard solo rebota a /b2b/login de todas formas. */}
+            <B2BAuthNav />
           </nav>
         </div>
       </header>
