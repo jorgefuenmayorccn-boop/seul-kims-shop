@@ -4,6 +4,8 @@ import { streamSSE } from 'hono/streaming'
 import { setCookie, getCookie, deleteCookie } from 'hono/cookie'
 import { serve } from '@hono/node-server'
 import * as crypto from 'crypto'
+import * as fs from 'fs'
+import * as path from 'path'
 import jwt from 'jsonwebtoken'
 import { sql, ADMIN_EMAIL, JWT_SECRET, CUSTOMER_JWT_SECRET } from './db'
 import { enqueueEmail, templates } from './email-queue'
@@ -50,6 +52,23 @@ function sessionCookieDomain(c: any): string | undefined {
 // original cross-subdomain login bug fixed in Fase 0; not repeating it here.
 const CUSTOMER_SESSION_COOKIE_NAME = 'seul_customer_session'
 
+// API's own public base URL (gap crítico — foto de comprobante de entrega,
+// ver POST /api/delivery/assignments/:id/pod más abajo). Sin credenciales R2
+// configuradas (verificado, cero env vars R2_*), la foto se guarda en disco
+// local de ESTE mismo servicio (Railway) y se sirve desde acá mismo —
+// apps/web (donde viven las fotos de producto/hero) corre en Vercel, un
+// deploy sin filesystem compartido con la API (confirmado revisando
+// Dockerfile: no copia apps/web al runtime), así que "seoulshop.cl/pod/..."
+// no es alcanzable — la URL pública real es la de la API.
+const API_PUBLIC_URL = process.env.API_PUBLIC_URL || 'https://api.seoulshop.cl'
+
+// Directorio local donde se guardan las fotos de POD subidas por el
+// repartidor. Almacenamiento efímero (se pierde en cada redeploy de Railway)
+// — limitación conocida y aceptada explícitamente por el dueño hasta que
+// haya credenciales R2 reales, mismo criterio pragmático que las fotos de
+// producto/hero de esta misma sesión.
+const POD_UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'pod')
+
 // Public storefront base URL — used to build links inside customer-facing
 // emails (password reset, welcome). Distinct from the staff panel's
 // cmr.seoulshop.cl links used in the staff email templates.
@@ -84,6 +103,32 @@ app.get('/health', async (c) => {
     return c.json({ ok: true, status: 'healthy', db: 'connected' })
   } catch (e) {
     return c.json({ ok: false, status: 'degraded' }, 503)
+  }
+})
+
+// GET /pod/:filename — sirve las fotos de comprobante de entrega guardadas por
+// POST /api/delivery/assignments/:id/pod (gap crítico, ver ese endpoint más
+// abajo para el contexto completo de por qué vive en disco local de la API en
+// vez de R2/apps-web-public). Deliberadamente fuera de /api/* (una imagen en
+// <img src> no necesita CORS) y sin sesión (mismo criterio de "URL
+// impredecible = suficiente" que el token de 16 chars del PDF de boleta en
+// R2 — el nombre de archivo incluye el uuid del assignment + timestamp, no es
+// enumerable). `filename` se sanitiza a solo el basename para bloquear path
+// traversal (../../etc) antes de tocar el filesystem.
+app.get('/pod/:filename', async (c) => {
+  const filename = path.basename(c.req.param('filename'))
+  const filePath = path.join(POD_UPLOAD_DIR, filename)
+  try {
+    if (!filePath.startsWith(POD_UPLOAD_DIR) || !fs.existsSync(filePath)) {
+      return c.json({ error: 'No encontrado' }, 404)
+    }
+    const buf = fs.readFileSync(filePath)
+    const ext = path.extname(filename).toLowerCase()
+    const contentType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : 'image/jpeg'
+    return c.body(buf, 200, { 'Content-Type': contentType, 'Cache-Control': 'public, max-age=31536000, immutable' })
+  } catch (err) {
+    console.error('Serve POD photo error:', err)
+    return c.json({ error: 'Error' }, 500)
   }
 })
 
@@ -299,6 +344,46 @@ async function runMigrationsIfNeeded() {
       await sql`CREATE INDEX IF NOT EXISTS audit_log_actor_idx ON audit_log(actor_user_id, created_at DESC)`
       await sql`CREATE INDEX IF NOT EXISTS audit_log_action_idx ON audit_log(action, created_at DESC)`
       console.log('✅ Migration 0019 applied')
+    }
+
+    // 0020 (gap crítico — anular venta en POS): orders.voided_by/voided_at/
+    // void_reason y la tabla pos_void_events ya están modeladas en
+    // packages/db/src/schema (orders.ts, pos-void-events.ts) y en el archivo
+    // de migración 0005_lyrical_nehzno.sql del repo — pero, igual que
+    // faq_entries en 0018, no hay garantía de que ese .sql se haya aplicado
+    // alguna vez contra la Neon de producción real (varias tablas de este
+    // proyecto llegaron a producción por un `drizzle push` suelto, no por
+    // estos archivos). Mismo patrón defensivo IF NOT EXISTS que 0014-0019:
+    // no-op si ya existen, crea lo que falte si no.
+    const voidColsExist = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'orders' AND column_name = 'void_reason'
+    `
+    if (voidColsExist.length === 0) {
+      console.log('🔄 Running migration 0020a (orders void columns)...')
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS voided_by uuid REFERENCES users(id)`
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS voided_at timestamp`
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS void_reason text`
+      console.log('✅ Migration 0020a applied')
+    }
+
+    const posVoidEventsExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'pos_void_events' AND column_name = 'amount_clp'
+    `
+    if (posVoidEventsExists.length === 0) {
+      console.log('🔄 Running migration 0020b (pos_void_events)...')
+      await sql`
+        CREATE TABLE IF NOT EXISTS pos_void_events (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          order_id UUID NOT NULL REFERENCES orders(id),
+          voided_by UUID NOT NULL REFERENCES users(id),
+          reason TEXT NOT NULL,
+          amount_clp INTEGER NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+      console.log('✅ Migration 0020b applied')
     }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
@@ -2282,6 +2367,87 @@ async function handleOrderStatusUpdate(c: any) {
 app.post('/api/orders/:id/status', handleOrderStatusUpdate)
 app.patch('/api/orders/:id/status', handleOrderStatusUpdate)
 
+// POST /api/orders/:id/void (gap crítico — apps/pos/.../void-auth-modal.tsx
+// ya lo llama, 404 hoy: "Anular venta" del drawer de POS). Cubierto además
+// por el `app.use('/api/orders*', requireAuthMiddleware)` de arriba (acepta
+// API key O cookie de sesión) — el requireSession de acá adentro es el que
+// filtra por ROL, mismo patrón ya usado por GET /api/orders más abajo.
+//
+// PIN: usa 'void_pin' en tienda_config — clave DISTINTA de 'analytics_pin'
+// (ver comentario en POST /api/analytics/pin-check). Solo se LEE para
+// comparar, nunca se sobreescribe acá — el incidente de S16 (void_pin real
+// pisado durante pruebas) fue justo al revés (un PUT de prueba), no aplica a
+// este endpoint de solo lectura del PIN.
+//
+// Inventario: POST /api/orders (crear venta) no descuenta `inventory` en
+// ningún punto del código hoy (confirmado por grep) — así que anular NO
+// necesita revertir stock, no hay nada que revertir todavía. Si en el futuro
+// se agrega descuento de inventario al crear la venta, este endpoint deberá
+// revertirlo también.
+//
+// Rate limit: el PIN es de pocos dígitos — 10 intentos/5min por usuario,
+// mismo criterio que analytics:pin-check (S14).
+app.post('/api/orders/:id/void', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+
+  const rl = await checkAndRecordRateLimit(c, 'orders:void', { limit: 10, windowMinutes: 5 }, authUser.id)
+  if (!rl.allowed) {
+    return c.json({ error: `Demasiados intentos. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
+  }
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+  const pin    = String(body.pin ?? '')
+  const reason = String(body.reason ?? '').trim()
+  if (!pin) return c.json({ error: 'PIN requerido' }, 400)
+  if (!reason) return c.json({ error: 'Motivo de anulación requerido' }, 400)
+
+  try {
+    const [pinRow] = await sql`SELECT value FROM tienda_config WHERE key = 'void_pin'`
+    // Sin PIN configurado todavía → deniega por defecto, mismo criterio que
+    // analytics_pin (nunca un fallback hardcodeado tipo '1234').
+    if (!pinRow?.value || pinRow.value !== pin) {
+      return c.json({ error: 'PIN incorrecto' }, 403)
+    }
+
+    const [order] = await sql`SELECT id, number, status, total FROM orders WHERE id = ${id}`
+    if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
+    if (order.status === 'cancelada') return c.json({ error: 'El pedido ya estaba anulado' }, 409)
+
+    await sql`
+      UPDATE orders
+      SET status = 'cancelada', voided_by = ${authUser.id}, voided_at = NOW(), void_reason = ${reason}, updated_at = NOW()
+      WHERE id = ${id}
+    `
+
+    await sql`
+      INSERT INTO pos_void_events (order_id, voided_by, reason, amount_clp)
+      VALUES (${id}, ${authUser.id}, ${reason}, ${Math.round(Number(order.total))})
+    `
+
+    await recordAuditLog(c, authUser, 'order.void', { table: 'orders', id }, {
+      number: order.number, reason, amount: order.total,
+    })
+
+    // SSE — otras terminales POS deben reflejar la anulación en vivo (mismo
+    // canal 'pos' que order.created).
+    emitPosEvent({
+      type: 'order.voided',
+      channel: 'pos',
+      payload: { orderId: id, number: order.number, voidedBy: authUser.name, reason, voidedAt: new Date().toISOString() },
+    })
+
+    console.log(`🗑️  Order voided: #${order.number} by ${authUser.email} (${reason})`)
+    return c.json({ ok: true, orderId: id, number: order.number })
+  } catch (err) {
+    console.error('Void order error:', err)
+    return c.json({ error: 'Error al anular el pedido' }, 500)
+  }
+})
+
 // POST /api/deliveries/:id/photo
 app.post('/api/deliveries/:id/photo', async (c) => {
   try {
@@ -3195,7 +3361,11 @@ app.put('/api/delivery/assignments/:id/assign', async (c) => {
 // interface in page.tsx exactly (customerName/guestName kept separate —
 // frontend does its own `?? ` fallback, no COALESCE server-side here).
 app.get('/api/delivery/assignments/mine', async (c) => {
-  const authUser = await requireSession(c, ['delivery'])
+  // 'owner' agregado (aviso del dueño): quiere probar el flujo completo de
+  // repartidor con su única cuenta owner. La matriz de roles (sección 6.1 del
+  // plan maestro) ya dice "owner: todo, sin restricción" — este era un
+  // desalineamiento del código contra esa regla, no un cambio de alcance.
+  const authUser = await requireSession(c, ['delivery', 'owner'])
   if (authUser instanceof Response) return authUser
 
   try {
@@ -3265,7 +3435,8 @@ app.get('/api/delivery/assignments/mine', async (c) => {
 // session-cookie-auth surface under the singular /api/delivery/* prefix.
 // A driver may only update an assignment that's actually theirs.
 app.put('/api/delivery/assignments/:id/status', async (c) => {
-  const authUser = await requireSession(c, ['delivery'])
+  // 'owner' agregado (aviso del dueño) — ver nota en /assignments/mine arriba.
+  const authUser = await requireSession(c, ['delivery', 'owner'])
   if (authUser instanceof Response) return authUser
 
   const { id } = c.req.param()
@@ -3306,6 +3477,81 @@ app.put('/api/delivery/assignments/:id/status', async (c) => {
   }
 })
 
+// POST /api/delivery/assignments/:id/pod (gap crítico — apps/repartidor/src/app/page.tsx
+// línea ~292, uploadPod(), ya lo llama con multipart/form-data — 404 hoy).
+// Sin credenciales R2 configuradas (verificado, cero env vars R2_*): mismo
+// criterio pragmático que las fotos de producto/hero de esta sesión, PERO
+// NO se guarda en apps/web/public — esa app corre en Vercel, un deploy sin
+// filesystem compartido con esta API (confirmado revisando Dockerfile: no
+// copia apps/web al runtime de @seul/api). La foto se guarda en disco local
+// de ESTE servicio (Railway) y se sirve desde GET /pod/:filename (ver arriba,
+// junto a /health). Limitación conocida: almacenamiento efímero, se pierde en
+// cada redeploy — aceptable para v1.0, documentado en el plan maestro.
+//
+// Un repartidor solo puede subir POD de una asignación que sea suya (mismo
+// invariante que PUT .../status y POST /location — driver_id siempre de la
+// sesión, nunca del body/param). El frontend llama a este endpoint y LUEGO,
+// por separado, PUT .../status con status:'delivered' (uploadPod() → advance
+// ('delivered')) — así que este endpoint también avanza el estado como red
+// de seguridad (si esa segunda request fallara por corte de red, la foto ya
+// quedó guardada y la entrega ya cuenta como completada), de forma idempotente
+// (WHERE status != 'delivered').
+app.post('/api/delivery/assignments/:id/pod', async (c) => {
+  // 'owner' agregado (aviso del dueño) — ver nota en /assignments/mine arriba.
+  const authUser = await requireSession(c, ['delivery', 'owner'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+
+  try {
+    const [assignment] = await sql`SELECT id, order_id, driver_id FROM delivery_assignments WHERE id = ${id}`
+    if (!assignment) return c.json({ error: 'Entrega no encontrada' }, 404)
+    if (assignment.driver_id !== authUser.id) return c.json({ error: 'Forbidden' }, 403)
+
+    const body = await c.req.parseBody()
+    const file = body['file']
+    if (!(file instanceof File)) return c.json({ error: 'Falta la foto (campo "file")' }, 400)
+    if (file.size === 0) return c.json({ error: 'Archivo vacío' }, 400)
+    if (file.size > 8 * 1024 * 1024) return c.json({ error: 'Foto demasiado grande (máx 8MB)' }, 400)
+
+    const latRaw = body['lat']
+    const lngRaw = body['lng']
+    const lat = typeof latRaw === 'string' && latRaw !== '' ? Number(latRaw) : null
+    const lng = typeof lngRaw === 'string' && lngRaw !== '' ? Number(lngRaw) : null
+
+    const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+    const filename = `${id}-${Date.now()}.${ext}`
+
+    fs.mkdirSync(POD_UPLOAD_DIR, { recursive: true })
+    const buf = Buffer.from(await file.arrayBuffer())
+    fs.writeFileSync(path.join(POD_UPLOAD_DIR, filename), buf)
+
+    const publicUrl = `${API_PUBLIC_URL}/pod/${filename}`
+
+    await sql`
+      INSERT INTO delivery_pods (assignment_id, r2_key, latitude, longitude, captured_at, uploaded_at)
+      VALUES (${id}, ${filename}, ${lat}, ${lng}, NOW(), NOW())
+    `
+
+    // Idempotente y coherente con PUT .../status: solo toca la fila si todavía
+    // no estaba marcada delivered (esa segunda request del frontend puede
+    // llegar antes, después, o no llegar — la foto no debe depender de eso).
+    await sql`
+      UPDATE delivery_assignments SET status = 'delivered', delivered_at = NOW(), updated_at = NOW()
+      WHERE id = ${id} AND status != 'delivered'
+    `
+    await sql`UPDATE orders SET status = 'entregada' WHERE id = ${assignment.order_id}`
+
+    await recordAuditLog(c, authUser, 'delivery.pod_upload', { table: 'delivery_pods', id }, { filename, lat, lng })
+
+    console.log(`✅ POD uploaded for assignment ${id}`)
+    return c.json({ ok: true, url: publicUrl })
+  } catch (err) {
+    console.error('POD upload error:', err)
+    return c.json({ error: 'Error al subir la foto' }, 500)
+  }
+})
+
 // POST /api/delivery/location — GPS ping while `status = in_transit`
 // (apps/repartidor/src/app/page.tsx, watchPosition + 30s interval fallback).
 // Writes to delivery_location_pings (packages/db/src/schema/delivery.ts) — a
@@ -3313,7 +3559,8 @@ app.put('/api/delivery/assignments/:id/status', async (c) => {
 // dense stream of pings never touches the assignment row. driver_id always
 // comes from the session, never the request body.
 app.post('/api/delivery/location', async (c) => {
-  const authUser = await requireSession(c, ['delivery'])
+  // 'owner' agregado (aviso del dueño) — ver nota en /assignments/mine arriba.
+  const authUser = await requireSession(c, ['delivery', 'owner'])
   if (authUser instanceof Response) return authUser
 
   let body: any = {}
@@ -3870,6 +4117,7 @@ app.post('/api/auth/register', async (c) => {
 const VALID_PRODUCT_STATUS = ['active', 'inactive', 'discontinued']
 const VALID_COLD_CHAIN = ['ambient', 'refrigerated', 'frozen']
 const VALID_EXPIRY_FILTERS = ['fresh', 'warning', 'urgent', 'expired']
+const VALID_SELLOS = ['sodio', 'grasas', 'azucares', 'calorias']
 
 // Sesión OPCIONAL: apps/web (tienda pública, sin login de cliente aún — eso es
 // Fase 3) necesita listar productos sin estar autenticado. Staff (cerebro/pos)
@@ -3962,6 +4210,76 @@ app.get('/api/products', async (c) => {
   } catch (err) {
     console.error('List products error:', err)
     return c.json({ error: 'Error al listar productos' }, 500)
+  }
+})
+
+// POST /api/products (gap crítico — apps/cerebro/.../products/new ya lo llama,
+// 404 hoy). Rol admin+ (matriz 6.1: edición de catálogo/precios) — a
+// diferencia de las lecturas de arriba, que cualquier sesión válida puede
+// consultar. Valida sku/slug/barcode únicos ANTES del insert (mensaje claro
+// en vez de un 500 por violación de constraint) y también captura el 23505 de
+// Postgres como red de seguridad ante una carrera entre el check y el insert.
+app.post('/api/products', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  const sku  = String(body.sku ?? '').trim()
+  const name = String(body.name ?? '').trim()
+  const slug = String(body.slug ?? '').trim()
+  const barcode = body.barcode ? String(body.barcode).trim() : null
+  const priceRetail = Number(body.priceRetail)
+
+  if (!sku || !name || !slug) return c.json({ error: 'SKU, nombre y slug son obligatorios' }, 400)
+  if (!(priceRetail >= 0)) return c.json({ error: 'Precio retail inválido' }, 400)
+
+  const coldChain = VALID_COLD_CHAIN.includes(body.coldChain) ? body.coldChain : 'ambient'
+  const status    = VALID_PRODUCT_STATUS.includes(body.status) ? body.status : 'active'
+  const sellos: string[] = Array.isArray(body.sellos) ? body.sellos.filter((s: any) => VALID_SELLOS.includes(s)) : []
+
+  try {
+    const [dupSku] = await sql`SELECT id FROM products WHERE sku = ${sku}`
+    if (dupSku) return c.json({ error: 'Ya existe un producto con ese SKU' }, 409)
+    const [dupSlug] = await sql`SELECT id FROM products WHERE slug = ${slug}`
+    if (dupSlug) return c.json({ error: 'Ya existe un producto con ese slug' }, 409)
+    if (barcode) {
+      const [dupBarcode] = await sql`SELECT id FROM products WHERE barcode = ${barcode}`
+      if (dupBarcode) return c.json({ error: 'Ya existe un producto con ese código de barras' }, 409)
+    }
+
+    const [created] = await sql`
+      INSERT INTO products (
+        sku, barcode, name, name_ko, slug, description, brand, category_id,
+        cost_price, price_retail, price_web, price_pos, price_b2b,
+        discount_web_pct, discount_pos_pct, discount_b2b_pct,
+        weight_grams, is_weighable, is_baes_eligible, cold_chain, status
+      ) VALUES (
+        ${sku}, ${barcode}, ${name}, ${body.nameKo || null}, ${slug},
+        ${body.description || null}, ${body.brand || null}, ${body.categoryId || null},
+        ${body.costPrice ?? null}, ${priceRetail}, ${body.priceWeb ?? null}, ${body.pricePOS ?? null}, ${body.priceB2B ?? null},
+        ${Number(body.discountWebPct) || 0}, ${Number(body.discountPOSPct) || 0}, ${Number(body.discountB2BPct) || 0},
+        ${body.weightGrams ?? null}, ${!!body.isWeighable}, ${!!body.isBaesEligible}, ${coldChain}, ${status}
+      )
+      RETURNING id
+    `
+
+    for (const s of sellos) {
+      await sql`INSERT INTO product_sellos (product_id, sello) VALUES (${created.id}, ${s})`
+    }
+
+    await recordAuditLog(c, authUser, 'product.create', { table: 'products', id: created.id }, {
+      sku, name, priceRetail,
+      priceWeb: body.priceWeb ?? null, pricePOS: body.pricePOS ?? null, priceB2B: body.priceB2B ?? null, costPrice: body.costPrice ?? null,
+    })
+
+    console.log(`✅ Product created: ${sku} — ${name}`)
+    return c.json({ ok: true, id: created.id })
+  } catch (err: any) {
+    console.error('Create product error:', err)
+    if (err?.code === '23505') return c.json({ error: 'SKU, slug o código de barras ya existe' }, 409)
+    return c.json({ error: 'Error al crear el producto' }, 500)
   }
 })
 
@@ -4098,6 +4416,98 @@ app.get('/api/products/id/:id', async (c) => {
   } catch (err) {
     console.error('Product detail error:', err)
     return c.json({ error: 'Error al obtener producto' }, 500)
+  }
+})
+
+// PUT /api/products/:id (gap crítico — apps/cerebro/.../products/[id]/edit ya
+// lo llama, 404 hoy). Mismo rol admin+ que el POST de arriba. Reemplaza
+// product_sellos por completo (delete+insert) en vez de diffear — la lista es
+// corta (4 posibles) y product-form.tsx siempre manda el array completo, no
+// un delta. Audita cualquier cambio de precio con before/after explícito
+// (costPrice/priceRetail/priceWeb/pricePOS/priceB2B) — es el hallazgo de S16
+// que dejó esto documentado como deuda ("edición de precio no es auditable
+// porque el endpoint no existe"), así que el audit log nace completo desde el
+// día uno de este endpoint.
+app.put('/api/products/:id', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  const id = c.req.param('id')
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  const sku  = String(body.sku ?? '').trim()
+  const name = String(body.name ?? '').trim()
+  const slug = String(body.slug ?? '').trim()
+  const barcode = body.barcode ? String(body.barcode).trim() : null
+  const priceRetail = Number(body.priceRetail)
+
+  if (!sku || !name || !slug) return c.json({ error: 'SKU, nombre y slug son obligatorios' }, 400)
+  if (!(priceRetail >= 0)) return c.json({ error: 'Precio retail inválido' }, 400)
+
+  const coldChain = VALID_COLD_CHAIN.includes(body.coldChain) ? body.coldChain : 'ambient'
+  const status    = VALID_PRODUCT_STATUS.includes(body.status) ? body.status : 'active'
+  const sellos: string[] = Array.isArray(body.sellos) ? body.sellos.filter((s: any) => VALID_SELLOS.includes(s)) : []
+
+  try {
+    const [before] = await sql`SELECT * FROM products WHERE id = ${id}`
+    if (!before) return c.json({ error: 'Producto no encontrado' }, 404)
+
+    const [dupSku] = await sql`SELECT id FROM products WHERE sku = ${sku} AND id != ${id}`
+    if (dupSku) return c.json({ error: 'Ya existe otro producto con ese SKU' }, 409)
+    const [dupSlug] = await sql`SELECT id FROM products WHERE slug = ${slug} AND id != ${id}`
+    if (dupSlug) return c.json({ error: 'Ya existe otro producto con ese slug' }, 409)
+    if (barcode) {
+      const [dupBarcode] = await sql`SELECT id FROM products WHERE barcode = ${barcode} AND id != ${id}`
+      if (dupBarcode) return c.json({ error: 'Ya existe otro producto con ese código de barras' }, 409)
+    }
+
+    await sql`
+      UPDATE products SET
+        sku = ${sku}, barcode = ${barcode}, name = ${name}, name_ko = ${body.nameKo || null},
+        slug = ${slug}, description = ${body.description || null}, brand = ${body.brand || null},
+        category_id = ${body.categoryId || null},
+        cost_price = ${body.costPrice ?? null}, price_retail = ${priceRetail},
+        price_web = ${body.priceWeb ?? null}, price_pos = ${body.pricePOS ?? null}, price_b2b = ${body.priceB2B ?? null},
+        discount_web_pct = ${Number(body.discountWebPct) || 0}, discount_pos_pct = ${Number(body.discountPOSPct) || 0}, discount_b2b_pct = ${Number(body.discountB2BPct) || 0},
+        weight_grams = ${body.weightGrams ?? null}, is_weighable = ${!!body.isWeighable}, is_baes_eligible = ${!!body.isBaesEligible},
+        cold_chain = ${coldChain}, status = ${status}, updated_at = NOW()
+      WHERE id = ${id}
+    `
+
+    await sql`DELETE FROM product_sellos WHERE product_id = ${id}`
+    for (const s of sellos) {
+      await sql`INSERT INTO product_sellos (product_id, sello) VALUES (${id}, ${s})`
+    }
+
+    // Diff de precios para el audit log — antes/después solo de lo que cambió.
+    const priceFieldMap: Array<[string, string, any]> = [
+      ['costPrice',   'cost_price',   body.costPrice ?? null],
+      ['priceRetail', 'price_retail', priceRetail],
+      ['priceWeb',    'price_web',    body.priceWeb ?? null],
+      ['pricePOS',    'price_pos',    body.pricePOS ?? null],
+      ['priceB2B',    'price_b2b',    body.priceB2B ?? null],
+    ]
+    const priceChanges: Record<string, { before: any; after: any }> = {}
+    for (const [key, col, afterVal] of priceFieldMap) {
+      const beforeVal = before[col]
+      if (String(beforeVal ?? '') !== String(afterVal ?? '')) {
+        priceChanges[key] = { before: beforeVal, after: afterVal }
+      }
+    }
+
+    await recordAuditLog(c, authUser, 'product.update', { table: 'products', id }, {
+      sku, name,
+      ...(Object.keys(priceChanges).length > 0 ? { priceChanges } : {}),
+    })
+
+    console.log(`✅ Product updated: ${sku} — ${name}${Object.keys(priceChanges).length > 0 ? ' (precio cambiado)' : ''}`)
+    return c.json({ ok: true })
+  } catch (err: any) {
+    console.error('Update product error:', err)
+    if (err?.code === '23505') return c.json({ error: 'SKU, slug o código de barras ya existe' }, 409)
+    return c.json({ error: 'Error al actualizar el producto' }, 500)
   }
 })
 
@@ -4948,7 +5358,8 @@ app.get('/api/events/pos', async (c) => {
 // same invariant already established for /api/delivery/assignments/mine and
 // /api/delivery/location (S07).
 app.get('/api/events/delivery', async (c) => {
-  const authUser = await requireSession(c, ['delivery'])
+  // 'owner' agregado (aviso del dueño) — ver nota en /assignments/mine arriba.
+  const authUser = await requireSession(c, ['delivery', 'owner'])
   if (authUser instanceof Response) return authUser
 
   return streamSSE(c, async (stream) => {
