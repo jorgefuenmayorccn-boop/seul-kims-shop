@@ -59,6 +59,97 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+interface PendingCompany {
+  id:           string
+  razonSocial:  string
+  rut:          string
+  giro:         string | null
+  address:      string | null
+  tier:         string
+  createdAt:    string
+  contactName:  string
+  contactEmail: string
+}
+
+// Sección "Empresas B2B pendientes de aprobación" — GAP REAL cerrado hoy
+// (2-sep-2026): antes de esto NINGÚN endpoint listaba ni aprobaba el
+// REGISTRO de una empresa nueva (b2b_companies.status) — esta pantalla solo
+// tenía solicitudes de CRÉDITO. Una empresa recién registrada
+// (POST /api/b2b/registro) quedaba 'pending' para siempre, invisible en
+// cerebro. Solo owner puede aprobar/rechazar (mismo criterio que crédito).
+function PendingCompanies() {
+  const [items, setItems]     = useState<PendingCompany[]>([])
+  const [loading, setLoading] = useState(true)
+  const [acting, setActing]   = useState<string | null>(null)
+  const [error, setError]     = useState('')
+
+  function load() {
+    setLoading(true)
+    fetch(`${API}/api/b2b/companies-pending`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : { companies: [] })
+      .then((d: { companies?: PendingCompany[] }) => setItems(d.companies ?? []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function review(id: string, status: 'approved' | 'rejected') {
+    setActing(id)
+    setError('')
+    try {
+      const r = await fetch(`${API}/api/b2b/companies/${id}/status`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ status }),
+      })
+      if (!r.ok) { const d = await r.json() as { error?: string }; setError(d.error ?? 'Error'); return }
+      load()
+    } finally {
+      setActing(null)
+    }
+  }
+
+  if (loading || items.length === 0) return null
+
+  return (
+    <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 overflow-hidden">
+      <div className="px-5 py-3 border-b border-amber-200">
+        <h2 className="text-sm font-semibold text-amber-900">
+          Empresas B2B pendientes de aprobación ({items.length})
+        </h2>
+      </div>
+      {error && <p className="px-5 pt-2 text-xs text-red-700">{error}</p>}
+      <div className="divide-y divide-amber-100">
+        {items.map(comp => (
+          <div key={comp.id} className="px-5 py-3 flex items-center justify-between text-sm gap-4">
+            <div>
+              <p className="font-medium text-text">{comp.razonSocial}</p>
+              <p className="text-[11px] text-text-muted font-mono">{comp.rut} · {comp.giro ?? 'sin giro'}</p>
+              <p className="text-[11px] text-text-muted">{comp.contactName} · {comp.contactEmail}</p>
+              <p className="text-[10px] text-text-muted mt-0.5">Solicitado {fmt(comp.createdAt)}</p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                disabled={acting === comp.id}
+                onClick={() => review(comp.id, 'approved')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50"
+                style={{ background: 'var(--color-brand)', color: '#fff' }}>
+                <Check size={12}/> Aprobar
+              </button>
+              <button
+                disabled={acting === comp.id}
+                onClick={() => review(comp.id, 'rejected')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50">
+                <X size={12}/> Rechazar
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // Sección "Clientes sugeridos para revisión de crédito" — GET /api/b2b/credit-suggestions
 // (owner-only, adición post-entrega). Compara volumen de compra B2B de los
 // últimos 30 días vs. los 30 días anteriores; solo aparece si el crecimiento
@@ -252,6 +343,7 @@ export default function SolicitudesPage() {
         </p>
       </div>
 
+      <PendingCompanies />
       <CreditSuggestions />
 
       {error && (

@@ -3979,6 +3979,90 @@ app.get('/api/b2b/companies', async (c) => {
   }
 })
 
+// GET /api/b2b/companies-pending — STAFF (owner/admin). GAP REAL cerrado hoy:
+// ningún endpoint en todo el sistema listaba ni aprobaba el REGISTRO de una
+// empresa B2B nueva (b2b_companies.status) — solo existía aprobación de
+// CRÉDITO (b2b_credit_requests, ver GET /api/b2b/solicitudes abajo). Una
+// empresa recién registrada (POST /api/b2b/registro) queda 'pending' PARA
+// SIEMPRE sin este endpoint + el de abajo — confirmado el 2-sep-2026 cuando
+// el dueño reportó "no veo la solicitud en el cmr" para una cuenta de prueba
+// real que llevaba registrada desde el día anterior.
+app.get('/api/b2b/companies-pending', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const rows = await sql`
+      SELECT comp.id, comp.razon_social, comp.rut, comp.giro, comp.address, comp.tier, comp.created_at,
+             cust.name AS contact_name, cust.email AS contact_email
+      FROM b2b_companies comp
+      JOIN customers cust ON cust.id = comp.customer_id
+      WHERE comp.status = 'pending'
+      ORDER BY comp.created_at ASC
+    `
+    return c.json({
+      companies: rows.map((r: any) => ({
+        id: r.id, razonSocial: r.razon_social, rut: r.rut, giro: r.giro, address: r.address,
+        tier: r.tier, createdAt: r.created_at, contactName: r.contact_name, contactEmail: r.contact_email,
+      })),
+    })
+  } catch (err) {
+    console.error('B2B companies pending error:', err)
+    return c.json({ error: 'Error al listar empresas pendientes' }, 500)
+  }
+})
+
+// PATCH /api/b2b/companies/:id/status — SOLO owner (mismo criterio que la
+// aprobación de crédito: "solo el jefe/gerente puede aprobar una cuenta
+// B2B"). status: 'approved' | 'rejected'. Avisa por correo al contacto.
+app.patch('/api/b2b/companies/:id/status', async (c) => {
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  const status = body.status
+  if (!['approved', 'rejected'].includes(status)) {
+    return c.json({ error: 'status debe ser approved o rejected' }, 400)
+  }
+
+  try {
+    const [company] = await sql`
+      SELECT comp.id, comp.razon_social, comp.status, cust.name AS contact_name, cust.email AS contact_email
+      FROM b2b_companies comp
+      JOIN customers cust ON cust.id = comp.customer_id
+      WHERE comp.id = ${id}
+    `
+    if (!company) return c.json({ error: 'Empresa no encontrada' }, 404)
+    if (company.status !== 'pending') {
+      return c.json({ error: 'Esta empresa ya fue revisada' }, 409)
+    }
+
+    if (status === 'approved') {
+      await sql`UPDATE b2b_companies SET status = 'approved', approved_at = NOW() WHERE id = ${id}`
+    } else {
+      await sql`UPDATE b2b_companies SET status = 'rejected' WHERE id = ${id}`
+    }
+
+    await recordAuditLog(c, authUser, 'b2b_company.review', { table: 'b2b_companies', id }, { status })
+
+    if (company.contact_email) {
+      const label = status === 'approved' ? '✅ Cuenta aprobada' : '❌ Solicitud rechazada'
+      const bodyMsg = status === 'approved'
+        ? `<p>Tu cuenta mayorista <strong>${company.razon_social}</strong> fue aprobada. Ya puedes ingresar al <a href="${CUSTOMER_WEB_URL}/b2b/login">Portal Mayorista</a> y hacer pedidos a precio neto.</p>`
+        : `<p>Tu solicitud de cuenta mayorista para <strong>${company.razon_social}</strong> no fue aprobada. Si crees que es un error, contáctanos.</p>`
+      await enqueueEmail(company.contact_email, `${label} — ${company.razon_social}`, bodyMsg, status === 'approved' ? 'quote-accepted' : 'quote-rejected')
+    }
+
+    return c.json({ ok: true })
+  } catch (err) {
+    console.error('B2B company review error:', err)
+    return c.json({ error: 'Error al revisar la empresa' }, 500)
+  }
+})
+
 // GET /api/b2b/solicitudes — STAFF (owner/admin), apps/cerebro/.../b2b/solicitudes/page.tsx.
 // Pese al nombre ("solicitudes"), es específicamente el listado de solicitudes
 // de CRÉDITO (b2b_credit_requests) — no hay una pantalla de aprobación de
