@@ -6965,7 +6965,9 @@ app.get('/api/products/:id/inventory', async (c) => {
 // movimiento en inventory_movements con type='purchase' — un lote nuevo es
 // una entrada de stock, no un ajuste.
 app.post('/api/products/:id/inventory', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin'])
+  // 'manager' agregado (pedido del dueño, 3-sep-2026 — Gerente de local
+  // también necesita Inventario, no solo Productos).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager'])
   if (authUser instanceof Response) return authUser
 
   const productId = c.req.param('id')
@@ -7049,7 +7051,8 @@ app.get('/api/products/:id/inventory/movements', async (c) => {
 // al guardar, para llevar control"). Registra en inventory_movements con
 // type='adjustment' y el motivo como notes. Rol owner/admin.
 app.patch('/api/inventory/:lotId', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin'])
+  // 'manager' agregado (pedido del dueño, 3-sep-2026).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager'])
   if (authUser instanceof Response) return authUser
 
   const lotId = c.req.param('lotId')
