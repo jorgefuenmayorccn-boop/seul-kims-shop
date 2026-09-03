@@ -811,11 +811,17 @@ async function runMigrationsIfNeeded() {
 
     const perLocationTables = ['inventory', 'orders', 'shifts', 'till_sessions', 'delivery_assignments', 'driver_shifts']
     for (const table of perLocationTables) {
-      const colExists = await sql`
-        SELECT column_name FROM information_schema.columns
+      const col = await sql`
+        SELECT is_nullable FROM information_schema.columns
         WHERE table_name = ${table} AND column_name = 'location_id'
       `
-      if (colExists.length === 0) {
+      // Chequea NOT NULL, no solo existencia — encontrado en producción:
+      // una corrida de depuración manual dejó `inventory.location_id`
+      // creada pero nullable (columna ya existía, así que este bloque se
+      // saltaba entero, incluyendo el UPDATE+SET NOT NULL). Con este
+      // chequeo, un estado a medias como ese se autocompleta solo en el
+      // siguiente arranque.
+      if (col.length === 0 || col[0].is_nullable === 'YES') {
         console.log(`🔄 Running migration 0027c (${table}.location_id)...`)
         await sql.unsafe(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) DEFAULT '${vinaId}'`)
         await sql`UPDATE ${sql(table)} SET location_id = ${vinaId}::uuid WHERE location_id IS NULL`
