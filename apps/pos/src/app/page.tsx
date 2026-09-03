@@ -806,6 +806,8 @@ export default function POSPage() {
           shiftNumber={shift?.shiftNumber}
           tillSessionNumber={tillSession?.sessionNumber}
           deliveryMode={store.deliveryOrder?.deliveryMode ?? undefined}
+          deliveryAddress={store.deliveryOrder?.deliveryAddress ?? undefined}
+          deliveryComuna={store.deliveryOrder?.comuna ?? undefined}
         />
       )}
     </div>

@@ -193,6 +193,7 @@ export function deliveryLabel(mode: string): string {
     metro:    'RETIRO MERVAL',
     rappi:    'DELIVERY RAPPI',
     shipping: 'DESPACHO A DOMICILIO',
+    delivery: 'DELIVERY A DOMICILIO',
   }
   return labels[mode] ?? mode.toUpperCase()
 }

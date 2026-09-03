@@ -4,7 +4,7 @@
 import {
   htmlShell, storeHeader, storeFooter,
   clp, formatDateTime, padNum,
-  channelLabel, metodoPagoLabel, dteStatusText,
+  channelLabel, metodoPagoLabel, dteStatusText, deliveryLabel,
   INK,
 } from './design-system'
 import type { TicketPayload } from '../ticket-payload'
@@ -184,6 +184,33 @@ ${taxHtml}
   <div class="meta">${escHtml(p.receiver!.direccion)}, ${escHtml(p.receiver!.comuna)}</div>
 </div>` : ''
 
+  // ─── Entrega (adición post-entrega, 3-sep-2026) ─────────────────────────
+  // Antes la boleta/nota de venta nunca mostraba dónde/cuándo se entrega un
+  // pedido — solo la comanda y la etiqueta (documentos internos) lo tenían.
+  // 'pickup' no muestra bloque — el cliente retira en tienda, ya lo dice el
+  // encabezado del canal.
+  const deliveryHtml = (() => {
+    if (!p.deliveryMode || p.deliveryMode === 'pickup') return ''
+    const lines: string[] = []
+    if (p.deliveryMode === 'metro' && p.metroStation) {
+      lines.push(`Estación ${escHtml(p.metroStation)}`)
+      const parts: string[] = []
+      if (p.deliveryDate) parts.push(escHtml(formatDeliveryDate(p.deliveryDate)))
+      if (p.metroSlot) parts.push(escHtml(p.metroSlot))
+      if (parts.length) lines.push(parts.join(' · '))
+    } else if (p.deliveryAddress) {
+      lines.push(escHtml(p.deliveryAddress))
+      if (p.deliveryComuna) lines.push(escHtml(p.deliveryComuna))
+    }
+    if (lines.length === 0) return ''
+    return `
+<hr class="sep">
+<div class="section-lbl mb-2">Entrega — ${deliveryLabel(p.deliveryMode)}</div>
+<div class="receiver-block">
+  ${lines.map(l => `<div class="meta">${l}</div>`).join('')}
+</div>`
+  })()
+
   // ─── Folio SII ───────────────────────────────────────────────────────────
   const folioHtml = p.folio ? `
 <div class="folio-block mt-1">
@@ -218,6 +245,7 @@ ${storeHeader()}
 </div>
 
 ${receiverHtml}
+${deliveryHtml}
 
 <hr class="sep">
 <div class="section-lbl mb-2">Productos</div>
@@ -262,4 +290,12 @@ function escHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+// yyyy-mm-dd → "Vie 05/09" — mismo helper que comanda.ts/etiqueta.ts.
+function formatDeliveryDate(isoDate: string): string {
+  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+  const d = new Date(`${isoDate}T00:00:00`)
+  if (isNaN(d.getTime())) return isoDate
+  return `${days[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }

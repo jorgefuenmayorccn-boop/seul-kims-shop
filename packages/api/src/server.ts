@@ -2908,6 +2908,8 @@ app.get('/api/orders/:id/ticket', async (c) => {
       SELECT o.id, o.number, o.channel, o.dte_type, o.dte_status, o.dte_folio,
              o.subtotal, o.baes_amount, o.total, o.created_at,
              o.payment_status, o.payment_method,
+             o.delivery_mode, o.delivery_address, o.delivery_comuna,
+             o.metro_station, o.metro_slot, o.delivery_date,
              u.name AS cashier_name
       FROM orders o
       LEFT JOIN users u ON u.id = COALESCE(o.cashier_id, o.payment_confirmed_by)
@@ -2958,6 +2960,15 @@ app.get('/api/orders/:id/ticket', async (c) => {
       payments,
       storeInfo:  { ...STORE_INFO },
       dteStatus:  order.dte_status,
+      // Entrega (adición post-entrega, 3-sep-2026 — pedido explícito del
+      // dueño: la boleta/nota de venta nunca mostraba dirección/estación
+      // para pedidos con delivery, solo la comanda y la etiqueta la tenían).
+      deliveryMode:    order.delivery_mode ?? undefined,
+      deliveryAddress: order.delivery_address ?? undefined,
+      deliveryComuna:  order.delivery_comuna ?? undefined,
+      metroStation:    order.metro_station ?? undefined,
+      metroSlot:       order.metro_slot ?? undefined,
+      deliveryDate:    order.delivery_date ?? undefined,
     }
 
     return c.json({ ticket })

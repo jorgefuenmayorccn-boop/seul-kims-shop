@@ -56,6 +56,17 @@ export interface TicketPayload {
   storeInfo:          TicketStoreInfo
   isReprint?:         boolean       // agrega línea "*** COPIA ***"
   dteStatus?:         string        // 'pending' | 'issued' | 'failed' para badge
+  // Entrega (adición post-entrega, 3-sep-2026) — antes la boleta/nota de
+  // venta no mostraba NADA de la entrega para pedidos con delivery/Metro,
+  // aunque la comanda y la etiqueta ya lo tuvieran. `deliveryComuna` es el
+  // campo estructurado (migración 0024c) — separado de `deliveryAddress`,
+  // que puede venir ya concatenado con la comuna por compatibilidad.
+  deliveryMode?:      'rappi' | 'metro' | 'pickup' | 'shipping' | 'delivery'
+  deliveryAddress?:   string
+  deliveryComuna?:    string
+  metroStation?:      string
+  metroSlot?:         string
+  deliveryDate?:      string        // yyyy-mm-dd
 }
 
 // Payload para comandas de producción — sin precios, máxima legibilidad

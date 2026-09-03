@@ -41,6 +41,8 @@ interface CheckoutShellProps {
   shiftNumber?:       number
   tillSessionNumber?: number
   deliveryMode?:      string   // 'rappi' → solo transferencia
+  deliveryAddress?:   string   // para la boleta/nota de venta (adición post-entrega, 3-sep-2026)
+  deliveryComuna?:    string
   onBAESValidated:    (s: BAESSession | null) => void
   onConfirm:          (tenders: Tender[], dteType: DteType, receiver?: Receiver) => Promise<{ orderId: string; number: number; dteStatus?: string }>
   onClose:            () => void
@@ -56,7 +58,7 @@ export function CheckoutShell({
   baesSession, onBAESValidated,
   onConfirm, onClose, apiUrl,
   cartItems, cashierName, shiftNumber, tillSessionNumber,
-  deliveryMode,
+  deliveryMode, deliveryAddress, deliveryComuna,
 }: CheckoutShellProps) {
   const isRappi = deliveryMode === 'rappi'
   const [step,         setStep]         = useState<Step>('method')
@@ -189,6 +191,9 @@ export function CheckoutShell({
       change:       change > 0 ? change : undefined,
       receiver:     dteType === 'factura' ? receiver : undefined,
       storeInfo:    { ...STORE_INFO },
+      deliveryMode:    deliveryMode as TicketPayload['deliveryMode'],
+      deliveryAddress,
+      deliveryComuna,
     }
   }
 
