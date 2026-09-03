@@ -1,7 +1,10 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { Clock, Truck, Train, ShoppingBag, RefreshCw, X } from 'lucide-react'
+import { Clock, Truck, Train, ShoppingBag, RefreshCw, X, Printer } from 'lucide-react'
 import { cn, formatCLP } from '@seul/ui'
+import { ComandaPaymentPanel, ComandaReadyButton, type ComandaPaymentMethod } from '@seul/ui/pos/comanda-payment-panel'
+import type { ComandaPayload, TicketPayload } from '@seul/pdf-templates/client'
+import { printComanda, printTicket } from '@/lib/print-service'
 
 // Vista de Comandas dentro de POS — reusa el mismo backend que el Kanban de
 // cerebro (apps/cerebro/src/app/(admin)/comandas/page.tsx): GET /api/orders/comandas
@@ -26,6 +29,14 @@ interface Comanda {
   dteStatus: 'pending' | 'issued' | 'failed'
   createdAt: string
   itemCount: number
+  // Pago pendiente + crédito B2B + "listo para retirar" (adición
+  // post-entrega, 3-sep-2026) — GET /api/orders/comandas ya devuelve estos
+  // campos desde la ronda de esta tarde, esta vista nunca los consumía.
+  paymentStatus: 'pending' | 'confirmed'
+  paymentMethod: ComandaPaymentMethod | null
+  companyId:     string | null
+  razonSocial:   string | null
+  readyAt:       string | null
 }
 
 interface KanbanData {
@@ -72,6 +83,24 @@ const CHANNEL_LABELS: Record<Channel, string> = {
 }
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
+
+// Fetch + imprimir vía el print-service real de POS (Print Agent local si
+// está disponible, si no popup HTML) — a diferencia de cerebro (que no
+// tiene impresora física atada, siempre usa popup), esta vista SÍ debe
+// intentar el agente primero para los tickets.
+async function fetchAndPrintComanda(orderId: string): Promise<void> {
+  const res = await fetch(`${API}/api/orders/${orderId}/comanda`, { credentials: 'include' })
+  if (!res.ok) return
+  const { comanda } = await res.json() as { comanda: ComandaPayload }
+  await printComanda(comanda)
+}
+
+async function fetchAndPrintTicket(orderId: string): Promise<void> {
+  const res = await fetch(`${API}/api/orders/${orderId}/ticket`, { credentials: 'include' })
+  if (!res.ok) return
+  const { ticket } = await res.json() as { ticket: TicketPayload }
+  await printTicket(ticket)
+}
 
 function minutesSince(iso: string) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
@@ -139,6 +168,21 @@ export function ComandasView({ onClose }: ComandasViewProps) {
     } catch {
       // Si falla, el próximo auto-refresh (30s) corrige el estado optimista
     }
+  }
+
+  // Actualización optimista tras confirmar pago / marcar listo — el
+  // endpoint ya hizo el trabajo real (BD + DTE), esto solo evita esperar
+  // los 30s del auto-refresh (mismo patrón que cerebro).
+  function patchComanda(orderId: string, patch: Partial<Comanda>) {
+    setData(prev => {
+      const apply = (list: Comanda[]) => list.map(o => o.id === orderId ? { ...o, ...patch } : o)
+      return { nueva: apply(prev.nueva), preparando: apply(prev.preparando), lista: apply(prev.lista) }
+    })
+  }
+
+  async function handlePaymentConfirmed(orderId: string, method: ComandaPaymentMethod) {
+    patchComanda(orderId, { paymentStatus: 'confirmed', paymentMethod: method })
+    await Promise.all([fetchAndPrintComanda(orderId), fetchAndPrintTicket(orderId)])
   }
 
   const total = data.nueva.length + data.preparando.length + data.lista.length
@@ -212,7 +256,13 @@ export function ComandasView({ onClose }: ComandasViewProps) {
                     </div>
                   )}
                   {!loading && items.map(comanda => (
-                    <ComandaCard key={comanda.id} comanda={comanda} onAdvance={handleAdvance} />
+                    <ComandaCard
+                      key={comanda.id}
+                      comanda={comanda}
+                      onAdvance={handleAdvance}
+                      onPaymentConfirmed={handlePaymentConfirmed}
+                      onMarkedReady={(id) => patchComanda(id, { readyAt: new Date().toISOString() })}
+                    />
                   ))}
                 </div>
               </div>
@@ -224,9 +274,11 @@ export function ComandasView({ onClose }: ComandasViewProps) {
   )
 }
 
-function ComandaCard({ comanda, onAdvance }: {
+function ComandaCard({ comanda, onAdvance, onPaymentConfirmed, onMarkedReady }: {
   comanda: Comanda
   onAdvance: (id: string, from: OrderStatus) => void
+  onPaymentConfirmed: (id: string, method: ComandaPaymentMethod) => void
+  onMarkedReady: (id: string) => void
 }) {
   const mins = minutesSince(comanda.createdAt)
   const isUrgent = mins > 20
@@ -254,6 +306,9 @@ function ComandaCard({ comanda, onAdvance }: {
           >
             {CHANNEL_LABELS[comanda.channel] ?? comanda.channel.toUpperCase()}
           </span>
+          {comanda.razonSocial && (
+            <span className="text-[10px] font-body text-accent">{comanda.razonSocial}</span>
+          )}
         </div>
         {comanda.dteStatus === 'failed' && (
           <span
@@ -289,6 +344,32 @@ function ComandaCard({ comanda, onAdvance }: {
           {formatCLP(Number(comanda.total))}
         </span>
       </div>
+
+      {/* Pago pendiente / confirmado + reimprimir (adición post-entrega,
+          3-sep-2026 — antes esta vista no tenía nada de esto, la cajera no
+          podía confirmar método de pago ni imprimir la boleta desde acá). */}
+      {(comanda.channel === 'web' || comanda.channel === 'b2b') && (
+        <ComandaPaymentPanel
+          apiUrl={API}
+          orderId={comanda.id}
+          paymentStatus={comanda.paymentStatus}
+          paymentMethod={comanda.paymentMethod}
+          companyId={comanda.companyId}
+          onConfirmed={(method) => onPaymentConfirmed(comanda.id, method)}
+          onPrint={() => { fetchAndPrintComanda(comanda.id); fetchAndPrintTicket(comanda.id) }}
+          compact
+        />
+      )}
+
+      {(comanda.deliveryMode === 'pickup' || comanda.deliveryMode === 'metro') && (
+        <ComandaReadyButton
+          apiUrl={API}
+          orderId={comanda.id}
+          readyAt={comanda.readyAt}
+          onMarked={() => onMarkedReady(comanda.id)}
+          compact
+        />
+      )}
 
       {/* Acción táctil única — siguiente estado del flujo */}
       {nextLabel && (

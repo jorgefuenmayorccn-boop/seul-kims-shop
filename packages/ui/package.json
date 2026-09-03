@@ -9,6 +9,7 @@
     "./pos/cart-line": "./src/pos/cart-line.tsx",
     "./pos/baes-validator": "./src/pos/baes-validator.tsx",
     "./pos/cold-chain-alert": "./src/pos/cold-chain-alert.tsx",
+    "./pos/comanda-payment-panel": "./src/pos/comanda-payment-panel.tsx",
     "./shop/product-card": "./src/shop/product-card.tsx",
     "./shop/animated-product-card": "./src/shop/animated-product-card.tsx",
     "./shop/delivery-picker": "./src/shop/delivery-picker.tsx",
