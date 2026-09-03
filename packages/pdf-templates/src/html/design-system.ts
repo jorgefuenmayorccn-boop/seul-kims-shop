@@ -154,24 +154,29 @@ if (window.opener || window.name === 'print_popup') {
 }
 
 // ─── Store header compartido ─────────────────────────────────────────────────
-
-export function storeHeader(): string {
+// `info` opcional (Fase 4 multilocal, 3-sep-2026) — antes SIEMPRE usaba el
+// STORE_INFO fijo (Viña del Mar) sin importar de qué local era el
+// documento. Los callers que ya pasan `p.storeInfo` (armado por local en
+// server.ts) muestran los datos correctos; los que no pasan nada (hoy
+// z-report.ts, ver nota en ese archivo) siguen mostrando STORE_INFO como
+// antes — no es una regresión, es el mismo comportamiento previo.
+export function storeHeader(info: { name: string; address: string; rut: string; giro: string } = STORE_INFO): string {
   return `
 <div class="center mb-3">
-  <div class="brand">${STORE_INFO.name}</div>
+  <div class="brand">${info.name}</div>
   <div class="brand-sub mt-1">서울킴스</div>
-  <div class="meta mt-1">${STORE_INFO.address}</div>
-  <div class="meta">RUT ${STORE_INFO.rut} · ${STORE_INFO.giro}</div>
+  <div class="meta mt-1">${info.address}</div>
+  <div class="meta">RUT ${info.rut} · ${info.giro}</div>
 </div>`
 }
 
 // ─── Footer compartido ───────────────────────────────────────────────────────
 
-export function storeFooter(): string {
+export function storeFooter(info: { ig: string; web: string } = STORE_INFO): string {
   return `
 <div class="center mt-4">
   <div class="meta">감사합니다 · Gracias por su visita</div>
-  <div class="meta mt-1">${STORE_INFO.ig} · ${STORE_INFO.web}</div>
+  <div class="meta mt-1">${info.ig} · ${info.web}</div>
 </div>`
 }
 

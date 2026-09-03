@@ -43,6 +43,11 @@ interface CheckoutShellProps {
   deliveryMode?:      string   // 'rappi' → solo transferencia
   deliveryAddress?:   string   // para la boleta/nota de venta (adición post-entrega, 3-sep-2026)
   deliveryComuna?:    string
+  // Datos del local del cajero para la boleta (Fase 4 multilocal,
+  // 3-sep-2026) — si no llega (todavía cargando, o falló el fetch en el
+  // padre), buildTicketPayload() cae a STORE_INFO, mismo comportamiento de
+  // antes de este cambio.
+  storeInfo?:         TicketPayload['storeInfo']
   onBAESValidated:    (s: BAESSession | null) => void
   onConfirm:          (tenders: Tender[], dteType: DteType, receiver?: Receiver) => Promise<{ orderId: string; number: number; dteStatus?: string }>
   onClose:            () => void
@@ -58,7 +63,7 @@ export function CheckoutShell({
   baesSession, onBAESValidated,
   onConfirm, onClose, apiUrl,
   cartItems, cashierName, shiftNumber, tillSessionNumber,
-  deliveryMode, deliveryAddress, deliveryComuna,
+  deliveryMode, deliveryAddress, deliveryComuna, storeInfo,
 }: CheckoutShellProps) {
   const isRappi = deliveryMode === 'rappi'
   const [step,         setStep]         = useState<Step>('method')
@@ -190,7 +195,7 @@ export function CheckoutShell({
       cashReceived: cashReceived > 0 ? cashReceived : undefined,
       change:       change > 0 ? change : undefined,
       receiver:     dteType === 'factura' ? receiver : undefined,
-      storeInfo:    { ...STORE_INFO },
+      storeInfo:    storeInfo ?? { ...STORE_INFO },
       deliveryMode:    deliveryMode as TicketPayload['deliveryMode'],
       deliveryAddress,
       deliveryComuna,

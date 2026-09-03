@@ -231,7 +231,7 @@ ${taxHtml}
 
   const body = `
 ${reprintBanner}
-${storeHeader()}
+${storeHeader(p.storeInfo)}
 
 <hr class="sep">
 
@@ -274,7 +274,7 @@ ${dteBadgeHtml}
   <div class="mt-1" style="font-size:8px;color:${INK[300]};">${docSubLabel}</div>
 </div>
 
-${storeFooter()}
+${storeFooter(p.storeInfo)}
 `
 
   return htmlShell(

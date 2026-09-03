@@ -33,6 +33,8 @@ import { fetchCurrentUser, logoutUser as logoutUserFn, useAuthStore } from '@/li
 import { fetchActiveShift, setActiveShift, useShiftStore, getActiveShift } from '@/lib/shift-store'
 import { fetchActiveTillSession, setActiveTillSession, useTillSessionStore, getActiveTillSession } from '@/lib/till-session-store'
 import { getDeviceId } from '@/lib/device'
+import type { TicketPayload } from '@seul/pdf-templates/client'
+import { STORE_INFO } from '@seul/pdf-templates/client'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
@@ -42,6 +44,11 @@ export default function POSPage() {
   const { user } = useAuthStore()
   const { shift } = useShiftStore()
   const { tillSession } = useTillSessionStore()
+  // Datos del local para la boleta (Fase 4 multilocal, 3-sep-2026) — antes
+  // CheckoutShell usaba el STORE_INFO fijo (Viña del Mar) para cualquier
+  // venta. null hasta que carga → CheckoutShell cae a STORE_INFO como
+  // antes (ver su default), nunca se rompe por esto.
+  const [storeInfo, setStoreInfo] = useState<TicketPayload['storeInfo'] | null>(null)
 
   const [products,     setProducts]     = useState<POSProduct[]>([])
   const [loading,      setLoading]      = useState(true)
@@ -87,6 +94,21 @@ export default function POSPage() {
     async function boot() {
       const u = await fetchCurrentUser(API)
       if (!u) { window.location.href = '/login'; return }
+      // Datos del local del cajero para la boleta (Fase 4 multilocal) —
+      // falla en silencio: si no carga, CheckoutShell usa su default
+      // (STORE_INFO), mismo comportamiento que antes de este cambio.
+      fetch(`${API}/api/locations/mine`, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : null)
+        .then((d: { location?: { name: string; address: string | null; rut: string | null; giro: string | null; phone: string | null; instagram: string | null } } | null) => {
+          if (!d?.location) return
+          const l = d.location
+          setStoreInfo({
+            name: l.name ?? STORE_INFO.name, address: l.address ?? STORE_INFO.address,
+            rut: l.rut ?? STORE_INFO.rut, giro: l.giro ?? STORE_INFO.giro,
+            phone: l.phone ?? STORE_INFO.phone, ig: l.instagram ?? STORE_INFO.ig, web: STORE_INFO.web,
+          })
+        })
+        .catch(() => {})
       const activeShift = await fetchActiveShift(API, device)
       if (activeShift) {
         setShiftReady(true)
@@ -808,6 +830,7 @@ export default function POSPage() {
           deliveryMode={store.deliveryOrder?.deliveryMode ?? undefined}
           deliveryAddress={store.deliveryOrder?.deliveryAddress ?? undefined}
           deliveryComuna={store.deliveryOrder?.comuna ?? undefined}
+          storeInfo={storeInfo ?? undefined}
         />
       )}
     </div>

@@ -1947,6 +1947,35 @@ app.get('/api/locations', async (c) => {
   }
 })
 
+// GET /api/locations/mine — datos "públicos" (sin credenciales DTE) del
+// local del usuario autenticado (adición post-entrega, 3-sep-2026, Fase 4
+// multilocal). Cualquier rol — lo usa POS para imprimir la boleta con los
+// datos del local correcto en vez del STORE_INFO fijo de antes. Registrada
+// ANTES de /api/locations/:id a propósito: si Hono llegara a resolver
+// "mine" contra ese patrón dinámico, cualquier staff/manager recibiría 403
+// (esa ruta es owner-only) en vez de sus propios datos.
+app.get('/api/locations/mine', async (c) => {
+  const authUser = await requireSession(c)
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const [row] = authUser.locationId
+      ? await sql`SELECT * FROM locations WHERE id = ${authUser.locationId}`
+      : await sql`SELECT * FROM locations WHERE slug = 'vina-del-mar'` // owner/admin sin local propio — fallback hasta Fase 5
+    if (!row) return c.json({ error: 'Local no encontrado' }, 404)
+    return c.json({
+      location: {
+        id: row.id, name: row.name, address: row.address, commune: row.commune,
+        rut: row.rut, giro: row.giro, phone: row.phone, whatsapp: row.whatsapp,
+        instagram: row.instagram, email: row.email, metroStationName: row.metro_station_name,
+      },
+    })
+  } catch (err) {
+    console.error('Get my location error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
 // GET /api/locations/:id — detalle completo de un local, incluidas
 // credenciales DTE (adición post-entrega, 3-sep-2026, Fase 3 multilocal).
 // Owner-only (a diferencia del listado liviano de arriba, que también deja
@@ -3387,9 +3416,12 @@ app.get('/api/orders/:id/ticket', async (c) => {
              o.payment_status, o.payment_method,
              o.delivery_mode, o.delivery_address, o.delivery_comuna,
              o.metro_station, o.metro_slot, o.delivery_date,
-             u.name AS cashier_name
+             u.name AS cashier_name,
+             l.name AS location_name, l.address AS location_address, l.rut AS location_rut,
+             l.giro AS location_giro, l.phone AS location_phone, l.instagram AS location_instagram
       FROM orders o
       LEFT JOIN users u ON u.id = COALESCE(o.cashier_id, o.payment_confirmed_by)
+      LEFT JOIN locations l ON l.id = o.location_id
       WHERE o.id = ${id}
     `
     if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
@@ -3435,7 +3467,20 @@ app.get('/api/orders/:id/ticket', async (c) => {
       baesAmount: Number(order.baes_amount ?? 0),
       total:      Number(order.total),
       payments,
-      storeInfo:  { ...STORE_INFO },
+      // storeInfo por local (Fase 4 multilocal, 3-sep-2026) — antes SIEMPRE
+      // mostraba el STORE_INFO fijo (Viña del Mar) sin importar de qué
+      // local era el pedido. `web`/`ig` no varían por local (una sola
+      // tienda web/Instagram compartida) — el resto cae a STORE_INFO si el
+      // dueño todavía no completó ese campo en Ajustes para este local.
+      storeInfo: {
+        name:    order.location_name    ?? STORE_INFO.name,
+        address: order.location_address ?? STORE_INFO.address,
+        rut:     order.location_rut     ?? STORE_INFO.rut,
+        giro:    order.location_giro    ?? STORE_INFO.giro,
+        phone:   order.location_phone   ?? STORE_INFO.phone,
+        ig:      order.location_instagram ?? STORE_INFO.ig,
+        web:     STORE_INFO.web,
+      },
       dteStatus:  order.dte_status,
       // Entrega (adición post-entrega, 3-sep-2026 — pedido explícito del
       // dueño: la boleta/nota de venta nunca mostraba dirección/estación
