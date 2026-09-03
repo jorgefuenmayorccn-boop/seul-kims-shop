@@ -107,6 +107,31 @@ export const templates = {
       <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | contacto@seoulshop.cl</p>
     </div>
   `,
+  // Adición post-entrega (3-sep-2026) — misma confirmación de arriba, pero
+  // para un cliente "fantasma" (creado por upsertGuestCustomer al pagar
+  // como invitado, sin contraseña) que no tiene forma de entrar a
+  // /cuenta/pedidos a ver el estado real de su pedido. Agrega el link de
+  // seguimiento público (sin login) e invita a completar el registro.
+  orderConfirmationGuestTracking: (order: any, trackingUrl: string) => `
+    <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <h2 style="color: #d7263d;">✅ Pedido Recibido #${order.number}</h2>
+      <p>Hemos recibido tu pedido por un total de <strong>$${Number(order.total).toLocaleString('es-CL')}</strong>.</p>
+      <p>Antes de comenzar a prepararlo, nos vamos a comunicar contigo para coordinar el método de pago (transferencia, o pago en efectivo/Transbank al momento de la entrega o retiro).</p>
+      <div style="margin: 24px 0;">
+        <a href="${trackingUrl}" style="display: inline-block; background: #d7263d; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+          Seguir mi pedido →
+        </a>
+      </div>
+      <div style="background: #f0f0f0; padding: 16px; border-radius: 6px; margin: 20px 0;">
+        <p style="margin: 0; color: #555; font-size: 13px;">
+          <strong>💡 Tip:</strong> creá una cuenta con este mismo correo para ver todos tus pedidos
+          en un solo lugar y recibir actualizaciones automáticas la próxima vez.
+        </p>
+      </div>
+      <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | contacto@seoulshop.cl</p>
+    </div>
+  `,
   orderStatus: (order: any, status: string, eta?: string) => `
     <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
       <h2 style="color: #d7263d;">📦 Actualización Orden #${order.number}</h2>

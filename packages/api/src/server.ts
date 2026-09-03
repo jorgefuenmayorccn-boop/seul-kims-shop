@@ -1766,7 +1766,7 @@ app.post('/api/public/orders', async (c) => {
 
   try {
     const [customer] = await sql`
-      SELECT id, email, name FROM customers WHERE id = ${customerId} AND deleted_at IS NULL LIMIT 1
+      SELECT id, email, name, password_hash FROM customers WHERE id = ${customerId} AND deleted_at IS NULL LIMIT 1
     `
     if (!customer) return c.json({ error: 'Cliente no encontrado.' }, 404)
 
@@ -1839,11 +1839,26 @@ app.post('/api/public/orders', async (c) => {
       return ord
     })
 
+    // Seguimiento para quien todavía no tiene cuenta real (adición
+    // post-entrega, 3-sep-2026 — pedido explícito del dueño: "si el cliente
+    // esta registrado que llegue a su correo y a su usuario y si no esta
+    // registrado que se abra una página... por el momento de entrega... y
+    // que se le invite a inscribirse"). password_hash NULL = cliente
+    // "fantasma" creado por upsertGuestCustomer, nunca puso contraseña —
+    // no tiene forma de entrar a /cuenta/pedidos a ver su pedido. El link
+    // de seguimiento usa el UUID del pedido tal cual (ya es aleatorio e
+    // impredecible — 122 bits de entropía, mismo criterio que Stripe usa
+    // para links públicos de un solo recurso — no hace falta una tabla de
+    // tokens nueva).
     if (customer.email) {
+      const isGuest = !customer.password_hash
+      const trackingUrl = `${CUSTOMER_WEB_URL}/seguimiento/${order.id}`
       await enqueueEmail(
         customer.email,
         `✅ Orden Confirmada #${order.number}`,
-        templates.orderConfirmation(order),
+        isGuest
+          ? templates.orderConfirmationGuestTracking(order, trackingUrl)
+          : templates.orderConfirmation(order),
         'order-confirmation'
       )
     }
@@ -1873,6 +1888,49 @@ app.post('/api/public/orders', async (c) => {
   } catch (err) {
     console.error('Public order error:', err)
     return c.json({ error: 'Error al crear el pedido.' }, 500)
+  }
+})
+
+// GET /api/public/orders/:id/track — seguimiento SIN login (adición
+// post-entrega, 3-sep-2026), para el cliente "fantasma" (guest checkout)
+// que nunca puso contraseña — apps/web/.../seguimiento/[id]/page.tsx. El
+// UUID del pedido funciona como el "token": ya es aleatorio e impredecible
+// (122 bits de entropía), no hace falta una tabla de tokens nueva — mismo
+// criterio que usan links públicos de un solo recurso (ej. Stripe). Se
+// devuelve el mismo detalle que GET /api/customer/orders para UN pedido,
+// nunca datos de otros pedidos ni de otros clientes.
+app.get('/api/public/orders/:id/track', async (c) => {
+  const { id } = c.req.param()
+  try {
+    const [row] = await sql`
+      SELECT o.id, o.number, o.total, o.status, o.dte_status, o.channel, o.created_at,
+             o.payment_status, o.payment_method, o.delivery_mode, o.metro_station,
+             o.metro_slot, o.delivery_date, o.ready_at,
+             da.status AS delivery_status, u.name AS driver_name,
+             cu.name AS customer_name
+      FROM orders o
+      LEFT JOIN delivery_assignments da ON da.order_id = o.id
+      LEFT JOIN users u ON u.id = da.driver_id
+      LEFT JOIN customers cu ON cu.id = o.customer_id
+      WHERE o.id = ${id}
+      LIMIT 1
+    `
+    if (!row) return c.json({ error: 'Pedido no encontrado' }, 404)
+
+    return c.json({
+      order: {
+        id: row.id, number: row.number, total: row.total, status: row.status,
+        dteStatus: row.dte_status, channel: row.channel, createdAt: row.created_at,
+        paymentStatus: row.payment_status, paymentMethod: row.payment_method,
+        deliveryMode: row.delivery_mode, metroStation: row.metro_station,
+        metroSlot: row.metro_slot, deliveryDate: row.delivery_date, readyAt: row.ready_at,
+        deliveryStatus: row.delivery_status, driverName: row.driver_name,
+        customerName: row.customer_name,
+      },
+    })
+  } catch (err) {
+    console.error('Public order tracking error:', err)
+    return c.json({ error: 'Error al buscar el pedido' }, 500)
   }
 })
 
