@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import { ProductForm } from '@/components/cerebro/product-form'
 import { getProductById, getCategories } from '@/lib/api'
 
-interface PageProps { params: { id: string }; searchParams: { created?: string } }
+interface PageProps { params: { id: string }; searchParams: { created?: string; saved?: string } }
 
 export default async function EditProductPage({ params, searchParams }: PageProps) {
   const [product, { categories }] = await Promise.all([getProductById(params.id), getCategories()])
@@ -22,6 +22,11 @@ export default async function EditProductPage({ params, searchParams }: PageProp
       {searchParams.created === '1' && (
         <div className="bg-success/10 border border-success/30 rounded-lg px-4 py-3">
           <p className="text-sm font-body text-success">Producto creado. Ahora puedes agregar imágenes.</p>
+        </div>
+      )}
+      {searchParams.saved && (
+        <div className="bg-success/10 border border-success/30 rounded-lg px-4 py-3">
+          <p className="text-sm font-body text-success">✓ Cambios guardados.</p>
         </div>
       )}
       <ProductForm product={product} categories={categories} />

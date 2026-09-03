@@ -86,7 +86,15 @@ export function ProductForm({ product, categories }: Props) {
         }
         if (product) {
           await clientFetch<{ ok: boolean }>(`/api/products/${product.id}`, { method: 'PUT', body: JSON.stringify(payload) })
-          router.refresh()
+          // Antes solo hacía router.refresh() — guardaba bien, pero sin
+          // ningún aviso visual, así que no había forma de saber si el
+          // cambio se aplicó (hallazgo real, 3-sep-2026). Mismo patrón que
+          // ya usa la creación (?created=1) — ver edit/page.tsx. El valor
+          // lleva timestamp (no solo "1") para que un segundo guardado
+          // seguido navegue a una URL distinta y SÍ vuelva a mostrar el
+          // banner / refrescar los datos — Next no re-renderiza si el push
+          // apunta a la misma URL que ya está activa.
+          router.push(`/products/${product.id}/edit?saved=${Date.now()}`)
         } else {
           const res = await clientFetch<{ ok: boolean; id: string }>('/api/products', { method: 'POST', body: JSON.stringify(payload) })
           setSavedId(res.id)
