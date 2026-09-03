@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { cookies } from 'next/headers'
 import { Search, Lock } from 'lucide-react'
-import { B2BPricingTable } from '@seul/ui/b2b/b2b-pricing-table'
+import { B2BCatalogList } from '@/components/b2b/b2b-catalog-list'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 // Debe coincidir con CUSTOMER_SESSION_COOKIE_NAME de packages/api/src/server.ts.
@@ -60,14 +60,14 @@ async function CatalogContent({ q }: { q?: string }) {
 
   if (result.status === 'locked') return <LockedCatalog />
 
-  const products = result.products as Parameters<typeof B2BPricingTable>[0]['products']
+  const products = result.products as Parameters<typeof B2BCatalogList>[0]['products']
 
   return (
     <div>
       <p className="mb-4 text-sm text-[var(--color-text-secondary)]">
         {products.length} productos disponibles — precios netos sin IVA
       </p>
-      <B2BPricingTable products={products} />
+      <B2BCatalogList products={products} />
     </div>
   )
 }
@@ -124,10 +124,9 @@ export default function CatalogoB2BPage({
       </Suspense>
 
       <div className="mt-8 rounded-lg bg-[var(--color-surface-sunken)] p-4 text-xs text-[var(--color-text-secondary)]">
-        Para hacer un pedido mayorista, necesitas una cuenta B2B aprobada.{' '}
-        <a href="/b2b/registro" className="underline hover:text-[var(--color-brand)]">Solicitar cuenta</a>
-        {' '}o escríbenos al{' '}
-        <a href="https://wa.me/56936451991" className="underline hover:text-[var(--color-brand)]">+56 9 3645 1991</a>
+        Agrega productos con el botón &quot;Agregar&quot; de cada fila y ve a pagar cuando termines.
+        Si aún no tienes cuenta mayorista,{' '}
+        <a href="/b2b/registro" className="underline hover:text-[var(--color-brand)]">solicítala aquí</a>.
       </div>
     </div>
   )

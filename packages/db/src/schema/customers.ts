@@ -116,3 +116,19 @@ export const b2bWalletLedger = pgTable('b2b_wallet_ledger', {
   createdBy:     uuid('created_by').references(() => users.id),
   createdAt:     timestamp('created_at').defaultNow(),
 })
+
+// Trazabilidad de compras cargadas a la línea de crédito B2B (migración
+// 0023b, adición post-entrega) — deliberadamente separada de
+// b2bWalletLedger (esa tabla trackea wallet_balance_clp vía balance_after
+// NOT NULL; una compra a crédito no toca el wallet, mezclar los conceptos
+// corrompería el significado de esa columna).
+export const b2bCreditMovements = pgTable('b2b_credit_movements', {
+  id:                 uuid('id').primaryKey().defaultRandom(),
+  companyId:          uuid('company_id').notNull().references(() => b2bCompanies.id),
+  orderId:            uuid('order_id'),
+  amountClp:          integer('amount_clp').notNull(),
+  creditUsedAfterClp: integer('credit_used_after_clp').notNull(),
+  notes:              text('notes'),
+  createdBy:          uuid('created_by').references(() => users.id),
+  createdAt:          timestamp('created_at').defaultNow(),
+})

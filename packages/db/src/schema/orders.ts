@@ -92,6 +92,9 @@ export const orders = pgTable('orders', {
   // diferenciador para reportes y para el futuro SII real (factura vs
   // boleta/nota).
   companyId:       uuid('company_id'),
+  // "Marcar listo para retirar" (adición post-entrega, migración 0023a) —
+  // pickup/metro, cualquier canal. Dispara el correo "tu pedido está listo".
+  readyAt:         timestamp('ready_at'),
   createdAt:       timestamp('created_at').defaultNow(),
   updatedAt:       timestamp('updated_at').defaultNow(),
 })

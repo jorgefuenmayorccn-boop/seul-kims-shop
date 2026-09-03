@@ -588,6 +588,46 @@ async function runMigrationsIfNeeded() {
       await sql`CREATE INDEX IF NOT EXISTS orders_company_id_idx ON orders(company_id) WHERE company_id IS NOT NULL`
       console.log('✅ Migration 0022c applied')
     }
+
+    // 0023 (adición post-entrega — conectar el pedido B2B de punta a punta,
+    // 2-sep-2026): 1) orders.ready_at — "marcar listo para retirar" para
+    // pickup/metro (aplica a cualquier canal, no solo B2B). 2)
+    // b2b_credit_movements — trazabilidad de compras cargadas a la línea de
+    // crédito B2B (orders.company_id + confirm-payment método 'credito_b2b').
+    // Deliberadamente NO se reutiliza b2b_wallet_ledger: esa tabla trackea
+    // wallet_balance_clp (saldo prepago) via su columna balance_after
+    // NOT NULL — una compra a crédito no toca el wallet, mezclar los dos
+    // conceptos ahí corrompería el significado de balance_after.
+    const ordersReadyAtExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'orders' AND column_name = 'ready_at'
+    `
+    if (ordersReadyAtExists.length === 0) {
+      console.log('🔄 Running migration 0023a (orders.ready_at)...')
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS ready_at TIMESTAMP`
+      console.log('✅ Migration 0023a applied')
+    }
+
+    const b2bCreditMovementsExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'b2b_credit_movements' AND column_name = 'id'
+    `
+    if (b2bCreditMovementsExists.length === 0) {
+      console.log('🔄 Running migration 0023b (b2b_credit_movements)...')
+      await sql`
+        CREATE TABLE IF NOT EXISTS b2b_credit_movements (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          company_id UUID NOT NULL REFERENCES b2b_companies(id),
+          order_id UUID REFERENCES orders(id),
+          amount_clp INTEGER NOT NULL,
+          credit_used_after_clp INTEGER NOT NULL,
+          notes TEXT,
+          created_by UUID REFERENCES users(id),
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+      console.log('✅ Migration 0023b applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -1618,8 +1658,9 @@ app.post('/api/public/orders', async (c) => {
     return c.json({ error: 'JSON inválido' }, 400)
   }
 
-  const { deliveryMode, metroStation, metroSlot, deliveryAddress, notes, items } = body
+  const { deliveryMode, metroStation, metroSlot, deliveryAddress, notes, items, companyId, paymentMethod } = body
   const VALID_DELIVERY_MODES = ['rappi', 'metro', 'pickup', 'shipping', 'delivery']
+  const VALID_PAYMENT_PREFS = ['transferencia', 'efectivo', 'transbank', 'credito_b2b']
 
   if (!deliveryMode || !VALID_DELIVERY_MODES.includes(deliveryMode)) {
     return c.json({ error: 'Modo de entrega inválido.' }, 400)
@@ -1649,10 +1690,28 @@ app.post('/api/public/orders', async (c) => {
     `
     if (!customer) return c.json({ error: 'Cliente no encontrado.' }, 404)
 
+    // Pedido B2B (adición post-entrega, punto central del rediseño B2B) —
+    // companyId opcional, SIEMPRE validado contra la sesión de cliente (nunca
+    // se confía en el body a secas): la empresa debe pertenecer al cliente
+    // que está haciendo el pedido, mismo criterio que S10 ya usa para
+    // customerId. Si la validación pasa, se cotiza con price_b2b en vez de
+    // price_retail — de lo contrario un pedido B2B se cobraría a precio
+    // público, que era exactamente el bug reportado por el dueño.
+    let resolvedCompanyId: string | null = null
+    if (companyId) {
+      const [company] = await sql`
+        SELECT id FROM b2b_companies WHERE id = ${companyId} AND customer_id = ${customerId}
+      `
+      if (!company) return c.json({ error: 'Empresa B2B no válida para esta cuenta.' }, 403)
+      resolvedCompanyId = company.id
+    }
+
+    const paymentMethodPref = resolvedCompanyId && VALID_PAYMENT_PREFS.includes(paymentMethod) ? paymentMethod : null
+
     // Precios reales desde products — nunca confiar en el unitPrice del body.
     const productIds = items.map((it: any) => it.productId)
     const products = await sql`
-      SELECT id, price_retail, status FROM products WHERE id = ANY(${productIds})
+      SELECT id, price_retail, price_b2b, status FROM products WHERE id = ANY(${productIds})
     `
     const productMap = new Map(products.map((p: any) => [p.id, p]))
 
@@ -1664,7 +1723,7 @@ app.post('/api/public/orders', async (c) => {
         return c.json({ error: 'Uno de los productos ya no está disponible.' }, 400)
       }
       const quantity = Number(it.quantity)
-      const unitPrice = Number(p.price_retail)
+      const unitPrice = resolvedCompanyId && p.price_b2b != null ? Number(p.price_b2b) : Number(p.price_retail)
       const lineTotal = Math.round(unitPrice * quantity)
       subtotal += lineTotal
       resolvedItems.push({ productId: it.productId, quantity, unitPrice, isBaes: !!it.isBaes, lineTotal })
@@ -1674,8 +1733,8 @@ app.post('/api/public/orders', async (c) => {
 
     const order = await sql.begin(async (tx: any) => {
       const [ord] = await tx`
-        INSERT INTO orders (number, channel, customer_id, status, delivery_mode, delivery_address, metro_station, metro_slot, subtotal, total, notes)
-        VALUES (${order_number}, 'web', ${customerId}, 'nueva', ${deliveryMode}, ${deliveryAddress || null}, ${metroStation || null}, ${metroSlot || null}, ${subtotal}, ${subtotal}, ${notes || null})
+        INSERT INTO orders (number, channel, customer_id, status, delivery_mode, delivery_address, metro_station, metro_slot, subtotal, total, notes, company_id, payment_method)
+        VALUES (${order_number}, 'web', ${customerId}, 'nueva', ${deliveryMode}, ${deliveryAddress || null}, ${metroStation || null}, ${metroSlot || null}, ${subtotal}, ${subtotal}, ${notes || null}, ${resolvedCompanyId}, ${paymentMethodPref})
         RETURNING id, number
       `
       for (const it of resolvedItems) {
@@ -2531,9 +2590,11 @@ app.get('/api/orders/:id/comanda', async (c) => {
   try {
     const [order] = await sql`
       SELECT o.id, o.number, o.channel, o.delivery_mode, o.metro_station, o.metro_slot,
-             o.notes, o.created_at, u.name AS cashier_name
+             o.notes, o.created_at, u.name AS cashier_name,
+             o.company_id, comp.razon_social
       FROM orders o
       LEFT JOIN users u ON u.id = o.cashier_id
+      LEFT JOIN b2b_companies comp ON comp.id = o.company_id
       WHERE o.id = ${id}
     `
     if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
@@ -2546,14 +2607,18 @@ app.get('/api/orders/:id/comanda', async (c) => {
       ORDER BY oi.id
     `
 
+    // Canal calculado para la comanda: un pedido con company_id es
+    // mayorista de cara al equipo de preparación (etiqueta "MAYORISTA"),
+    // aunque orders.channel siga guardando 'web'/'pos' — mismo criterio de
+    // company_id como diferenciador que el resto del rediseño B2B de hoy.
     const comanda = {
       orderId:      order.id,
       number:       order.number,
-      channel:      order.channel,
+      channel:      order.company_id ? 'b2b' : order.channel,
       createdAt:    order.created_at,
       items:        items.map((it: any) => ({ name: it.name, qty: Number(it.quantity) })),
       deliveryMode: order.delivery_mode,
-      notes:        order.notes ?? undefined,
+      notes:        order.company_id ? `${order.razon_social}${order.notes ? ' — ' + order.notes : ''}` : (order.notes ?? undefined),
       metroStation: order.metro_station ?? undefined,
       metroSlot:    order.metro_slot ?? undefined,
       cashierName:  order.channel === 'pos' ? (order.cashier_name ?? undefined) : undefined,
@@ -2562,6 +2627,50 @@ app.get('/api/orders/:id/comanda', async (c) => {
     return c.json({ comanda })
   } catch (err) {
     console.error('Comanda payload error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/orders/:id/etiqueta — payload de etiqueta de caja (adición
+// post-entrega, rediseño B2B, punto "etiquetas que se imprimen para colocar
+// en cajas"). Se imprime desde el mismo punto que la comanda.
+app.get('/api/orders/:id/etiqueta', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  try {
+    const [order] = await sql`
+      SELECT o.id, o.number, o.channel, o.delivery_mode, o.delivery_address,
+             o.metro_station, o.metro_slot, o.company_id, o.notes,
+             comp.razon_social,
+             (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS item_count
+      FROM orders o
+      LEFT JOIN b2b_companies comp ON comp.id = o.company_id
+      WHERE o.id = ${id}
+    `
+    if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
+
+    // "Recibe: Nombre" se guarda como prefijo de notes en el checkout B2B
+    // (ver POST /api/public/orders) — se extrae acá para la etiqueta.
+    const recipientMatch = typeof order.notes === 'string' ? order.notes.match(/^Recibe: (.+?)(?: — |$)/) : null
+
+    const etiqueta = {
+      orderId:         order.id,
+      number:          order.number,
+      channel:         order.company_id ? 'b2b' : order.channel,
+      companyName:     order.razon_social ?? undefined,
+      recipient:       recipientMatch?.[1] ?? undefined,
+      deliveryMode:    order.delivery_mode,
+      deliveryAddress: order.delivery_address ?? undefined,
+      metroStation:    order.metro_station ?? undefined,
+      metroSlot:       order.metro_slot ?? undefined,
+      itemCount:       Number(order.item_count ?? 0),
+    }
+
+    return c.json({ etiqueta })
+  } catch (err) {
+    console.error('Etiqueta payload error:', err)
     return c.json({ error: 'Error' }, 500)
   }
 })
@@ -2609,6 +2718,7 @@ app.get('/api/orders/:id/ticket', async (c) => {
         transferencia: 'Transferencia bancaria (confirmada)',
         efectivo: 'Por cobrar en la puerta — Efectivo',
         transbank: 'Por cobrar en la puerta — Transbank',
+        credito_b2b: 'Cargado a línea de crédito B2B',
       }
       payments = [{ method: order.payment_method, amount: Number(order.total), label: LABELS[order.payment_method] ?? order.payment_method }]
     }
@@ -2686,14 +2796,14 @@ app.post('/api/orders/:id/confirm-payment', async (c) => {
   try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
 
   const method = body.method
-  const VALID_METHODS = ['transferencia', 'efectivo', 'transbank']
+  const VALID_METHODS = ['transferencia', 'efectivo', 'transbank', 'credito_b2b']
   if (!VALID_METHODS.includes(method)) {
-    return c.json({ error: 'method debe ser transferencia, efectivo o transbank' }, 400)
+    return c.json({ error: 'method debe ser transferencia, efectivo, transbank o credito_b2b' }, 400)
   }
 
   try {
     const [order] = await sql`
-      SELECT id, number, channel, total, dte_type, dte_status, payment_status
+      SELECT id, number, channel, total, dte_type, dte_status, payment_status, company_id
       FROM orders WHERE id = ${id}
     `
     if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
@@ -2713,6 +2823,34 @@ app.post('/api/orders/:id/confirm-payment', async (c) => {
       })
     }
 
+    // Cargo a línea de crédito B2B — solo pedidos con company_id (adición
+    // post-entrega, punto 6 del flujo B2B). Valida cupo disponible ANTES de
+    // confirmar; nunca deja el crédito en negativo. Se registra en
+    // b2b_credit_movements (no en b2b_wallet_ledger — ver comentario de la
+    // migración 0023b, son conceptos distintos: línea de crédito vs wallet
+    // prepago).
+    if (method === 'credito_b2b') {
+      if (!order.company_id) {
+        return c.json({ error: 'Este pedido no está asociado a una empresa B2B.' }, 400)
+      }
+      const [company] = await sql`
+        SELECT id, credit_limit_clp, credit_used_clp FROM b2b_companies WHERE id = ${order.company_id}
+      `
+      if (!company) return c.json({ error: 'Empresa B2B no encontrada.' }, 404)
+      const limit = Number(company.credit_limit_clp ?? 0)
+      const used  = Number(company.credit_used_clp ?? 0)
+      const available = limit - used
+      if (available < Number(order.total)) {
+        return c.json({ error: `Cupo de crédito insuficiente (disponible: $${available.toLocaleString('es-CL')}).` }, 400)
+      }
+      const newUsed = used + Number(order.total)
+      await sql`UPDATE b2b_companies SET credit_used_clp = ${newUsed} WHERE id = ${order.company_id}`
+      await sql`
+        INSERT INTO b2b_credit_movements (company_id, order_id, amount_clp, credit_used_after_clp, notes, created_by)
+        VALUES (${order.company_id}, ${order.id}, ${Number(order.total)}, ${newUsed}, ${'Pedido #' + order.number}, ${authUser.id})
+      `
+    }
+
     await sql`
       UPDATE orders
       SET payment_status = 'confirmed', payment_method = ${method},
@@ -2724,8 +2862,10 @@ app.post('/api/orders/:id/confirm-payment', async (c) => {
     // Delivery: si ya hay asignación (staff pudo asignar repartidor antes de
     // coordinar el pago), reflejar el método de cobro para que el repartidor
     // sepa qué hacer en la puerta. No falla el endpoint si no hay ninguna
-    // asignación todavía (UPDATE de 0 filas es un no-op válido).
-    if (method === 'transferencia') {
+    // asignación todavía (UPDATE de 0 filas es un no-op válido). Crédito B2B
+    // ya quedó cobrado internamente — igual que transferencia, nada que
+    // cobrar en la puerta.
+    if (method === 'transferencia' || method === 'credito_b2b') {
       await sql`
         UPDATE delivery_assignments
         SET payment_at_door = 'not_required', amount_to_collect = 0, payment_method = NULL, updated_at = NOW()
@@ -2803,6 +2943,65 @@ app.post('/api/orders/:id/confirm-payment', async (c) => {
   } catch (err) {
     console.error('Confirm payment error:', err)
     return c.json({ error: 'Error al confirmar el pago' }, 500)
+  }
+})
+
+// POST /api/orders/:id/ready — marca un pedido "listo para retirar" y avisa
+// al cliente por correo (adición post-entrega, punto 3 del rediseño B2B:
+// "falta forma de marcar listo para retirar" — pero aplica a CUALQUIER canal
+// con deliveryMode pickup/metro, no solo B2B). Idempotente: un segundo
+// llamado no reenvía el correo (devuelve alreadyReady:true).
+app.post('/api/orders/:id/ready', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  try {
+    const [order] = await sql`
+      SELECT o.id, o.number, o.delivery_mode, o.metro_station, o.ready_at, o.company_id,
+             c.email AS customer_email, c.name AS customer_name,
+             comp.razon_social
+      FROM orders o
+      LEFT JOIN customers c ON c.id = o.customer_id
+      LEFT JOIN b2b_companies comp ON comp.id = o.company_id
+      WHERE o.id = ${id}
+    `
+    if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
+    if (!['pickup', 'metro'].includes(order.delivery_mode)) {
+      return c.json({ error: 'Solo pedidos de retiro en tienda o Metro usan este flujo.' }, 400)
+    }
+    if (order.ready_at) {
+      return c.json({ ok: true, alreadyReady: true, orderId: order.id, number: order.number })
+    }
+
+    await sql`UPDATE orders SET ready_at = NOW(), updated_at = NOW() WHERE id = ${id}`
+
+    let place = 'nuestra tienda'
+    if (order.delivery_mode === 'metro') {
+      const [cfg] = await sql`SELECT value FROM tienda_config WHERE key = 'metro_station_name'`
+      place = `la estación ${cfg?.value ?? 'Metro Merval'}`
+    }
+
+    if (order.customer_email) {
+      const greeting = order.razon_social ? order.razon_social : order.customer_name
+      await enqueueEmail(
+        order.customer_email,
+        `📦 Tu pedido #${order.number} está listo para retirar`,
+        `<div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <div style="background: white; padding: 30px; border-radius: 8px; border-top: 4px solid #d7263d;">
+            <h1 style="color: #d7263d; margin-top: 0;">¡Tu pedido está listo!</h1>
+            <p style="color: #555; line-height: 1.6;">Hola <strong>${greeting}</strong>, tu pedido <strong>#${order.number}</strong> ya está listo para retirar en ${place}.</p>
+          </div>
+        </div>`,
+        'delivery-update'
+      )
+    }
+
+    console.log(`✅ Order marked ready: #${order.number}`)
+    return c.json({ ok: true, orderId: order.id, number: order.number })
+  } catch (err) {
+    console.error('Mark order ready error:', err)
+    return c.json({ error: 'Error al marcar el pedido como listo' }, 500)
   }
 })
 
@@ -3240,7 +3439,7 @@ app.post('/api/b2b/registro', async (c) => {
       `<div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
         <div style="background: white; padding: 30px; border-radius: 8px; border-top: 4px solid #d7263d;">
           <h1 style="color: #d7263d; margin-top: 0;">¡Solicitud recibida!</h1>
-          <p style="color: #555; line-height: 1.6;">Hola <strong>${name}</strong>, tu solicitud de cuenta mayorista para <strong>${razonSocial}</strong> fue recibida. Te contactaremos por WhatsApp en 24–48 horas hábiles.</p>
+          <p style="color: #555; line-height: 1.6;">Hola <strong>${name}</strong>, tu solicitud de cuenta mayorista para <strong>${razonSocial}</strong> fue recibida. Te contactaremos por correo en 24–48 horas hábiles.</p>
           ${credentialsBlock}
           <div style="margin: 30px 0;">
             <a href="${CUSTOMER_WEB_URL}/b2b/login" style="display: inline-block; background: #d7263d; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold;">Ir al Portal Mayorista →</a>
@@ -3310,7 +3509,7 @@ app.get('/api/b2b/catalogo', async (c) => {
 
   try {
     const rows = await sql`
-      SELECT p.id, p.sku, p.name, p.brand, p.price_retail, p.price_b2b,
+      SELECT p.id, p.sku, p.slug, p.name, p.brand, p.price_retail, p.price_b2b,
              p.cold_chain, p.is_baes_eligible, p.weight_grams,
              COALESCE(stock.qty_total, 0) AS stock_total
       FROM products p
@@ -3324,7 +3523,7 @@ app.get('/api/b2b/catalogo', async (c) => {
 
     return c.json({
       products: rows.map((r: any) => ({
-        id: r.id, sku: r.sku, name: r.name, brand: r.brand,
+        id: r.id, sku: r.sku, slug: r.slug, name: r.name, brand: r.brand,
         priceRetail: Number(r.price_retail), priceB2B: Number(r.price_b2b),
         coldChain: r.cold_chain, isBaesEligible: r.is_baes_eligible,
         weightGrams: r.weight_grams, stock: Number(r.stock_total),
@@ -5804,25 +6003,33 @@ app.get('/api/orders/comandas', async (c) => {
       SELECT
         o.id, o.number, o.channel, o.status, o.delivery_mode,
         o.metro_station, o.metro_slot, o.total, o.dte_status, o.created_at,
-        o.payment_status, o.payment_method,
+        o.payment_status, o.payment_method, o.company_id, o.ready_at,
+        comp.razon_social,
         COUNT(oi.id) AS item_count
       FROM orders o
       LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN b2b_companies comp ON comp.id = o.company_id
       WHERE o.status IN ('nueva', 'preparando', 'lista')
-      GROUP BY o.id
+      GROUP BY o.id, comp.razon_social
       ORDER BY o.created_at ASC
     `
 
     const comandas = rows.map((r: any) => ({
-      id: r.id, number: r.number, channel: r.channel, status: r.status,
+      id: r.id, number: r.number, channel: r.company_id ? 'b2b' : r.channel, status: r.status,
       deliveryMode: r.delivery_mode, metroStation: r.metro_station, metroSlot: r.metro_slot,
       total: r.total, dteStatus: r.dte_status, createdAt: r.created_at,
       itemCount: Number(r.item_count ?? 0),
       // Adición post-entrega — flujo de pago web (ver POST
       // /api/orders/:id/confirm-payment). Solo es relevante para channel='web'
-      // (POS/B2B ya nacen payment_status='confirmed', ver migración 0021).
+      // (POS ya nace payment_status='confirmed', ver migración 0021).
       paymentStatus: r.payment_status,
       paymentMethod: r.payment_method,
+      // Rediseño B2B (adición post-entrega, 2-sep-2026): companyId habilita
+      // el botón de cargo a crédito; razonSocial se muestra en la tarjeta;
+      // readyAt habilita el botón "Marcar listo" para pickup/metro.
+      companyId: r.company_id,
+      razonSocial: r.razon_social,
+      readyAt: r.ready_at,
     }))
 
     return c.json({

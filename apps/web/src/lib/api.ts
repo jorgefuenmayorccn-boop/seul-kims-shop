@@ -45,6 +45,21 @@ export async function getCustomerSession(): Promise<{
   } catch { return { ok: false, customer: null } }
 }
 
+// Sesión de empresa B2B — misma sesión de cliente (seul_customer_session),
+// pero solo devuelve datos si esa cuenta tiene una empresa B2B asociada
+// (GET /api/b2b/empresa/me, 401/403 si no). Usado por el checkout y el
+// catálogo mayorista para saber si aplicar precio B2B y mostrar el flujo de
+// pedido de empresa en vez del flujo B2C normal.
+export interface B2BSession {
+  id: string; razonSocial: string; rut: string; customerId: string
+  creditLimitClp: number; creditUsedClp: number; walletBalanceClp: number
+}
+export async function getB2BSession(): Promise<B2BSession | null> {
+  try {
+    return await apiFetch<B2BSession>('/api/b2b/empresa/me', { credentials: 'include' } as RequestInit)
+  } catch { return null }
+}
+
 // Pedido web
 // NOTA (S10): el path real es /api/public/orders, no /api/orders/public.
 // /api/orders* en el backend exige API key con scope orders:write o sesión
@@ -61,6 +76,12 @@ export async function createWebOrder(payload: {
   customerId?: string
   notes?: string
   items: Array<{ productId: string; quantity: number; unitPrice: number; isBaes: boolean }>
+  // Pedido B2B (adición post-entrega) — companyId siempre re-validado contra
+  // la sesión en el backend, nunca confiado a secas. paymentMethod es solo
+  // una preferencia declarada por el cliente al pedir; staff confirma el
+  // método real después vía POST /api/orders/:id/confirm-payment.
+  companyId?: string
+  paymentMethod?: 'transferencia' | 'efectivo' | 'transbank' | 'credito_b2b'
 }) {
   return apiFetch<{ ok: boolean; orderId: string; number: number; pdfToken: string | null; total: number }>(
     '/api/public/orders', { method: 'POST', credentials: 'include', body: JSON.stringify(payload) } as RequestInit

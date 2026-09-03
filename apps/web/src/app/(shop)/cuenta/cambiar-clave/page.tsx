@@ -53,9 +53,9 @@ export default function CambiarClavePage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {[
-            { name: 'currentPassword', label: 'CONTRASEÑA ACTUAL', show: showCurrent, toggle: () => setShowCurrent(p => !p) },
-            { name: 'newPassword',     label: 'NUEVA CONTRASEÑA',  show: showNew,     toggle: () => setShowNew(p => !p) },
-            { name: 'confirm',         label: 'CONFIRMAR NUEVA',   show: showNew,     toggle: () => setShowNew(p => !p) },
+            { name: 'currentPassword', label: 'CONTRASEÑA ACTUAL', show: showCurrent, toggle: () => setShowCurrent(p => !p), autoComplete: 'current-password' },
+            { name: 'newPassword',     label: 'NUEVA CONTRASEÑA',  show: showNew,     toggle: () => setShowNew(p => !p), autoComplete: 'new-password' },
+            { name: 'confirm',         label: 'CONFIRMAR NUEVA',   show: showNew,     toggle: () => setShowNew(p => !p), autoComplete: 'new-password' },
           ].map(field => (
             <div key={field.name}>
               <label className="block font-body text-xs font-semibold mb-1.5"
@@ -65,6 +65,7 @@ export default function CambiarClavePage() {
               <div className="relative">
                 <input
                   name={field.name} type={field.show ? 'text' : 'password'} required
+                  autoComplete={field.autoComplete}
                   className="w-full px-4 py-3 pr-11 font-body text-sm focus:outline-none"
                   style={{ background: 'var(--color-baek-pure)', border: '1px solid rgba(10,10,10,0.30)', color: 'var(--color-heuk)' }}
                 />

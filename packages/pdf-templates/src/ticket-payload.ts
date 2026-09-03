@@ -76,6 +76,23 @@ export interface ComandaPayload {
   cashierName?:  string          // si channel === 'pos'
 }
 
+// Etiqueta para pegar en caja/bolsa (adición post-entrega, rediseño B2B,
+// 2-sep-2026) — antes no existía ningún documento de este tipo (grep
+// confirmado, 0 resultados en pdf-templates/apps/cerebro/apps/pos). Se
+// imprime desde el mismo punto que la comanda, mismo `htmlShell`.
+export interface EtiquetaPayload {
+  orderId:       string
+  number:        number
+  channel:       'pos' | 'web' | 'b2b' | 'whatsapp'
+  companyName?:  string          // razón social si es pedido B2B
+  recipient?:    string          // "quién recibe" si es distinto al titular
+  deliveryMode:  'rappi' | 'metro' | 'pickup' | 'shipping'
+  deliveryAddress?: string
+  metroStation?: string
+  metroSlot?:    string
+  itemCount:     number
+}
+
 export type PrintMode   = 'agent' | 'fallback' | 'unavailable'
 export type PrintStatus = 'idle' | 'printing' | 'success' | 'error'
 

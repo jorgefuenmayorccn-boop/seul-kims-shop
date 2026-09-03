@@ -1,9 +1,9 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
-import { Clock, Truck, Train, ShoppingBag, RefreshCw, Printer, Banknote, CreditCard, Landmark } from 'lucide-react'
+import { Clock, Truck, Train, ShoppingBag, RefreshCw, Printer, Banknote, CreditCard, Landmark, Wallet, PackageCheck } from 'lucide-react'
 import { StatusPill, cn, formatCLP } from '@seul/ui'
-import { renderComandaHtml, renderPosReceiptHtml } from '@seul/pdf-templates/client'
-import type { ComandaPayload, TicketPayload } from '@seul/pdf-templates/client'
+import { renderComandaHtml, renderPosReceiptHtml, renderEtiquetaHtml } from '@seul/pdf-templates/client'
+import type { ComandaPayload, TicketPayload, EtiquetaPayload } from '@seul/pdf-templates/client'
 
 type OrderStatus = 'nueva' | 'preparando' | 'lista'
 type Channel = 'pos' | 'web' | 'b2b' | 'whatsapp'
@@ -12,7 +12,7 @@ type DeliveryMode = 'rappi' | 'metro' | 'pickup' | 'shipping'
 // paymentStatus='pending' hoy (POS/B2B nacen 'confirmed', ver migración 0021
 // y POST /api/orders/:id/confirm-payment).
 type PaymentStatus = 'pending' | 'confirmed'
-type PaymentMethod = 'transferencia' | 'efectivo' | 'transbank'
+type PaymentMethod = 'transferencia' | 'efectivo' | 'transbank' | 'credito_b2b'
 
 interface Comanda {
   id: string
@@ -28,6 +28,12 @@ interface Comanda {
   itemCount: number
   paymentStatus: PaymentStatus
   paymentMethod: PaymentMethod | null
+  // Rediseño B2B (adición post-entrega) — companyId habilita el cargo a
+  // crédito; razonSocial se muestra en la tarjeta; readyAt marca si ya se
+  // avisó al cliente que su pedido pickup/metro está listo para retirar.
+  companyId: string | null
+  razonSocial: string | null
+  readyAt: string | null
 }
 
 interface KanbanData {
@@ -105,10 +111,18 @@ async function fetchAndPrintTicket(orderId: string): Promise<boolean> {
   return printHtmlPopup(renderPosReceiptHtml(ticket))
 }
 
-function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
+async function fetchAndPrintEtiqueta(orderId: string): Promise<boolean> {
+  const res = await fetch(`${API}/api/orders/${orderId}/etiqueta`, { credentials: 'include' })
+  if (!res.ok) return false
+  const { etiqueta } = await res.json() as { etiqueta: EtiquetaPayload }
+  return printHtmlPopup(renderEtiquetaHtml(etiqueta))
+}
+
+function ComandaCard({ comanda, onMove, onPaymentConfirmed, onMarkedReady }: {
   comanda: Comanda
   onMove: (id: string, status: OrderStatus) => void
   onPaymentConfirmed: (id: string, paymentStatus: PaymentStatus, paymentMethod: PaymentMethod) => void
+  onMarkedReady: (id: string) => void
 }) {
   const mins = minutesSince(comanda.createdAt)
   const isUrgent = mins > 20
@@ -116,6 +130,22 @@ function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
 
   const [confirming, setConfirming] = useState<PaymentMethod | null>(null)
   const [paymentError, setPaymentError] = useState('')
+  const [markingReady, setMarkingReady] = useState(false)
+
+  // "Marcar listo para retirar" (adición post-entrega) — pickup/metro,
+  // cualquier canal. Envía el correo al cliente vía POST /api/orders/:id/ready.
+  async function handleMarkReady() {
+    if (markingReady) return
+    setMarkingReady(true)
+    try {
+      const res = await fetch(`${API}/api/orders/${comanda.id}/ready`, {
+        method: 'POST', credentials: 'include',
+      })
+      if (res.ok) onMarkedReady(comanda.id)
+    } finally {
+      setMarkingReady(false)
+    }
+  }
 
   // Confirmar pago (adición post-entrega): POST /api/orders/:id/confirm-payment,
   // y si sale bien, imprimir automáticamente comanda + Nota de Venta — el
@@ -169,6 +199,9 @@ function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
           )}>
             {comanda.channel.toUpperCase()}
           </span>
+          {comanda.razonSocial && (
+            <span className="block text-[10px] font-body text-accent mt-0.5">{comanda.razonSocial}</span>
+          )}
         </div>
         {comanda.dteStatus === 'failed' && (
           <span className="text-[10px] bg-error-subtle text-error px-1.5 py-0.5 rounded font-mono animate-pulse">
@@ -211,7 +244,7 @@ function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
           <p className="text-[10px] font-body font-semibold uppercase tracking-wide text-error">
             Pago sin coordinar
           </p>
-          <div className="grid grid-cols-3 gap-1">
+          <div className={cn('grid gap-1', comanda.companyId ? 'grid-cols-4' : 'grid-cols-3')}>
             <button
               onClick={() => handleConfirmPayment('transferencia')}
               disabled={!!confirming}
@@ -239,6 +272,17 @@ function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
               <CreditCard size={13} />
               {confirming === 'transbank' ? '...' : 'Transbank puerta'}
             </button>
+            {comanda.companyId && (
+              <button
+                onClick={() => handleConfirmPayment('credito_b2b')}
+                disabled={!!confirming}
+                className="flex flex-col items-center gap-0.5 text-[10px] py-1.5 rounded bg-brand/10 text-brand hover:bg-brand/20 transition-colors font-body font-medium disabled:opacity-50"
+                title="Cargar a la línea de crédito de la empresa"
+              >
+                <Wallet size={13} />
+                {confirming === 'credito_b2b' ? '...' : 'Crédito B2B'}
+              </button>
+            )}
           </div>
           {paymentError && (
             <p className="text-[10px] text-error font-body">{paymentError}</p>
@@ -250,6 +294,7 @@ function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
           <span className="text-[10px] font-body font-medium text-success flex items-center gap-1">
             ✓ {comanda.paymentMethod === 'transferencia' ? 'Pagado (transferencia)'
               : comanda.paymentMethod === 'efectivo' ? 'Cobrar efectivo en puerta'
+              : comanda.paymentMethod === 'credito_b2b' ? 'Cargado a línea de crédito'
               : 'Cobrar Transbank en puerta'}
           </span>
           <button
@@ -260,6 +305,28 @@ function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
             <Printer size={11} />
             Reimprimir
           </button>
+        </div>
+      )}
+
+      {/* Marcar listo para retirar — pickup/metro, cualquier canal (adición
+          post-entrega). Independiente del estado de pago: es sobre si el
+          pedido ya está físicamente listo, no sobre si ya se cobró. */}
+      {(comanda.deliveryMode === 'pickup' || comanda.deliveryMode === 'metro') && (
+        <div className="pt-1 border-t border-[var(--color-border)]">
+          {comanda.readyAt ? (
+            <span className="text-[10px] font-body font-medium text-success flex items-center gap-1">
+              <PackageCheck size={12} /> Listo para retirar — cliente avisado
+            </span>
+          ) : (
+            <button
+              onClick={handleMarkReady}
+              disabled={markingReady}
+              className="w-full flex items-center justify-center gap-1.5 text-[10px] py-1.5 rounded bg-brand/10 text-brand hover:bg-brand/20 transition-colors font-body font-medium disabled:opacity-50"
+            >
+              <PackageCheck size={13} />
+              {markingReady ? 'Avisando...' : 'Marcar listo para retirar'}
+            </button>
+          )}
         </div>
       )}
 
@@ -281,6 +348,13 @@ function ComandaCard({ comanda, onMove, onPaymentConfirmed }: {
             Lista ✓
           </button>
         )}
+        <button
+          onClick={() => fetchAndPrintEtiqueta(comanda.id)}
+          className="px-2 text-xs py-1.5 rounded bg-surface text-text-muted hover:bg-[var(--ink-100)] transition-colors font-body"
+          title="Imprimir etiqueta de caja"
+        >
+          <Printer size={13} />
+        </button>
         <button
           onClick={() => onMove(comanda.id, 'nueva')}
           className="px-2 text-xs py-1.5 rounded bg-surface text-text-muted hover:bg-[var(--ink-100)] transition-colors font-body"
@@ -354,6 +428,14 @@ export default function ComandasPage() {
     })
   }
 
+  function handleMarkedReady(orderId: string) {
+    setData(prev => {
+      const patch = (list: Comanda[]) =>
+        list.map(o => o.id === orderId ? { ...o, readyAt: new Date().toISOString() } : o)
+      return { nueva: patch(prev.nueva), preparando: patch(prev.preparando), lista: patch(prev.lista) }
+    })
+  }
+
   const total = data.nueva.length + data.preparando.length + data.lista.length
 
   return (
@@ -417,6 +499,7 @@ export default function ComandasPage() {
                       comanda={comanda}
                       onMove={handleMove}
                       onPaymentConfirmed={handlePaymentConfirmed}
+                      onMarkedReady={handleMarkedReady}
                     />
                   ))}
                 </div>
