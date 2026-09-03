@@ -28,6 +28,7 @@ export default function CheckoutPage() {
   const [delivery, setDelivery]   = useState<DeliveryMode>('metro')
   const [station, setStation]     = useState<string>()
   const [slot, setSlot]           = useState<string>()
+  const [deliveryDate, setDeliveryDate] = useState<string>()
   const [loading, setLoading]     = useState(false)
   const [orderNumber, setOrderNumber] = useState<number>()
   const [apiError, setApiError]   = useState<string>()
@@ -66,14 +67,14 @@ export default function CheckoutPage() {
   const creditAvailable = b2bSession ? b2bSession.creditLimitClp - b2bSession.creditUsedClp : 0
   const canContinue  = b2bSession
     ? (
-        (delivery !== 'metro' || (!!station && !!slot)) &&
+        (delivery !== 'metro' || (!!station && !!slot && !!deliveryDate)) &&
         (!needsAddress || buyerAddr.trim().length > 5) &&
         (paymentPref !== 'credito_b2b' || creditAvailable >= subtotal)
       )
     : (
         buyerName.trim().length >= 2 &&
         buyerEmail.includes('@') &&
-        (delivery !== 'metro' || (!!station && !!slot)) &&
+        (delivery !== 'metro' || (!!station && !!slot && !!deliveryDate)) &&
         (!needsAddress || buyerAddr.trim().length > 5)
       )
 
@@ -112,6 +113,7 @@ export default function CheckoutPage() {
         deliveryMode:    delivery,
         metroStation:    station,
         metroSlot:       slot,
+        deliveryDate:    delivery === 'metro' ? deliveryDate : undefined,
         deliveryAddress: needsAddress ? buyerAddr.trim() : undefined,
         customerId,
         notes:           b2bSession && recipientName.trim() ? `Recibe: ${recipientName.trim()}` : undefined,
@@ -317,8 +319,9 @@ export default function CheckoutPage() {
             mode={delivery}
             station={station}
             slot={slot}
+            date={deliveryDate}
             hasColdChain={hasColdChain}
-            onChange={(m, s, sl) => { setDelivery(m); setStation(s); setSlot(sl) }}
+            onChange={(m, s, sl, d) => { setDelivery(m); setStation(s); setSlot(sl); setDeliveryDate(d) }}
           />
         </div>
 

@@ -166,6 +166,7 @@ export function renderComandaHtml(c: ComandaPayload): string {
   let deliveryDetail = ''
   if (c.deliveryMode === 'metro' && c.metroStation) {
     deliveryDetail = `<div class="delivery-detail">Estación ${escHtml(c.metroStation)}`
+    if (c.deliveryDate) deliveryDetail += ` · ${escHtml(formatDeliveryDate(c.deliveryDate))}`
     if (c.metroSlot) deliveryDetail += ` · ${escHtml(c.metroSlot)}`
     deliveryDetail += '</div>'
   } else if (c.deliveryMode === 'rappi') {
@@ -179,6 +180,14 @@ export function renderComandaHtml(c: ComandaPayload): string {
   <div class="delivery-mode">${deliveryLabel(c.deliveryMode)}</div>
   ${deliveryDetail}
 </div>`
+
+  // ─── Destinatario — cualquier canal, no solo B2B (adición post-entrega,
+  // 3-sep-2026) ───────────────────────────────────────────────────────────
+  const recipientHtml = c.recipientName ? `
+<div class="order-note-block">
+  <div class="order-note-label">Recibe</div>
+  <div class="order-note-text">${escHtml(c.recipientName)}</div>
+</div>` : ''
 
   // ─── Nota general ─────────────────────────────────────────────────────────
   const noteHtml = c.notes ? `
@@ -213,6 +222,7 @@ export function renderComandaHtml(c: ComandaPayload): string {
 </div>
 
 ${deliveryHtml}
+${recipientHtml}
 ${noteHtml}
 
 <div class="comanda-footer">
@@ -234,4 +244,13 @@ function escHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+// yyyy-mm-dd → "Vie 05/09" (adición post-entrega, 3-sep-2026 — fecha de
+// retiro Metro, antes solo existía la franja horaria sin día).
+function formatDeliveryDate(isoDate: string): string {
+  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+  const d = new Date(`${isoDate}T00:00:00`)
+  if (isNaN(d.getTime())) return isoDate
+  return `${days[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }

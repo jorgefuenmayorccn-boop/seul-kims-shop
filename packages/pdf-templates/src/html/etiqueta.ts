@@ -124,7 +124,8 @@ export function renderEtiquetaHtml(e: EtiquetaPayload): string {
   let destinoSub = ''
   if (e.deliveryMode === 'metro' && e.metroStation) {
     destinoValue = `Estación ${escHtml(e.metroStation)}`
-    if (e.metroSlot) destinoSub = escHtml(e.metroSlot)
+    const subParts = [e.deliveryDate ? formatEtiquetaDate(e.deliveryDate) : null, e.metroSlot].filter(Boolean)
+    destinoSub = escHtml(subParts.join(' · '))
   } else if (e.deliveryMode === 'pickup') {
     destinoValue = 'Retiro en tienda'
   } else if (e.deliveryAddress) {
@@ -175,4 +176,12 @@ function escHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+// yyyy-mm-dd → "Vie 05/09" (adición post-entrega, 3-sep-2026)
+function formatEtiquetaDate(isoDate: string): string {
+  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+  const d = new Date(`${isoDate}T00:00:00`)
+  if (isNaN(d.getTime())) return isoDate
+  return `${days[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }

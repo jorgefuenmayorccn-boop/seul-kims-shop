@@ -73,6 +73,13 @@ export interface ComandaPayload {
   notes?:        string          // nota general del pedido
   metroStation?: string
   metroSlot?:    string
+  // Fecha de retiro Metro elegida en el checkout (adición post-entrega,
+  // 3-sep-2026) — antes solo existía la franja horaria, sin día.
+  deliveryDate?: string          // yyyy-mm-dd
+  // Nombre de quien recibe — para CUALQUIER canal, no solo B2B (antes solo
+  // se armaba vía notes:"Recibe: X" para pedidos B2B; el personal no tenía
+  // forma de saber a quién entregarle un retiro Metro normal).
+  recipientName?: string
   cashierName?:  string          // si channel === 'pos'
 }
 
@@ -90,6 +97,7 @@ export interface EtiquetaPayload {
   deliveryAddress?: string
   metroStation?: string
   metroSlot?:    string
+  deliveryDate?: string          // yyyy-mm-dd — adición post-entrega 3-sep-2026
   itemCount:     number
 }
 

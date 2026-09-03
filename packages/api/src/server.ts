@@ -1570,11 +1570,23 @@ app.get('/api/customer/orders', async (c) => {
   if (customerAuth instanceof Response) return customerAuth
 
   try {
+    // Ampliado (adición post-entrega, 3-sep-2026 — el dueño reportó que
+    // "/cuenta/pedidos" no mostraba nada en tiempo real): antes solo
+    // devolvía number/total/status/canal/fecha. Ahora suma estado de pago,
+    // modo/fecha/franja de entrega, y el estado del repartidor si existe
+    // asignación (mismo JOIN que ya usa GET /api/delivery/assignments).
+    // Aplica igual a pedidos B2B — son orders normales con company_id, ya
+    // cubiertos por este mismo endpoint/tabla.
     const rows = await sql`
-      SELECT id, number, total, status, dte_status, channel, created_at
-      FROM orders
-      WHERE customer_id = ${customerAuth.customerId}
-      ORDER BY created_at DESC
+      SELECT o.id, o.number, o.total, o.status, o.dte_status, o.channel, o.created_at,
+             o.payment_status, o.payment_method, o.delivery_mode, o.metro_station,
+             o.metro_slot, o.delivery_date, o.ready_at,
+             da.status AS delivery_status, u.name AS driver_name
+      FROM orders o
+      LEFT JOIN delivery_assignments da ON da.order_id = o.id
+      LEFT JOIN users u ON u.id = da.driver_id
+      WHERE o.customer_id = ${customerAuth.customerId}
+      ORDER BY o.created_at DESC
       LIMIT 100
     `
     return c.json({
@@ -1586,6 +1598,15 @@ app.get('/api/customer/orders', async (c) => {
         dteStatus: r.dte_status,
         channel: r.channel,
         createdAt: r.created_at,
+        paymentStatus: r.payment_status,
+        paymentMethod: r.payment_method,
+        deliveryMode: r.delivery_mode,
+        metroStation: r.metro_station,
+        metroSlot: r.metro_slot,
+        deliveryDate: r.delivery_date,
+        readyAt: r.ready_at,
+        deliveryStatus: r.delivery_status,
+        driverName: r.driver_name,
       })),
     })
   } catch (err) {
@@ -1695,7 +1716,7 @@ app.post('/api/public/orders', async (c) => {
     return c.json({ error: 'JSON inválido' }, 400)
   }
 
-  const { deliveryMode, metroStation, metroSlot, deliveryAddress, notes, items, companyId, paymentMethod } = body
+  const { deliveryMode, metroStation, metroSlot, deliveryDate, deliveryAddress, notes, items, companyId, paymentMethod } = body
   // Rappi suspendido temporalmente (adición post-entrega, 3-sep-2026 — nunca
   // hubo integración real con la API de Rappi, ver DeliveryPicker). Rechazo
   // también server-side, no solo ocultarlo en el picker — por si alguien
@@ -1775,14 +1796,27 @@ app.post('/api/public/orders', async (c) => {
 
     const order = await sql.begin(async (tx: any) => {
       const [ord] = await tx`
-        INSERT INTO orders (number, channel, customer_id, status, delivery_mode, delivery_address, metro_station, metro_slot, subtotal, total, notes, company_id, payment_method)
-        VALUES (${order_number}, 'web', ${customerId}, 'nueva', ${deliveryMode}, ${deliveryAddress || null}, ${metroStation || null}, ${metroSlot || null}, ${subtotal}, ${subtotal}, ${notes || null}, ${resolvedCompanyId}, ${paymentMethodPref})
+        INSERT INTO orders (number, channel, customer_id, status, delivery_mode, delivery_address, metro_station, metro_slot, delivery_date, subtotal, total, notes, company_id, payment_method)
+        VALUES (${order_number}, 'web', ${customerId}, 'nueva', ${deliveryMode}, ${deliveryAddress || null}, ${metroStation || null}, ${metroSlot || null}, ${deliveryDate || null}, ${subtotal}, ${subtotal}, ${notes || null}, ${resolvedCompanyId}, ${paymentMethodPref})
         RETURNING id, number
       `
       for (const it of resolvedItems) {
         await tx`
           INSERT INTO order_items (order_id, product_id, quantity, unit_price, is_baes, subtotal)
           VALUES (${ord.id}, ${it.productId}, ${it.quantity}, ${it.unitPrice}, ${it.isBaes}, ${it.lineTotal})
+        `
+      }
+      // Gap real cerrado (adición post-entrega, 3-sep-2026 — el dueño reportó
+      // que ningún pedido de repartidor llegaba a Drive): NINGÚN endpoint de
+      // creación de pedidos insertaba nunca una fila en delivery_assignments
+      // — el único INSERT que existía era el de dispatch-rappi (registro
+      // manual). Despacho/Drive solo pueden LISTAR/ASIGNAR filas que ya
+      // existen, así que un pedido Metro nunca tenía nada que asignarle a un
+      // repartidor. 'pickup' no crea asignación (el cliente retira solo).
+      if (deliveryMode === 'metro' || deliveryMode === 'shipping') {
+        await tx`
+          INSERT INTO delivery_assignments (order_id, status)
+          VALUES (${ord.id}, 'pending')
         `
       }
       return ord
@@ -2509,6 +2543,18 @@ app.post('/api/orders', async (c) => {
         `
       }
 
+      // Mismo gap real cerrado en POST /api/public/orders (adición
+      // post-entrega, 3-sep-2026) — un pedido delivery cargado desde POS
+      // (modal "Pedido Delivery", modo 'delivery') tampoco creaba nunca una
+      // fila en delivery_assignments, así que tampoco le llegaba nada a
+      // Despacho/Drive. 'pickup' no aplica (retiro en el local).
+      if (deliveryMode === 'delivery') {
+        await tx`
+          INSERT INTO delivery_assignments (order_id, status)
+          VALUES (${ord.id}, 'pending')
+        `
+      }
+
       return ord
     })
 
@@ -2632,11 +2678,13 @@ app.get('/api/orders/:id/comanda', async (c) => {
   try {
     const [order] = await sql`
       SELECT o.id, o.number, o.channel, o.delivery_mode, o.metro_station, o.metro_slot,
-             o.notes, o.created_at, u.name AS cashier_name,
-             o.company_id, comp.razon_social
+             o.delivery_date, o.notes, o.created_at, u.name AS cashier_name,
+             o.company_id, comp.razon_social,
+             COALESCE(o.guest_name, cu.name) AS resolved_customer_name
       FROM orders o
       LEFT JOIN users u ON u.id = o.cashier_id
       LEFT JOIN b2b_companies comp ON comp.id = o.company_id
+      LEFT JOIN customers cu ON cu.id = o.customer_id
       WHERE o.id = ${id}
     `
     if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
@@ -2649,6 +2697,15 @@ app.get('/api/orders/:id/comanda', async (c) => {
       ORDER BY oi.id
     `
 
+    // Destinatario — CUALQUIER canal, no solo B2B (adición post-entrega,
+    // 3-sep-2026). Para B2B, el titular de la cuenta es la empresa, no
+    // necesariamente quien recibe físicamente — se extrae el "Recibe: X"
+    // que el checkout B2B ya guarda en notes (mismo regex que
+    // GET /api/orders/:id/etiqueta). Para cualquier otro canal, el nombre
+    // del cliente/invitado YA ES quien recibe (no hace falta notes especial).
+    const recibeMatch = typeof order.notes === 'string' ? order.notes.match(/^Recibe: (.+?)(?: — |$)/) : null
+    const recipientName = order.company_id ? (recibeMatch?.[1] ?? undefined) : (order.resolved_customer_name ?? undefined)
+
     // Canal calculado para la comanda: un pedido con company_id es
     // mayorista de cara al equipo de preparación (etiqueta "MAYORISTA"),
     // aunque orders.channel siga guardando 'web'/'pos' — mismo criterio de
@@ -2660,7 +2717,9 @@ app.get('/api/orders/:id/comanda', async (c) => {
       createdAt:    order.created_at,
       items:        items.map((it: any) => ({ name: it.name, qty: Number(it.quantity) })),
       deliveryMode: order.delivery_mode,
-      notes:        order.company_id ? `${order.razon_social}${order.notes ? ' — ' + order.notes : ''}` : (order.notes ?? undefined),
+      deliveryDate: order.delivery_date ?? undefined,
+      recipientName,
+      notes:        order.company_id ? order.razon_social : undefined,
       metroStation: order.metro_station ?? undefined,
       metroSlot:    order.metro_slot ?? undefined,
       cashierName:  order.channel === 'pos' ? (order.cashier_name ?? undefined) : undefined,
@@ -2684,29 +2743,35 @@ app.get('/api/orders/:id/etiqueta', async (c) => {
   try {
     const [order] = await sql`
       SELECT o.id, o.number, o.channel, o.delivery_mode, o.delivery_address,
-             o.metro_station, o.metro_slot, o.company_id, o.notes,
+             o.metro_station, o.metro_slot, o.delivery_date, o.company_id, o.notes,
              comp.razon_social,
+             COALESCE(o.guest_name, cu.name) AS resolved_customer_name,
              (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS item_count
       FROM orders o
       LEFT JOIN b2b_companies comp ON comp.id = o.company_id
+      LEFT JOIN customers cu ON cu.id = o.customer_id
       WHERE o.id = ${id}
     `
     if (!order) return c.json({ error: 'Pedido no encontrado' }, 404)
 
     // "Recibe: Nombre" se guarda como prefijo de notes en el checkout B2B
-    // (ver POST /api/public/orders) — se extrae acá para la etiqueta.
+    // (ver POST /api/public/orders) — se extrae acá para la etiqueta. Para
+    // cualquier otro canal (adición post-entrega, 3-sep-2026), el nombre del
+    // cliente/invitado YA ES quien recibe.
     const recipientMatch = typeof order.notes === 'string' ? order.notes.match(/^Recibe: (.+?)(?: — |$)/) : null
+    const recipient = order.company_id ? recipientMatch?.[1] : order.resolved_customer_name
 
     const etiqueta = {
       orderId:         order.id,
       number:          order.number,
       channel:         order.company_id ? 'b2b' : order.channel,
       companyName:     order.razon_social ?? undefined,
-      recipient:       recipientMatch?.[1] ?? undefined,
+      recipient:       recipient ?? undefined,
       deliveryMode:    order.delivery_mode,
       deliveryAddress: order.delivery_address ?? undefined,
       metroStation:    order.metro_station ?? undefined,
       metroSlot:       order.metro_slot ?? undefined,
+      deliveryDate:    order.delivery_date ?? undefined,
       itemCount:       Number(order.item_count ?? 0),
     }
 
@@ -3057,29 +3122,43 @@ async function handleOrderStatusUpdate(c: any) {
     const { status, customer_email, eta } = await c.req.json()
     if (!status) return c.json({ error: 'Missing status' }, 400)
 
+    // Bug real cerrado (adición post-entrega, 3-sep-2026 — el dueño reportó
+    // que nunca llegan correos de actualización de estado): este endpoint
+    // SOLO enviaba el correo si el body incluía `customer_email` — y
+    // apps/cerebro/.../comandas/page.tsx handleMove() (el único caller real,
+    // vía drag-and-drop del Kanban) nunca lo manda (`{ status }`, sin
+    // email). El mecanismo de envío funcionaba perfecto, simplemente nunca
+    // se disparaba porque dependía de un dato que el caller nunca pasó.
+    // Ahora se resuelve el email del propio pedido — ya no depende de que
+    // ningún frontend se acuerde de mandarlo. `customer_email` del body se
+    // conserva como override manual (ej. un futuro flujo que quiera avisar
+    // a otra dirección), pero deja de ser la única fuente.
     const [order] = await sql`
       UPDATE orders SET status = ${status}, updated_at = NOW()
       WHERE id = ${id}
-      RETURNING id, number
+      RETURNING id, number, guest_email,
+        (SELECT email FROM customers WHERE id = orders.customer_id) AS customer_email
     `
 
     if (!order) return c.json({ error: 'Order not found' }, 404)
 
+    const resolvedEmail = customer_email || order.guest_email || order.customer_email
+
     let queue_id: string | undefined
-    if (customer_email) {
+    if (resolvedEmail) {
       // order_status enum real: 'nueva' | 'preparando' | 'lista' | 'en_ruta' | 'entregada' | 'cancelada'
       const emailType = status === 'en_ruta' ? 'order-shipped'
         : status === 'entregada' ? 'order-delivered'
         : 'delivery-update'
       queue_id = await enqueueEmail(
-        customer_email,
+        resolvedEmail,
         `Actualización: Orden #${order.number}`,
         templates.orderStatus(order, status, eta),
         emailType
       )
     }
 
-    console.log(`✅ Order status: #${order.number} → ${status}`)
+    console.log(`✅ Order status: #${order.number} → ${status}${resolvedEmail ? ` (correo a ${resolvedEmail})` : ' (sin email para notificar)'}`)
     return c.json({ ok: true, status, queue_id })
   } catch (err) {
     console.error('Status error:', err)

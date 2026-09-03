@@ -26,12 +26,30 @@ export const MERVAL_SLOTS = [
   '19:00–21:00',
 ] as const
 
+// Próximos 7 días para elegir fecha de retiro Metro (adición post-entrega,
+// 3-sep-2026) — antes solo se elegía la franja horaria (ej. "11:00–13:00")
+// sin decir NINGÚN día, así que un pedido no tenía forma de saber si era
+// para hoy, mañana o la semana que viene. yyyy-mm-dd en horario de Chile.
+export function nextDeliveryDates(count = 7): { value: string; label: string }[] {
+  const days = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+  const out: { value: string; label: string }[] = []
+  for (let i = 0; i < count; i++) {
+    const d = new Date()
+    d.setDate(d.getDate() + i)
+    const value = d.toISOString().slice(0, 10)
+    const label = i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : `${days[d.getDay()]} ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
+    out.push({ value, label })
+  }
+  return out
+}
+
 interface DeliveryPickerProps {
   mode: DeliveryMode
   station?: string
   slot?: string
+  date?: string
   hasColdChain?: boolean
-  onChange: (mode: DeliveryMode, station?: string, slot?: string) => void
+  onChange: (mode: DeliveryMode, station?: string, slot?: string, date?: string) => void
 }
 
 const OPTIONS: { id: DeliveryMode; label: string; sublabel: string; icon: typeof Truck; color: string }[] = [
@@ -73,7 +91,8 @@ const OPTIONS: { id: DeliveryMode; label: string; sublabel: string; icon: typeof
 // intacto — reactivar es borrar esta constante.
 const RAPPI_SUSPENDED = true
 
-export function DeliveryPicker({ mode, station, slot, hasColdChain, onChange }: DeliveryPickerProps) {
+export function DeliveryPicker({ mode, station, slot, date, hasColdChain, onChange }: DeliveryPickerProps) {
+  const dates = nextDeliveryDates()
   return (
     <div className="space-y-3">
       {OPTIONS.map(opt => {
@@ -123,13 +142,35 @@ export function DeliveryPicker({ mode, station, slot, hasColdChain, onChange }: 
               <div className="mt-2 ml-4 space-y-3 pl-3 border-l-2 border-brand/20">
                 <div>
                   <label className="text-xs font-semibold text-text-muted uppercase tracking-wide font-body block mb-1.5">
+                    Fecha de retiro
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {dates.map(d => (
+                      <button
+                        key={d.value}
+                        onClick={() => onChange('metro', station, slot, d.value)}
+                        className={cn(
+                          'text-xs px-3 py-1.5 rounded-full border transition-colors font-body',
+                          date === d.value
+                            ? 'bg-[var(--color-channel-metro)] text-white border-[var(--color-channel-metro)]'
+                            : 'border-[var(--color-border)] text-text-muted hover:text-text hover:bg-surface',
+                        )}
+                      >
+                        {d.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-text-muted uppercase tracking-wide font-body block mb-1.5">
                     Estación
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {MERVAL_STATIONS.map(s => (
                       <button
                         key={s}
-                        onClick={() => onChange('metro', s, slot)}
+                        onClick={() => onChange('metro', s, slot, date)}
                         className={cn(
                           'text-xs px-3 py-1.5 rounded-full border transition-colors font-body',
                           station === s
@@ -152,7 +193,7 @@ export function DeliveryPicker({ mode, station, slot, hasColdChain, onChange }: 
                       {MERVAL_SLOTS.map(s => (
                         <button
                           key={s}
-                          onClick={() => onChange('metro', station, s)}
+                          onClick={() => onChange('metro', station, s, date)}
                           className={cn(
                             'text-xs px-3 py-1.5 rounded-full border font-mono transition-colors',
                             slot === s

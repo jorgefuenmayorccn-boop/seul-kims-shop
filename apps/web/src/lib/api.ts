@@ -72,7 +72,7 @@ export async function getB2BSession(): Promise<B2BSession | null> {
 export async function createWebOrder(payload: {
   channel: 'web'
   deliveryMode: 'rappi' | 'metro' | 'pickup' | 'shipping'
-  metroStation?: string; metroSlot?: string; deliveryAddress?: string
+  metroStation?: string; metroSlot?: string; deliveryDate?: string; deliveryAddress?: string
   customerId?: string
   notes?: string
   items: Array<{ productId: string; quantity: number; unitPrice: number; isBaes: boolean }>
