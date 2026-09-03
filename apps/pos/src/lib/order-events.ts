@@ -35,6 +35,28 @@ export function addIncomingOrder(order: IncomingOrder) {
   _orders = [order, ..._orders]
   notify()
   playNotificationSound()
+  autoPrintComanda(order)
+}
+
+// Impresión automática de comanda al llegar un pedido externo (pedido
+// explícito del dueño: "apenas se haga el pedido debe imprimir una comanda
+// automaticamente" — antes SIEMPRE requería abrir el cajón "Pedidos
+// entrantes" y hacer clic en "Imprimir comanda" a mano). Best-effort: usa el
+// mismo printComanda() que ya existe (popup HTML + window.print()) — un
+// navegador con el POS dejado abierto todo el día y con permiso de popups ya
+// otorgado para este sitio (configuración de una sola vez, no requiere código)
+// imprime sin ningún clic. Si el popup queda bloqueado, no rompe nada — el
+// pedido sigue disponible para imprimir manualmente desde el cajón, igual
+// que antes de este cambio.
+async function autoPrintComanda(order: IncomingOrder) {
+  if (!_apiUrl) return
+  try {
+    const res = await fetch(`${_apiUrl}/api/orders/${order.orderId}/comanda`, { credentials: 'include' })
+    if (!res.ok) return
+    const { comanda } = await res.json() as { comanda: import('@seul/pdf-templates/client').ComandaPayload }
+    const { printComanda } = await import('./print-service')
+    await printComanda(comanda)
+  } catch { /* best-effort — el pedido sigue disponible para imprimir a mano */ }
 }
 
 export function markOrderSeen(orderId: string) {

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Clock, Truck, Train, ShoppingBag, RefreshCw, Printer, Banknote, CreditCard, Landmark, Wallet, PackageCheck } from 'lucide-react'
 import { StatusPill, cn, formatCLP } from '@seul/ui'
 import { renderComandaHtml, renderPosReceiptHtml, renderEtiquetaHtml } from '@seul/pdf-templates/client'
@@ -370,6 +370,12 @@ function ComandaCard({ comanda, onMove, onPaymentConfirmed, onMarkedReady }: {
 export default function ComandasPage() {
   const [data, setData] = useState<KanbanData>({ nueva: [], preparando: [], lista: [] })
   const [loading, setLoading] = useState(true)
+  // IDs ya vistos — para imprimir automáticamente SOLO los pedidos que
+  // llegaron nuevos entre un refresh y otro (pedido explícito del dueño:
+  // "apenas se haga el pedido debe imprimir una comanda automaticamente").
+  // null hasta la primera carga real, para no imprimir de golpe todo lo que
+  // ya estaba en cola al abrir la pantalla.
+  const seenIdsRef = useRef<Set<string> | null>(null)
 
   const fetchComandas = useCallback(async () => {
     try {
@@ -381,6 +387,15 @@ export default function ComandasPage() {
       if (!res.ok) return
       const json = await res.json() as KanbanData
       setData(json)
+
+      const allIds = [...json.nueva, ...json.preparando, ...json.lista].map(o => o.id)
+      if (seenIdsRef.current === null) {
+        seenIdsRef.current = new Set(allIds)
+      } else {
+        const nuevos = allIds.filter(id => !seenIdsRef.current!.has(id))
+        for (const id of nuevos) fetchAndPrintComanda(id)
+        seenIdsRef.current = new Set(allIds)
+      }
     } finally {
       setLoading(false)
     }

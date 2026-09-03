@@ -2,24 +2,34 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
+import { useCustomerStore } from '@/lib/customer-store'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
 export default function B2BLoginPage() {
   const router = useRouter()
+  // El login B2B usa la MISMA sesión de cliente que B2C (seul_customer_session)
+  // pero nunca actualizaba este store — el navbar general del sitio
+  // (AuthSlot, apps/web/.../shop/auth-slot.tsx) lee de acá, no del cookie
+  // directamente, así que sin esto seguía mostrando "Iniciar sesión" incluso
+  // con una sesión B2B válida (bug real reportado por el dueño, 3-sep-2026:
+  // "el login me manda a solicitar cuenta" — el checkout SÍ reconocía la
+  // sesión pero el navbar de arriba no, generando la confusión).
+  const setCustomer = useCustomerStore(s => s.setCustomer)
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [showPwd,  setShowPwd]  = useState(false)
   const [loading,  setLoading]  = useState(false)
   const [error,    setError]    = useState('')
 
-  // Si ya tiene sesión, redirigir al dashboard
+  // Si ya tiene sesión, redirigir al dashboard (y sincronizar el store del
+  // navbar general, mismo motivo que en handleLogin de arriba)
   useEffect(() => {
     fetch(`${API}/api/customer/me`, { credentials: 'include' })
-      .then(r => r.json() as Promise<{ ok: boolean }>)
-      .then(d => { if (d.ok) router.replace('/b2b/dashboard') })
+      .then(r => r.json() as Promise<{ ok: boolean; customer?: any }>)
+      .then(d => { if (d.ok) { if (d.customer) setCustomer(d.customer); router.replace('/b2b/dashboard') } })
       .catch(() => {})
-  }, [router])
+  }, [router, setCustomer])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -33,11 +43,15 @@ export default function B2BLoginPage() {
         credentials: 'include',
         body:        JSON.stringify({ email: email.trim(), password }),
       })
-      const data = await res.json() as { ok: boolean; error?: string; mustChangePassword?: boolean }
+      const data = await res.json() as {
+        ok: boolean; error?: string; mustChangePassword?: boolean
+        customer?: { id: string; email: string; name: string; emailVerified: boolean; mustChangePassword: boolean; marketingOptIn: boolean }
+      }
       if (!res.ok || !data.ok) {
         setError(data.error ?? 'Correo o contraseña incorrectos')
         return
       }
+      if (data.customer) setCustomer(data.customer)
       router.replace('/b2b/dashboard')
     } catch {
       setError('Error de conexión. Intenta nuevamente.')
