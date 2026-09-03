@@ -43,10 +43,10 @@ export default function BoletaPage({ params }: { params: { token: string } }) {
           <p className="text-xs text-[var(--color-text-secondary)]">
             ¿Problemas con tu boleta?{' '}
             <a
-              href="https://wa.me/56936451991"
+              href="mailto:contacto@seoulshop.cl"
               className="underline hover:text-[var(--color-brand)]"
             >
-              Escríbenos al WhatsApp
+              Escríbenos por correo
             </a>
           </p>
         </div>

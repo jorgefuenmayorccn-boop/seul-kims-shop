@@ -273,7 +273,7 @@ export function CartDrawer() {
                     </span>
                   </div>
                   <p className="font-body text-xs" style={{ color: 'var(--color-heuk)', opacity: 0.4 }}>
-                    Envío y pago se confirman por WhatsApp
+                    Envío y pago se coordinan por correo
                   </p>
                   <Link
                     href="/checkout"

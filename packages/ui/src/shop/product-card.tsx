@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import Image from 'next/image'
-import { ShoppingCart, MessageCircle } from 'lucide-react'
+import { ShoppingCart } from 'lucide-react'
 import { BadgeChain } from '../badge-chain'
 import { BadgeBAES } from '../badge-baes'
 import { BadgeExpiry } from '../badge-expiry'
@@ -29,12 +29,8 @@ interface ProductCardProps {
   onAddToCart?: (id: string) => void
 }
 
-const SEUL_WA = '56936451991'
-
 export function ProductCard({ product, variant = 'grid', onAddToCart }: ProductCardProps) {
   const outOfStock = product.stockTotal <= 0
-  const waText = `¡Hola! Quiero comprar ${product.name}`
-  const waHref = `https://wa.me/${SEUL_WA}?text=${encodeURIComponent(waText)}`
 
   if (variant === 'list') {
     return (
@@ -132,15 +128,6 @@ export function ProductCard({ product, variant = 'grid', onAddToCart }: ProductC
                 <ShoppingCart size={14} />
               </button>
             )}
-            <a
-              href={waHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2 rounded-lg bg-[var(--color-channel-whatsapp)]/10 text-[var(--color-channel-whatsapp)] hover:bg-[var(--color-channel-whatsapp)]/20 transition-colors"
-              aria-label="Pedir por WhatsApp"
-            >
-              <MessageCircle size={14} />
-            </a>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Building2, User, CheckCircle2, Loader2, AlertCircle } from 'lucide-react'
 
@@ -21,16 +21,6 @@ export default function RegistroB2BPage() {
   const [step, setStep]       = useState<Step>('empresa')
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
-  const [waNumber, setWaNumber] = useState('56936451991')
-
-  useEffect(() => {
-    fetch(`${API}/api/tienda-config/public`)
-      .then(r => r.json())
-      .then((d: { config?: { whatsapp_number?: string } }) => {
-        if (d.config?.whatsapp_number) setWaNumber(d.config.whatsapp_number)
-      })
-      .catch(() => {})
-  }, [])
 
   const [form, setForm] = useState({
     razonSocial: '',
@@ -80,16 +70,8 @@ export default function RegistroB2BPage() {
         <CheckCircle2 className="mx-auto size-16 text-[var(--color-baes-eligible)]" />
         <h1 className="mt-4 text-2xl font-bold">¡Solicitud enviada!</h1>
         <p className="mt-2 text-[var(--color-text-secondary)]">
-          Revisaremos tu solicitud y te contactaremos por WhatsApp en 24–48 horas hábiles.
+          Revisaremos tu solicitud y te contactaremos por correo en 24–48 horas hábiles.
         </p>
-        <a
-          href={`https://wa.me/${waNumber}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-5 py-2.5 font-semibold text-white hover:opacity-90"
-        >
-          Escribirnos mientras tanto
-        </a>
       </div>
     )
   }
@@ -191,12 +173,12 @@ export default function RegistroB2BPage() {
               <input className={inputClass} type="email" value={form.email} onChange={set('email')} placeholder="contacto@empresa.cl" />
             </div>
             <div>
-              <label className={labelClass}>WhatsApp</label>
+              <label className={labelClass}>Teléfono</label>
               <input className={inputClass} type="tel" value={form.phone} onChange={set('phone')} placeholder="+56 9 1234 5678" />
             </div>
 
             <div className="rounded-lg bg-[var(--color-surface-sunken)] p-3 text-xs text-[var(--color-text-secondary)]">
-              Al enviar tu solicitud, SEUL SHOP revisará tu información y te contactará vía WhatsApp para activar tu cuenta.
+              Al enviar tu solicitud, SEUL SHOP revisará tu información y te contactará por correo para activar tu cuenta.
             </div>
 
             <div className="flex gap-3">

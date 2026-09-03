@@ -77,8 +77,8 @@ export default function PrivacidadPage() {
             </p>
           )}
           <p className="mt-4 text-xs text-[var(--color-text-secondary)]">
-            Te responderemos al email indicado. Si tienes dudas, escríbenos al{' '}
-            <a href="https://wa.me/56936451991" className="underline text-[var(--color-brand)]">+56 9 3645 1991</a>
+            Te responderemos al email indicado. Si tienes dudas, escríbenos a{' '}
+            <a href="mailto:contacto@seoulshop.cl" className="underline text-[var(--color-brand)]">contacto@seoulshop.cl</a>
           </p>
         </div>
       ) : (

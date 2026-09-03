@@ -21,7 +21,7 @@ export default function POSError({
         title="El POS tuvo un problema"
         description="Intenta de nuevo. Si sigue fallando, avisa a soporte técnico antes de seguir cobrando."
         onRetry={reset}
-        supportHref="https://wa.me/56936451991"
+        supportHref="mailto:contacto@seoulshop.cl"
       />
     </div>
   )

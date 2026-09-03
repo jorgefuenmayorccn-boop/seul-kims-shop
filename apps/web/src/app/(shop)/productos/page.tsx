@@ -87,7 +87,7 @@ export default async function ProductosPage({
             >
               Pronto tendremos todos nuestros productos disponibles.
               <br />
-              Escríbenos por WhatsApp para consultas.
+              Escríbenos por correo para consultas.
             </p>
           </div>
         ) : (

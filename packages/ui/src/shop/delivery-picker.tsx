@@ -65,12 +65,20 @@ const OPTIONS: { id: DeliveryMode; label: string; sublabel: string; icon: typeof
   },
 ]
 
+// Rappi suspendido temporalmente (adición post-entrega, 3-sep-2026) — nunca
+// hubo una integración real con la API de Rappi (POST /api/delivery/dispatch-rappi
+// es solo un formulario donde el staff anota a mano que despachó afuera, no
+// llama a ningún API real). El dueño pidió sacarlo de las opciones de
+// checkout hasta que se pueda conectar de verdad. Queda todo el código
+// intacto — reactivar es borrar esta constante.
+const RAPPI_SUSPENDED = true
+
 export function DeliveryPicker({ mode, station, slot, hasColdChain, onChange }: DeliveryPickerProps) {
   return (
     <div className="space-y-3">
       {OPTIONS.map(opt => {
         const active = mode === opt.id
-        const blocked = hasColdChain && opt.id === 'shipping'
+        const blocked = (hasColdChain && opt.id === 'shipping') || (RAPPI_SUSPENDED && opt.id === 'rappi')
 
         return (
           <div key={opt.id}>
@@ -98,7 +106,9 @@ export function DeliveryPicker({ mode, station, slot, hasColdChain, onChange }: 
                 <p className="text-xs text-text-muted font-body mt-0.5">{opt.sublabel}</p>
                 {blocked && (
                   <p className="text-xs text-error font-body mt-1">
-                    No disponible — tu pedido tiene productos con cadena de frío
+                    {RAPPI_SUSPENDED && opt.id === 'rappi'
+                      ? 'Temporalmente no disponible'
+                      : 'No disponible — tu pedido tiene productos con cadena de frío'}
                   </p>
                 )}
               </div>

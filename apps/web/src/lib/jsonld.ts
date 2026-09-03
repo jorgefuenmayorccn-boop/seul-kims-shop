@@ -6,7 +6,6 @@ export function localBusinessJsonLd() {
     '@type': 'GroceryStore',
     name: 'SEUL SHOP CL',
     url: BASE_URL,
-    telephone: '+56936451991',
     priceRange: '$$',
     address: {
       '@type': 'PostalAddress',

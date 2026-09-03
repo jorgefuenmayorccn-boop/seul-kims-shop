@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Image from 'next/image'
-import { BadgeChain, BadgeBAES, BadgeNutrition, WhatsAppCTA, formatCLP } from '@seul/ui'
+import { BadgeChain, BadgeBAES, BadgeNutrition, formatCLP } from '@seul/ui'
 import { apiServerFetch, CACHE_TAGS } from '@/lib/api-server'
 import { Thermometer } from '@seul/icons'
 import { productJsonLd, breadcrumbJsonLd } from '@/lib/jsonld'
@@ -80,7 +80,6 @@ export default async function ProductPage({ params }: PageProps) {
   }
 
   const outOfStock = product.stockTotal <= 0
-  const waText = `¡Hola! Me interesa comprar ${product.name}`
 
   const BASE_URL = 'https://seoulshop.cl'
 
@@ -198,11 +197,6 @@ export default async function ProductPage({ params }: PageProps) {
                 coldChain:      product.coldChain,
                 isBaesEligible: product.isBaesEligible,
               }}
-            />
-            <WhatsAppCTA
-              variant="button"
-              message={waText}
-              className="w-full justify-center py-3.5 rounded-xl"
             />
           </div>
 

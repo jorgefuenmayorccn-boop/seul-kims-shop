@@ -33,7 +33,7 @@ export default function DevolucionesPage() {
       const data = await res.json() as typeof result
       setResult(data)
     } catch {
-      setResult({ error: 'Error de conexión. Escríbenos al WhatsApp.' })
+      setResult({ error: 'Error de conexión. Escríbenos a contacto@seoulshop.cl.' })
     } finally {
       setLoading(false)
     }
@@ -62,7 +62,7 @@ export default function DevolucionesPage() {
         </p>
         <p>
           ¿Necesitas ayuda urgente?{' '}
-          <a href="https://wa.me/56936451991" className="underline text-[var(--color-brand)]">Escríbenos al WhatsApp</a>.
+          <a href="mailto:contacto@seoulshop.cl" className="underline text-[var(--color-brand)]">Escríbenos por correo</a>.
         </p>
       </div>
 
@@ -74,16 +74,8 @@ export default function DevolucionesPage() {
             ID: <code className="font-mono text-xs">{result.returnId}</code>
           </p>
           <p className="mt-4 text-sm text-[var(--color-text-secondary)]">
-            Te contactaremos vía WhatsApp en 1-2 días hábiles para coordinar la devolución.
+            Te contactaremos por correo en 1-2 días hábiles para coordinar la devolución.
           </p>
-          <a
-            href="https://wa.me/56936451991"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[#25D366] px-5 py-2.5 text-sm font-semibold text-white hover:opacity-90"
-          >
-            Escribir al WhatsApp ahora
-          </a>
         </div>
       ) : (
         <form onSubmit={submit} className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 space-y-5">
@@ -123,7 +115,7 @@ export default function DevolucionesPage() {
               placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
             />
             <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
-              Lo encuentras en el PDF de tu boleta o en el mensaje de WhatsApp de confirmación.
+              Lo encuentras en el PDF de tu boleta o en el correo de confirmación.
             </p>
           </div>
 

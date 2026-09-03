@@ -24,7 +24,6 @@ async function main() {
   await db.insert(schema.tiendaConfig).values([
     { key: 'metro_station_name',   value: 'Miramar' },
     { key: 'metro_station_coords', value: '-33.0147,-71.5558' },
-    { key: 'whatsapp_number',      value: '56936451991' },
     { key: 'rappi_store_id',       value: '' },
     { key: 'dte_provider',         value: 'bsale' },
     { key: 'store_address',        value: 'CONFIRMAR' },

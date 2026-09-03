@@ -1,7 +1,6 @@
 import { Suspense } from 'react'
 import { CategoryNav } from '@seul/ui/shop/category-nav'
 import { ShopFooter } from '@seul/ui/shop/shop-footer'
-import { WhatsAppCTA } from '@seul/ui'
 import { apiServerFetch, CACHE_TAGS } from '@/lib/api-server'
 import { ProductCardEditorialWrapper } from '@/components/shop/product-card-editorial-wrapper'
 import type { ProductCardEditorialData } from '@seul/ui/shop/product-card-editorial'
@@ -78,9 +77,9 @@ async function FeaturedProducts() {
           Catálogo temporalmente offline
         </p>
         <p className="font-body text-sm mt-2" style={{ color: 'var(--color-heuk)', opacity: 0.5 }}>
-          Escríbenos al{' '}
-          <a href="https://wa.me/56936451991" className="underline" style={{ color: '#25d366' }}>
-            WhatsApp
+          Escríbenos a{' '}
+          <a href="mailto:contacto@seoulshop.cl" className="underline" style={{ color: 'var(--color-brand)' }}>
+            contacto@seoulshop.cl
           </a>{' '}
           y te ayudamos de inmediato
         </p>
@@ -195,26 +194,6 @@ export default function HomePage() {
             </div>
           ))}
         </div>
-      </section>
-
-      {/* Banner WhatsApp — minimal */}
-      <section
-        className="px-8 md:px-16 py-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
-        style={{ borderTop: 'var(--border-editorial)', borderBottom: 'var(--border-editorial)' }}
-      >
-        <div>
-          <span className="font-korean text-xs block mb-1" style={{ color: 'var(--color-celadon)', letterSpacing: '0.18em' }}>카카오 상담</span>
-          <p className="font-headline font-bold text-xl" style={{ color: 'var(--color-heuk)' }}>
-            ¿Tienes dudas antes de pedir?
-          </p>
-          <p className="font-body text-sm mt-1" style={{ color: 'var(--color-heuk)', opacity: 0.5 }}>
-            Te respondemos en menos de 15 minutos
-          </p>
-        </div>
-        <WhatsAppCTA
-          variant="button"
-          message="¡Hola! Tengo una consulta sobre SEUL SHOP"
-        />
       </section>
 
       {/* Footer */}

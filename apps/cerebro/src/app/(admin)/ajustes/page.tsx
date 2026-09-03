@@ -142,14 +142,6 @@ export default function AjustesPage() {
           </div>
         </div>
 
-        {/* WhatsApp */}
-        <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-          <h2 className="font-semibold mb-3">WhatsApp Business</h2>
-          <div className="space-y-1 text-sm">
-            <p>Número configurado: <code className="font-mono text-xs">+56 9 3645 1991</code></p>
-            <p className="text-[var(--color-text-secondary)] text-xs">v1.1: migrar a WhatsApp Cloud API para mensajes automáticos</p>
-          </div>
-        </div>
       </div>
     </div>
   )

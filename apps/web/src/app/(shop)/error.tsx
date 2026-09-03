@@ -18,7 +18,7 @@ export default function ShopError({
       <ErrorState
         description="Ocurrió un error inesperado en la tienda. Intenta de nuevo."
         onRetry={reset}
-        supportHref="https://wa.me/56936451991"
+        supportHref="mailto:contacto@seoulshop.cl"
       />
     </div>
   )

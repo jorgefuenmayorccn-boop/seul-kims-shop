@@ -45,9 +45,9 @@ export default function TerminosPage() {
           <section>
             <h2 className="font-headline font-bold text-base mb-3" style={{ opacity: 1 }}>2. Proceso de compra</h2>
             <p>
-              Las compras realizadas a través de la Plataforma se procesan mediante coordinación por WhatsApp.
-              Al confirmar tu pedido, recibirás un enlace al número de WhatsApp de Seoul Kims con el resumen
-              de tu pedido. El pago se acuerda directamente con el vendedor.
+              Las compras realizadas a través de la Plataforma se procesan mediante coordinación por correo
+              electrónico. Al confirmar tu pedido, recibirás un correo con el resumen y la información para
+              completar el pago, y te contactaremos para coordinar la entrega.
             </p>
             <p className="mt-2">
               Seoul Kims se reserva el derecho de rechazar o cancelar pedidos por razones de stock insuficiente,
@@ -62,9 +62,10 @@ export default function TerminosPage() {
             <h2 className="font-headline font-bold text-base mb-3" style={{ opacity: 1 }}>3. Despacho y entrega</h2>
             <p>Seoul Kims ofrece las siguientes modalidades de entrega:</p>
             <ul className="mt-2 space-y-1 pl-4 list-disc">
-              <li><strong>Retiro en Metro Merval:</strong> Gratuito en la estación acordada de la línea Valparaíso–Viña del Mar (la estación específica se confirma al finalizar el pedido).</li>
-              <li><strong>Rappi:</strong> Delivery a domicilio en Viña del Mar, Reñaca y Concón. Sujeto a disponibilidad de la plataforma.</li>
-              <li><strong>Regiones:</strong> Coordinación manual vía WhatsApp. No disponible para productos de cadena de frío (congelados o refrigerados).</li>
+              <li><strong>Retiro en Metro Merval:</strong> Gratuito en la estación y fecha elegidas al finalizar el pedido.</li>
+              <li><strong>Retiro en tienda:</strong> Gratuito en Viña del Mar.</li>
+              <li><strong>Regiones:</strong> Despacho por Chilexpress, coordinado por correo. No disponible para productos de cadena de frío (congelados o refrigerados).</li>
+              <li><strong>Delivery express:</strong> Temporalmente no disponible.</li>
             </ul>
             <p className="mt-2">
               Los plazos de entrega son referenciales y pueden variar por causas externas.
@@ -147,7 +148,6 @@ export default function TerminosPage() {
             <p>Para consultas sobre estos Términos, contáctanos en:</p>
             <ul className="mt-2 space-y-1 pl-4 list-disc">
               <li>Correo electrónico: contacto@seoulshop.cl</li>
-              <li>WhatsApp: +56 9 3645 1991</li>
               <li>Viña del Mar, Región de Valparaíso, Chile</li>
             </ul>
           </section>

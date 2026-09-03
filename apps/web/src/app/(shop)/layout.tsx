@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { ChatWidget } from '@seul/ui/chat/chat-widget'
 import { CartButton } from '@/components/shop/cart-button'
 import { CartDrawer } from '@/components/shop/cart-drawer'
 import { AuthSlot } from '@/components/shop/auth-slot'
@@ -63,7 +62,12 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
 
-      <ChatWidget />
+      {/* ChatWidget oculto (adición post-entrega, 3-sep-2026) — el "Asistente
+          Seoul Kims" nunca tuvo backend real (POST /api/chat no existe),
+          siempre caía a un mensaje de error con WhatsApp. Decisión del
+          dueño: ocultarlo hasta que haya un asistente real conectado. El
+          componente sigue en packages/ui/src/chat/chat-widget.tsx — reactivar
+          es reimportar y volver a montar <ChatWidget />. */}
       <CartDrawer />
     </>
   )

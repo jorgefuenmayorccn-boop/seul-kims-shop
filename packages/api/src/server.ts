@@ -390,18 +390,18 @@ async function runMigrationsIfNeeded() {
       console.log('🔄 Running migration 0018 (seed faq_entries)...')
 
       const seed: Array<{ q: string; a: string; cat: string }> = [
-        { cat: 'Pedidos', q: '¿Cómo puedo hacer un pedido?', a: 'Puedes pedir directamente en nuestra tienda online, seleccionando tus productos y eligiendo el método de entrega. También puedes escribirnos por WhatsApp al +56 9 3645 1991 y te ayudamos a gestionar tu pedido.' },
+        { cat: 'Pedidos', q: '¿Cómo puedo hacer un pedido?', a: 'Puedes pedir directamente en nuestra tienda online, seleccionando tus productos y eligiendo el método de entrega. Si tienes dudas, escríbenos a contacto@seoulshop.cl y te ayudamos a gestionar tu pedido.' },
         { cat: 'Pedidos', q: '¿Puedo modificar o cancelar un pedido?', a: 'Puedes modificar o cancelar tu pedido dentro de los 30 minutos siguientes a su confirmación. Pasado ese plazo, el pedido ya está en preparación y no es posible hacer cambios.' },
-        { cat: 'Envíos', q: '¿Cuáles son los métodos de entrega?', a: 'Ofrecemos: (1) Retiro gratis en Estación Miramar del Merval, (2) Delivery con Rappi en menos de 60 minutos para Viña del Mar, Reñaca y Concón, (3) Despacho por Starken o Chilexpress para el resto de Chile (solo productos sin cadena de frío).' },
-        { cat: 'Envíos', q: '¿Despachan productos congelados o refrigerados a regiones?', a: 'No. Los productos con cadena de frío (congelados y refrigerados) solo se pueden retirar en tienda o recibir mediante Rappi dentro de la zona de cobertura del Gran Valparaíso. Esto es para garantizar la calidad del producto.' },
+        { cat: 'Envíos', q: '¿Cuáles son los métodos de entrega?', a: 'Ofrecemos: (1) Retiro gratis en Estación Miramar del Merval, (2) Retiro en tienda, (3) Despacho por Chilexpress para el resto de Chile (solo productos sin cadena de frío). El delivery express está temporalmente no disponible.' },
+        { cat: 'Envíos', q: '¿Despachan productos congelados o refrigerados a regiones?', a: 'No. Los productos con cadena de frío (congelados y refrigerados) solo se pueden retirar en tienda o por retiro en Estación Merval, dentro de la zona de cobertura del Gran Valparaíso. Esto es para garantizar la calidad del producto.' },
         { cat: 'Productos', q: '¿Son productos originales de Corea?', a: 'Sí. Todos nuestros productos son importados directamente desde Corea del Sur, con sus respectivos registros sanitarios en Chile. Vendemos marcas reconocidas como Nongshim, Ottogi, Samyang, CJ, Lotte y muchas más.' },
-        { cat: 'Productos', q: '¿Tienen productos veganos o sin gluten?', a: 'Tenemos algunos productos aptos para dietas veganas o sin gluten. Filtra por alérgenos en nuestra tienda o pregúntanos por WhatsApp para orientarte según tus necesidades.' },
+        { cat: 'Productos', q: '¿Tienen productos veganos o sin gluten?', a: 'Tenemos algunos productos aptos para dietas veganas o sin gluten. Filtra por alérgenos en nuestra tienda o escríbenos por correo para orientarte según tus necesidades.' },
         { cat: 'Pagos', q: '¿Qué medios de pago aceptan?', a: 'Aceptamos tarjetas de débito y crédito (Visa, Mastercard, American Express), transferencia bancaria y pago en efectivo al retirar en tienda. Para pedidos Rappi, el pago se gestiona directamente en la app.' },
         { cat: 'Pagos', q: '¿Puedo usar tarjeta JUNAEB (TNE)?', a: 'Sí, en nuestra tienda física (POS). Los productos elegibles BAES están marcados. El sistema valida automáticamente los montos aplicables al subsidio JUNAEB.' },
         { cat: 'Privacidad', q: '¿Cómo protegen mis datos personales?', a: 'Cumplimos con la Ley 21.719 de Protección de Datos Personales de Chile. Tus datos se utilizan exclusivamente para gestionar tus pedidos y, si diste tu consentimiento, para enviarte comunicaciones de marketing. Puedes ejercer tus derechos de acceso, rectificación y supresión en cualquier momento desde tu cuenta o enviando un correo a contacto@seoulshop.cl.' },
         { cat: 'Privacidad', q: '¿Cómo puedo eliminar mi cuenta?', a: 'Puedes solicitar la eliminación de tu cuenta desde tu perfil en "Mi Cuenta". Tu información se anonimizará en un plazo de 15 días hábiles, conservando solo los registros contables obligatorios por ley.' },
         { cat: 'Devoluciones', q: '¿Cuál es la política de devoluciones?', a: 'Aceptamos devoluciones dentro de los 10 días hábiles desde la recepción del producto, siempre que esté en su estado original y sellado. Productos perecederos o refrigerados no tienen devolución salvo defecto de fábrica. Inicia tu solicitud en /devoluciones.' },
-        { cat: 'Devoluciones', q: '¿Qué hago si recibí un producto en mal estado?', a: 'Toma fotos del producto y del embalaje, y contáctanos en las primeras 24 horas por WhatsApp o email. Te reponemos el producto o te hacemos el reembolso total según prefieras.' },
+        { cat: 'Devoluciones', q: '¿Qué hago si recibí un producto en mal estado?', a: 'Toma fotos del producto y del embalaje, y contáctanos en las primeras 24 horas a contacto@seoulshop.cl. Te reponemos el producto o te hacemos el reembolso total según prefieras.' },
       ]
       for (let i = 0; i < seed.length; i++) {
         const e = seed[i]
@@ -627,6 +627,43 @@ async function runMigrationsIfNeeded() {
         )
       `
       console.log('✅ Migration 0023b applied')
+    }
+
+    // 0024 (adición post-entrega, 3-sep-2026 — respuesta al mensaje largo del
+    // dueño): a) orders.delivery_date — fecha del retiro Metro, separada de
+    // metro_slot (que es solo la franja horaria, sin día). b)
+    // b2b_postventa_requests — la pantalla de postventa B2B nunca guardaba
+    // nada, solo abría un link de WhatsApp con el mensaje armado (cero
+    // persistencia); ahora se guarda de verdad y se avisa al staff por correo.
+    const ordersDeliveryDateExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'orders' AND column_name = 'delivery_date'
+    `
+    if (ordersDeliveryDateExists.length === 0) {
+      console.log('🔄 Running migration 0024a (orders.delivery_date)...')
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_date DATE`
+      console.log('✅ Migration 0024a applied')
+    }
+
+    const b2bPostventaExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'b2b_postventa_requests' AND column_name = 'id'
+    `
+    if (b2bPostventaExists.length === 0) {
+      console.log('🔄 Running migration 0024b (b2b_postventa_requests)...')
+      await sql`
+        CREATE TABLE IF NOT EXISTS b2b_postventa_requests (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          company_id UUID NOT NULL REFERENCES b2b_companies(id),
+          issue_type TEXT NOT NULL,
+          order_number TEXT,
+          description TEXT NOT NULL,
+          contact_phone TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+      console.log('✅ Migration 0024b applied')
     }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
@@ -1659,11 +1696,16 @@ app.post('/api/public/orders', async (c) => {
   }
 
   const { deliveryMode, metroStation, metroSlot, deliveryAddress, notes, items, companyId, paymentMethod } = body
-  const VALID_DELIVERY_MODES = ['rappi', 'metro', 'pickup', 'shipping', 'delivery']
+  // Rappi suspendido temporalmente (adición post-entrega, 3-sep-2026 — nunca
+  // hubo integración real con la API de Rappi, ver DeliveryPicker). Rechazo
+  // también server-side, no solo ocultarlo en el picker — por si alguien
+  // pega directo al API. Reactivar: agregar 'rappi' de vuelta acá y en
+  // RAPPI_SUSPENDED de packages/ui/src/shop/delivery-picker.tsx.
+  const VALID_DELIVERY_MODES = ['metro', 'pickup', 'shipping', 'delivery']
   const VALID_PAYMENT_PREFS = ['transferencia', 'efectivo', 'transbank', 'credito_b2b']
 
   if (!deliveryMode || !VALID_DELIVERY_MODES.includes(deliveryMode)) {
-    return c.json({ error: 'Modo de entrega inválido.' }, 400)
+    return c.json({ error: deliveryMode === 'rappi' ? 'Rappi Express no está disponible por ahora.' : 'Modo de entrega inválido.' }, 400)
   }
   if (!Array.isArray(items) || items.length === 0) {
     return c.json({ error: 'El carrito está vacío.' }, 400)
@@ -3463,6 +3505,56 @@ app.post('/api/b2b/registro', async (c) => {
       return c.json({ ok: false, error: 'Ya existe una empresa o cuenta con esos datos.' }, 409)
     }
     return c.json({ ok: false, error: 'No se pudo enviar la solicitud.' }, 500)
+  }
+})
+
+// POST /api/b2b/postventa — apps/web/.../b2b/postventa/page.tsx. Adición
+// post-entrega (3-sep-2026): esa pantalla NUNCA guardaba nada — solo abría
+// un link de WhatsApp con el mensaje armado, cero persistencia en el
+// sistema. Ahora se guarda en b2b_credit... perdón, b2b_postventa_requests
+// (migración 0024b) y se avisa al staff por correo, mismo patrón que
+// POST /api/b2b/registro de arriba.
+app.post('/api/b2b/postventa', async (c) => {
+  const session = await requireB2BCompany(c)
+  if (session instanceof Response) return session
+  const { customer, company } = session
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  const VALID_ISSUE_TYPES = ['return', 'exchange', 'complaint', 'missing_item']
+  const issueType = body.issueType
+  const description = String(body.description || '').trim()
+  if (!VALID_ISSUE_TYPES.includes(issueType)) return c.json({ error: 'Tipo de solicitud inválido' }, 400)
+  if (!description) return c.json({ error: 'Describe el problema' }, 400)
+
+  const orderNumber = body.orderNumber ? String(body.orderNumber).trim() : null
+  const contactPhone = body.contactPhone ? String(body.contactPhone).trim() : null
+
+  try {
+    await sql`
+      INSERT INTO b2b_postventa_requests (company_id, issue_type, order_number, description, contact_phone)
+      VALUES (${company.id}, ${issueType}, ${orderNumber}, ${description}, ${contactPhone})
+    `
+
+    const ISSUE_LABELS: Record<string, string> = {
+      return: 'Devolución de producto', exchange: 'Cambio de producto',
+      complaint: 'Reclamo / calidad', missing_item: 'Producto faltante',
+    }
+    await enqueueEmail(
+      ADMIN_EMAIL,
+      `📋 Postventa B2B — ${ISSUE_LABELS[issueType]} — ${company.razon_social}`,
+      `<p><strong>${company.razon_social}</strong> (${company.rut}) — ${ISSUE_LABELS[issueType]}</p>
+       ${orderNumber ? `<p>Pedido: #${orderNumber}</p>` : ''}
+       <p>${description}</p>
+       <p>Contacto: ${customer.email}${contactPhone ? ' · ' + contactPhone : ''}</p>`,
+      'contact-form-reply'
+    )
+
+    return c.json({ ok: true })
+  } catch (err) {
+    console.error('B2B postventa error:', err)
+    return c.json({ error: 'No se pudo enviar la solicitud.' }, 500)
   }
 })
 
@@ -6359,7 +6451,7 @@ app.post('/api/arcop', async (c) => {
     return c.json({ ok: true, requestId: created.id, deadline: created.deadline })
   } catch (err) {
     console.error('ARCOP create error:', err)
-    return c.json({ ok: false, error: 'No se pudo registrar la solicitud. Intenta de nuevo o escríbenos al WhatsApp.' }, 500)
+    return c.json({ ok: false, error: 'No se pudo registrar la solicitud. Intenta de nuevo o escríbenos a contacto@seoulshop.cl.' }, 500)
   }
 })
 
@@ -6437,7 +6529,7 @@ app.post('/api/returns', async (c) => {
     if (err?.code === '22P02') {
       return c.json({ error: 'ID de pedido inválido.' }, 400)
     }
-    return c.json({ error: 'No se pudo registrar la devolución. Escríbenos al WhatsApp.' }, 500)
+    return c.json({ error: 'No se pudo registrar la devolución. Escríbenos a contacto@seoulshop.cl.' }, 500)
   }
 })
 

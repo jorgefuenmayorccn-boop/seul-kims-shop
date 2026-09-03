@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { CheckCircle2, Loader2 } from 'lucide-react'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
@@ -13,42 +13,39 @@ const ISSUE_LABELS: Record<IssueType, string> = {
   missing_item: 'Producto faltante',
 }
 
+// Adición post-entrega (3-sep-2026) — esta pantalla nunca guardaba nada, solo
+// abría un link de WhatsApp con el mensaje armado (cero persistencia). Ahora
+// envía de verdad a POST /api/b2b/postventa (queda guardado + avisa al staff
+// por correo).
 export default function PostventaB2BPage() {
   const [form, setForm] = useState({
-    companyId: '', orderNumber: '', issueType: 'return' as IssueType, description: '', contactPhone: '',
+    orderNumber: '', issueType: 'return' as IssueType, description: '', contactPhone: '',
   })
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
   const [sent,    setSent]    = useState(false)
-  const [waNumber, setWaNumber] = useState('56936451991')
-
-  useEffect(() => {
-    fetch(`${API}/api/tienda-config/public`)
-      .then(r => r.json())
-      .then((d: { config?: { whatsapp_number?: string } }) => {
-        if (d.config?.whatsapp_number) setWaNumber(d.config.whatsapp_number)
-      })
-      .catch(() => {})
-  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.description.trim()) { setError('Describe el problema'); return }
     setLoading(true); setError(null)
 
-    // Por ahora, la postventa B2B se gestiona por WhatsApp — construir mensaje
-    const msg = [
-      `*Postventa B2B — ${ISSUE_LABELS[form.issueType]}*`,
-      form.companyId    ? `Empresa ID: ${form.companyId}` : '',
-      form.orderNumber  ? `Pedido: #${form.orderNumber}` : '',
-      `Descripción: ${form.description}`,
-      form.contactPhone ? `Tel contacto: ${form.contactPhone}` : '',
-    ].filter(Boolean).join('\n')
-
-    const waHref = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
-    window.open(waHref, '_blank', 'noopener,noreferrer')
-    setSent(true)
-    setLoading(false)
+    try {
+      const res = await fetch(`${API}/api/b2b/postventa`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify(form),
+      })
+      if (!res.ok) {
+        const d = await res.json() as { error?: string }
+        setError(d.error ?? 'No se pudo enviar la solicitud.')
+        return
+      }
+      setSent(true)
+    } catch {
+      setError('Error de conexión. Intenta de nuevo.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   if (sent) {
@@ -57,7 +54,7 @@ export default function PostventaB2BPage() {
         <CheckCircle2 className="mx-auto size-16 text-[var(--color-baes-eligible)]" />
         <h1 className="mt-4 text-2xl font-bold">Solicitud enviada</h1>
         <p className="mt-2 text-[var(--color-text-secondary)]">
-          Se abrió WhatsApp con los detalles. Un agente te contactará en horario hábil.
+          Recibimos tu solicitud. Te contactaremos por correo en horario hábil.
         </p>
       </div>
     )
@@ -124,7 +121,7 @@ export default function PostventaB2BPage() {
           style={{ background: 'var(--color-brand)', color: '#fff' }}>
           {loading
             ? <Loader2 className="mx-auto size-4 animate-spin" />
-            : 'Enviar por WhatsApp'}
+            : 'Enviar solicitud'}
         </button>
       </form>
     </div>

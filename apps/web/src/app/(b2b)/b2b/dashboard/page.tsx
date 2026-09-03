@@ -147,8 +147,8 @@ export default function DashboardB2BPage() {
       </div>
 
       <p className="mt-6 text-center text-xs text-[var(--color-text-secondary)]">
-        Para hacer un pedido, escríbenos al{' '}
-        <a href="https://wa.me/56936451991" className="underline hover:text-[var(--color-brand)]">+56 9 3645 1991</a>
+        Para hacer un pedido, andá al{' '}
+        <a href="/b2b/catalogo" className="underline hover:text-[var(--color-brand)]">catálogo mayorista</a>
       </p>
     </div>
   )

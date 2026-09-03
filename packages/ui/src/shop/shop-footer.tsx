@@ -1,7 +1,7 @@
 'use client'
 import { motion } from 'framer-motion'
 import { useState } from 'react'
-import { Instagram, WhatsApp, Mail } from '@seul/icons'
+import { Instagram, Mail } from '@seul/icons'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
@@ -173,26 +173,6 @@ export function ShopFooter() {
                 style={{ color: 'var(--color-heuk)', opacity: 0.45, letterSpacing: '0.08em' }}
               >
                 @seulshopcl
-              </span>
-            </a>
-
-            <a
-              href="https://wa.me/56936451991"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 group"
-              aria-label="WhatsApp SEUL SHOP"
-            >
-              <WhatsApp
-                size={18}
-                color="var(--color-heuk)"
-                className="opacity-50 group-hover:opacity-90 transition-opacity"
-              />
-              <span
-                className="font-body text-[10px] tracking-wide hidden sm:block group-hover:opacity-80 transition-opacity"
-                style={{ color: 'var(--color-heuk)', opacity: 0.45, letterSpacing: '0.08em' }}
-              >
-                +56 9 3645 1991
               </span>
             </a>
 
