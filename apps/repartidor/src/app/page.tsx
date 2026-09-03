@@ -625,7 +625,14 @@ function HistorialTab({ assignments }: { assignments: Assignment[] }) {
 
 // ── Tab: Perfil ───────────────────────────────────────────────────────────────
 
-function PerfilTab({ driver, onLogout }: { driver: Driver; onLogout: () => void }) {
+function PerfilTab({
+  driver, onLogout, onShift, onToggleShift,
+}: {
+  driver:        Driver
+  onLogout:      () => void
+  onShift:       boolean | null
+  onToggleShift: () => void
+}) {
   const [loggingOut, setLoggingOut] = useState(false)
 
   async function handleLogout() {
@@ -656,6 +663,18 @@ function PerfilTab({ driver, onLogout }: { driver: Driver; onLogout: () => void 
           </div>
         </div>
       </div>
+
+      <button
+        onClick={onToggleShift}
+        disabled={onShift === null}
+        className="w-full py-3.5 rounded-2xl text-sm font-body font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+        style={{
+          background: onShift ? 'var(--color-error-subtle, #fee2e2)' : 'var(--color-brand)',
+          color: onShift ? 'var(--color-error, #dc2626)' : '#fff',
+        }}>
+        <Clock size={16} />
+        {onShift === null ? 'Cargando turno…' : onShift ? 'Terminar turno' : 'Iniciar turno'}
+      </button>
 
       <button
         onClick={handleLogout}
@@ -724,6 +743,9 @@ export default function RepartidorPage() {
   const [activeDetail, setActiveDetail] = useState<Assignment | null>(null)
   const [alert,        setAlert]        = useState<DispatchAlert | null>(null)
   const [online,       setOnline]       = useState(true)
+  // Turno de repartidor (adición post-entrega, 3-sep-2026) — null mientras se
+  // resuelve el estado real del turno al cargar/recargar la app.
+  const [onShift,      setOnShift]      = useState<boolean | null>(null)
 
   const loadAssignments = useCallback(async () => {
     setLoading(true)
@@ -746,6 +768,28 @@ export default function RepartidorPage() {
   }, [])
 
   useEffect(() => { if (driver) loadAssignments() }, [driver, loadAssignments])
+
+  // Estado real del turno al cargar/recargar (por si cerró la app sin
+  // terminar turno y vuelve a abrir).
+  useEffect(() => {
+    if (!driver) return
+    fetch(`${API}/api/driver/shifts/mine`, { credentials: 'include' })
+      .then(r => r.json() as Promise<{ shift: { id: string } | null }>)
+      .then(d => setOnShift(!!d.shift))
+      .catch(() => setOnShift(false))
+  }, [driver])
+
+  async function toggleShift() {
+    const startingShift = !onShift
+    setOnShift(startingShift) // optimista
+    try {
+      await fetch(`${API}/api/driver/shifts/${startingShift ? 'start' : 'end'}`, {
+        method: 'POST', credentials: 'include',
+      })
+    } catch {
+      setOnShift(!startingShift) // revertir si falló
+    }
+  }
 
   // GPS ping every 30s
   const activeAssignmentIdRef = useRef<string | undefined>(undefined)
@@ -857,14 +901,24 @@ export default function RepartidorPage() {
           <p className="font-headline font-bold text-base" style={{ color: 'var(--color-text)' }}>SEUL DRIVE</p>
           <p className="font-body text-xs" style={{ color: 'var(--color-text-muted)' }}>Hola, {driver.name}</p>
         </div>
-        <div className="flex items-center gap-1.5">
-          {online
-            ? <Wifi size={14} style={{ color: '#16a34a' }} />
-            : <WifiOff size={14} style={{ color: 'var(--color-error)' }} />
-          }
-          <span className="font-body text-xs" style={{ color: online ? '#16a34a' : 'var(--color-error)' }}>
-            {online ? 'En línea' : 'Sin conexión'}
-          </span>
+        <div className="flex items-center gap-3">
+          {onShift !== null && (
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ background: onShift ? '#16a34a' : 'var(--color-text-muted)' }} />
+              <span className="font-body text-xs" style={{ color: onShift ? '#16a34a' : 'var(--color-text-muted)' }}>
+                {onShift ? 'En turno' : 'Fuera de turno'}
+              </span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            {online
+              ? <Wifi size={14} style={{ color: '#16a34a' }} />
+              : <WifiOff size={14} style={{ color: 'var(--color-error)' }} />
+            }
+            <span className="font-body text-xs" style={{ color: online ? '#16a34a' : 'var(--color-error)' }}>
+              {online ? 'En línea' : 'Sin conexión'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -879,7 +933,7 @@ export default function RepartidorPage() {
           />
         )}
         {tab === 'historial' && <HistorialTab assignments={assignments} />}
-        {tab === 'perfil'    && <PerfilTab driver={driver} onLogout={() => setDriver(null)} />}
+        {tab === 'perfil'    && <PerfilTab driver={driver} onLogout={() => setDriver(null)} onShift={onShift} onToggleShift={toggleShift} />}
       </div>
 
       {/* Bottom nav */}

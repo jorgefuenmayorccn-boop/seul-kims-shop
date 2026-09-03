@@ -29,6 +29,7 @@ interface Assignment {
 }
 
 interface Driver { id: string; name: string; role: string }
+interface ActiveDriver { id: string; name: string; openedAt: string; activeCount: number }
 
 const STATUS_LABEL: Record<AssignmentStatus, string> = {
   pending:    'Sin asignar',
@@ -53,25 +54,34 @@ function formatCLP(n: number) {
 }
 
 export default function DespachoPage() {
-  const [assignments, setAssignments] = useState<Assignment[]>([])
-  const [drivers,     setDrivers]     = useState<Driver[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [assigning,   setAssigning]   = useState<string | null>(null)
-  const [error,       setError]       = useState<string | null>(null)
+  const [assignments,   setAssignments]   = useState<Assignment[]>([])
+  const [drivers,       setDrivers]       = useState<Driver[]>([])
+  // Repartidores con turno abierto ahora (adición post-entrega, 3-sep-2026)
+  // — separado de `drivers`: el selector de "Asignar" solo debe ofrecer a
+  // quien está trabajando, pero el nombre de un repartidor YA asignado
+  // (aunque haya terminado turno desde entonces) se sigue mostrando desde
+  // `drivers`, la lista completa.
+  const [activeDrivers, setActiveDrivers] = useState<ActiveDriver[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [assigning,     setAssigning]     = useState<string | null>(null)
+  const [error,         setError]         = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
     setError(null)
     try {
-      const [aRes, uRes] = await Promise.all([
+      const [aRes, uRes, adRes] = await Promise.all([
         fetch(`${API}/api/delivery/assignments`, { credentials: 'include' }),
         fetch(`${API}/api/auth/users`, { credentials: 'include' }),
+        fetch(`${API}/api/delivery/drivers/active`, { credentials: 'include' }),
       ])
-      if (!aRes.ok || !uRes.ok) throw new Error('Error al cargar datos')
-      const aData = await aRes.json() as { assignments: Assignment[] }
-      const uData = await uRes.json() as { users: Driver[] }
+      if (!aRes.ok || !uRes.ok || !adRes.ok) throw new Error('Error al cargar datos')
+      const aData  = await aRes.json()  as { assignments: Assignment[] }
+      const uData  = await uRes.json()  as { users: Driver[] }
+      const adData = await adRes.json() as { drivers: ActiveDriver[] }
       setAssignments(aData.assignments ?? [])
       setDrivers((uData.users ?? []).filter(u => u.role === 'delivery' || u.role === 'staff'))
+      setActiveDrivers(adData.drivers ?? [])
     } catch (err) {
       console.error('[cerebro/despacho]', err)
       setError(friendlyErrorMessage(err instanceof Error ? err.message : undefined, 'Error de conexión'))
@@ -119,7 +129,7 @@ export default function DespachoPage() {
         <div>
           <h1 className="text-2xl font-bold text-text">Despacho</h1>
           <p className="mt-1 text-sm text-text-muted">
-            {active.length} activos · {completed.filter(a => a.status === 'delivered').length} entregados hoy
+            {active.length} activos · {completed.filter(a => a.status === 'delivered').length} entregados hoy · {activeDrivers.length} repartidores en turno
           </p>
         </div>
         <button onClick={load} className="text-sm text-text-muted hover:text-text transition-colors px-3 py-1.5 rounded border border-[var(--color-border)]">
@@ -179,17 +189,21 @@ export default function DespachoPage() {
               {a.status === 'pending' && (
                 <div className="mt-3 flex items-center gap-2 pt-3 border-t border-[var(--color-border)]">
                   <User size={14} className="text-text-muted shrink-0" />
-                  <select
-                    className="flex-1 text-sm px-2 py-1.5 rounded border border-[var(--color-border)] bg-[var(--color-background)] text-text focus:outline-none focus:ring-2 focus:ring-brand/30"
-                    defaultValue=""
-                    onChange={e => e.target.value && assignDriver(a.id, e.target.value)}
-                    disabled={assigning === a.id}
-                  >
-                    <option value="" disabled>Asignar repartidor…</option>
-                    {drivers.map(d => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
+                  {activeDrivers.length === 0 ? (
+                    <p className="flex-1 text-xs text-amber-600">Nadie tiene turno abierto ahora mismo — pide que un repartidor inicie turno desde Drive.</p>
+                  ) : (
+                    <select
+                      className="flex-1 text-sm px-2 py-1.5 rounded border border-[var(--color-border)] bg-[var(--color-background)] text-text focus:outline-none focus:ring-2 focus:ring-brand/30"
+                      defaultValue=""
+                      onChange={e => e.target.value && assignDriver(a.id, e.target.value)}
+                      disabled={assigning === a.id}
+                    >
+                      <option value="" disabled>Asignar repartidor…</option>
+                      {activeDrivers.map(d => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.activeCount} activas)</option>
+                      ))}
+                    </select>
+                  )}
                   {assigning === a.id && <span className="text-xs text-text-muted">Guardando…</span>}
                 </div>
               )}

@@ -682,6 +682,35 @@ async function runMigrationsIfNeeded() {
       await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_comuna TEXT`
       console.log('✅ Migration 0024c applied')
     }
+
+    // 0025 — driver_shifts (adición post-entrega, 3-sep-2026): el dueño pidió
+    // que la asignación de repartidor al marcar un pedido "listo" sea
+    // automática, según quién esté ACTIVO en su turno — no todos los
+    // repartidores trabajan siempre. No existía ningún concepto de turno para
+    // repartidores (la tabla `shifts` es exclusivamente caja de POS, con
+    // arqueo y deviceId — no aplica acá). Mismo patrón open/closed que
+    // `shifts`, sin arqueo (el cobro en puerta ya se trackea por pedido en
+    // delivery_assignments.amount_to_collect, no por turno).
+    const driverShiftsExists = await sql`
+      SELECT table_name FROM information_schema.tables WHERE table_name = 'driver_shifts'
+    `
+    if (driverShiftsExists.length === 0) {
+      console.log('🔄 Running migration 0025 (driver_shifts)...')
+      await sql`
+        CREATE TABLE IF NOT EXISTS driver_shifts (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          driver_id UUID NOT NULL REFERENCES users(id),
+          status TEXT NOT NULL DEFAULT 'open',
+          opened_at TIMESTAMP DEFAULT NOW(),
+          closed_at TIMESTAMP
+        )
+      `
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS driver_shifts_driver_active_uniq
+          ON driver_shifts (driver_id) WHERE status = 'open'
+      `
+      console.log('✅ Migration 0025 applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -3162,6 +3191,32 @@ app.post('/api/orders/:id/ready', async (c) => {
 
     await sql`UPDATE orders SET ready_at = NOW(), updated_at = NOW() WHERE id = ${id}`
 
+    // Auto-asignación de repartidor (adición post-entrega, 3-sep-2026 — pedido
+    // explícito del dueño: "cuando le dé listo se asigne el delivery, según
+    // los que estén activos en ese turno"). Solo aplica a 'metro' — 'pickup'
+    // lo retira el propio cliente, no necesita repartidor. La fila en
+    // delivery_assignments ya existe (se auto-crea al hacer el pedido, fix de
+    // la sesión anterior); acá solo se le busca conductor si sigue 'pending'
+    // sin asignar. Si nadie tiene turno abierto, queda igual que hoy —
+    // 'pending' sin repartidor, para que el staff la asigne a mano desde
+    // Despacho (red de seguridad, nunca bloquea "marcar listo").
+    if (order.delivery_mode === 'metro') {
+      try {
+        const [pendingAssignment] = await sql`
+          SELECT id FROM delivery_assignments
+          WHERE order_id = ${id} AND status = 'pending' AND driver_id IS NULL
+        `
+        if (pendingAssignment) {
+          const driverId = await pickActiveDriver()
+          if (driverId) await assignDriverToAssignment(pendingAssignment.id, driverId)
+        }
+      } catch (assignErr) {
+        // Nunca bloquear "marcar listo" por un error de auto-asignación —
+        // la entrega queda pending, el staff la asigna a mano.
+        console.error('Auto-assign driver on ready error:', assignErr)
+      }
+    }
+
     let place = 'nuestra tienda'
     if (order.delivery_mode === 'metro') {
       const [cfg] = await sql`SELECT value FROM tienda_config WHERE key = 'metro_station_name'`
@@ -4557,6 +4612,87 @@ app.get('/api/delivery/assignments', async (c) => {
   }
 })
 
+// Asignar un repartidor a una entrega — UPDATE + alerta SSE dirigida.
+// Extraído a función compartida (adición post-entrega, 3-sep-2026) porque
+// ahora hay DOS callers: la asignación manual desde Despacho (de siempre) y
+// la auto-asignación al marcar un pedido Metro "listo" (ver pickActiveDriver
+// + POST /api/orders/:id/ready más abajo) — mismo criterio que ya se usó hoy
+// para ComandaPaymentPanel: un solo lugar de verdad, no dos copias que se
+// puedan desincronizar.
+async function assignDriverToAssignment(assignmentId: string, driverId: string): Promise<boolean> {
+  const [assignment] = await sql`
+    UPDATE delivery_assignments
+    SET driver_id = ${driverId}, status = 'assigned', assigned_at = NOW(), updated_at = NOW()
+    WHERE id = ${assignmentId}
+    RETURNING id
+  `
+  if (!assignment) return false
+
+  // SSE (S08, Fase 2): fire a targeted dispatch alert to the assigned
+  // driver only — never a broadcast (see sse-broadcaster.ts). One extra
+  // read here, triggered only by an actual assign action (not a timer),
+  // so it does not add per-connection DB load.
+  try {
+    const [details] = await sql`
+      SELECT
+        da.id AS assignment_id, da.amount_to_collect, da.payment_at_door,
+        o.id AS order_id, o.number AS order_number, o.total, o.delivery_mode,
+        o.delivery_address, o.metro_station, o.metro_slot,
+        COALESCE(o.guest_name, cu.name)   AS customer_name,
+        COALESCE(o.guest_phone, cu.phone) AS customer_phone,
+        cu.commune
+      FROM delivery_assignments da
+      JOIN orders o ON o.id = da.order_id
+      LEFT JOIN customers cu ON cu.id = o.customer_id
+      WHERE da.id = ${assignmentId}
+    `
+    if (details) {
+      emitDeliveryEvent(driverId, {
+        type: 'order.ready_for_dispatch',
+        payload: {
+          orderId: details.order_id,
+          orderNumber: details.order_number,
+          assignmentId: details.assignment_id,
+          driverId,
+          total: details.total,
+          amountToCollect: details.amount_to_collect,
+          paymentAtDoor: details.payment_at_door,
+          deliveryMode: details.delivery_mode,
+          customerName: details.customer_name,
+          customerPhone: details.customer_phone,
+          deliveryAddress: details.delivery_address,
+          commune: details.commune,
+          metroStation: details.metro_station,
+          metroSlot: details.metro_slot,
+        },
+      })
+    }
+  } catch (sseErr) {
+    // Never fail the assign action because of a notification error.
+    console.error('SSE delivery emit error:', sseErr)
+  }
+
+  return true
+}
+
+// Elige el repartidor activo con menos entregas en curso ahora mismo —
+// criterio de reparto justo entre quienes tienen turno abierto (adición
+// post-entrega, 3-sep-2026). Devuelve null si nadie tiene turno abierto —
+// el caller debe dejar la entrega 'pending' sin repartidor como red de
+// seguridad (el staff la asigna a mano desde Despacho).
+async function pickActiveDriver(): Promise<string | null> {
+  const [driver] = await sql`
+    SELECT ds.driver_id,
+      (SELECT count(*) FROM delivery_assignments da
+       WHERE da.driver_id = ds.driver_id AND da.status NOT IN ('delivered', 'failed')) AS active_count
+    FROM driver_shifts ds
+    WHERE ds.status = 'open'
+    ORDER BY active_count ASC, ds.opened_at ASC
+    LIMIT 1
+  `
+  return driver?.driver_id ?? null
+}
+
 // RBAC (S02, matriz sección 6.1): Despacho es owner/admin/staff (no delivery, no viewer).
 app.put('/api/delivery/assignments/:id/assign', async (c) => {
   const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
@@ -4569,61 +4705,37 @@ app.put('/api/delivery/assignments/:id/assign', async (c) => {
   if (!driverId) return c.json({ error: 'Missing driverId' }, 400)
 
   try {
-    const [assignment] = await sql`
-      UPDATE delivery_assignments
-      SET driver_id = ${driverId}, status = 'assigned', assigned_at = NOW(), updated_at = NOW()
-      WHERE id = ${id}
-      RETURNING id
-    `
-    if (!assignment) return c.json({ error: 'Assignment not found' }, 404)
-
-    // SSE (S08, Fase 2): fire a targeted dispatch alert to the assigned
-    // driver only — never a broadcast (see sse-broadcaster.ts). One extra
-    // read here, triggered only by an actual assign action (not a timer),
-    // so it does not add per-connection DB load.
-    try {
-      const [details] = await sql`
-        SELECT
-          da.id AS assignment_id, da.amount_to_collect, da.payment_at_door,
-          o.id AS order_id, o.number AS order_number, o.total, o.delivery_mode,
-          o.delivery_address, o.metro_station, o.metro_slot,
-          COALESCE(o.guest_name, cu.name)   AS customer_name,
-          COALESCE(o.guest_phone, cu.phone) AS customer_phone,
-          cu.commune
-        FROM delivery_assignments da
-        JOIN orders o ON o.id = da.order_id
-        LEFT JOIN customers cu ON cu.id = o.customer_id
-        WHERE da.id = ${id}
-      `
-      if (details) {
-        emitDeliveryEvent(driverId, {
-          type: 'order.ready_for_dispatch',
-          payload: {
-            orderId: details.order_id,
-            orderNumber: details.order_number,
-            assignmentId: details.assignment_id,
-            driverId,
-            total: details.total,
-            amountToCollect: details.amount_to_collect,
-            paymentAtDoor: details.payment_at_door,
-            deliveryMode: details.delivery_mode,
-            customerName: details.customer_name,
-            customerPhone: details.customer_phone,
-            deliveryAddress: details.delivery_address,
-            commune: details.commune,
-            metroStation: details.metro_station,
-            metroSlot: details.metro_slot,
-          },
-        })
-      }
-    } catch (sseErr) {
-      // Never fail the assign action because of a notification error.
-      console.error('SSE delivery emit error:', sseErr)
-    }
-
+    const ok = await assignDriverToAssignment(id, driverId)
+    if (!ok) return c.json({ error: 'Assignment not found' }, 404)
     return c.json({ ok: true })
   } catch (err) {
     console.error('Assign driver error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/delivery/drivers/active — repartidores con turno abierto ahora
+// (adición post-entrega, 3-sep-2026). Consumido por Despacho (para no
+// ofrecer asignar a alguien que no está trabajando) y por pickActiveDriver.
+app.get('/api/delivery/drivers/active', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const rows = await sql`
+      SELECT u.id, u.name, ds.opened_at,
+        (SELECT count(*) FROM delivery_assignments da
+         WHERE da.driver_id = u.id AND da.status NOT IN ('delivered', 'failed')) AS active_count
+      FROM driver_shifts ds
+      JOIN users u ON u.id = ds.driver_id
+      WHERE ds.status = 'open'
+      ORDER BY ds.opened_at ASC
+    `
+    return c.json({
+      drivers: rows.map((r: any) => ({ id: r.id, name: r.name, openedAt: r.opened_at, activeCount: Number(r.active_count) })),
+    })
+  } catch (err) {
+    console.error('List active drivers error:', err)
     return c.json({ error: 'Error' }, 500)
   }
 })
@@ -4634,6 +4746,64 @@ app.put('/api/delivery/assignments/:id/assign', async (c) => {
 // their OWN assignments, keyed off authUser.id from the session, never a
 // client-supplied driver id.
 // ============================================================================
+
+// Turno de repartidor (adición post-entrega, 3-sep-2026) — apps/repartidor,
+// pestaña Perfil. 'owner' agregado por el mismo motivo que en
+// /api/delivery/assignments/mine: el dueño quiere poder probar el flujo
+// completo con su única cuenta owner.
+app.post('/api/driver/shifts/start', async (c) => {
+  const authUser = await requireSession(c, ['delivery', 'owner'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const [existing] = await sql`
+      SELECT id, opened_at FROM driver_shifts WHERE driver_id = ${authUser.id} AND status = 'open'
+    `
+    if (existing) return c.json({ ok: true, alreadyOpen: true, shift: { id: existing.id, openedAt: existing.opened_at } })
+
+    const [shift] = await sql`
+      INSERT INTO driver_shifts (driver_id, status) VALUES (${authUser.id}, 'open')
+      RETURNING id, opened_at
+    `
+    return c.json({ ok: true, shift: { id: shift.id, openedAt: shift.opened_at } })
+  } catch (err) {
+    console.error('Start driver shift error:', err)
+    return c.json({ error: 'Error al iniciar turno' }, 500)
+  }
+})
+
+app.post('/api/driver/shifts/end', async (c) => {
+  const authUser = await requireSession(c, ['delivery', 'owner'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const [shift] = await sql`
+      UPDATE driver_shifts SET status = 'closed', closed_at = NOW()
+      WHERE driver_id = ${authUser.id} AND status = 'open'
+      RETURNING id
+    `
+    if (!shift) return c.json({ ok: true, alreadyClosed: true })
+    return c.json({ ok: true })
+  } catch (err) {
+    console.error('End driver shift error:', err)
+    return c.json({ error: 'Error al terminar turno' }, 500)
+  }
+})
+
+app.get('/api/driver/shifts/mine', async (c) => {
+  const authUser = await requireSession(c, ['delivery', 'owner'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const [shift] = await sql`
+      SELECT id, opened_at FROM driver_shifts WHERE driver_id = ${authUser.id} AND status = 'open'
+    `
+    return c.json({ shift: shift ? { id: shift.id, openedAt: shift.opened_at } : null })
+  } catch (err) {
+    console.error('Get my driver shift error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
 
 // GET /api/delivery/assignments/mine — apps/repartidor/src/app/page.tsx
 // (loadAssignments). Frontend does its own client-side split into "Activos"
