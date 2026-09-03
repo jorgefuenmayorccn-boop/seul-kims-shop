@@ -94,7 +94,7 @@ async function DashboardContent() {
         {stats.top5Productos.length === 0 ? (
           <EmptyState variant="no-orders" />
         ) : (
-          <div className="bg-elevated rounded-lg border border-[var(--color-border)] overflow-hidden">
+          <div className="bg-elevated rounded-lg border border-[var(--color-border)] overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--color-border)] bg-surface">

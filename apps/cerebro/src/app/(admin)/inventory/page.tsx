@@ -14,7 +14,7 @@ async function InventoryTable({ searchParams }: PageProps) {
   return (
     <div className="space-y-4">
       {hasExpired && <AlertBanner severity="critical" title="Hay productos VENCIDOS con stock positivo" description="Revisar y retirar de góndola inmediatamente para cumplir normativa." />}
-      <div className="bg-elevated rounded-lg border border-[var(--color-border)] overflow-hidden">
+      <div className="bg-elevated rounded-lg border border-[var(--color-border)] overflow-x-auto">
         {data.items.length === 0 ? (
           <div className="p-12 text-center text-sm text-text-muted font-body">Sin lotes en inventario.</div>
         ) : (

@@ -7,7 +7,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar user={user} />
-      <main className="flex-1 overflow-y-auto">
+      {/* pt-14 compensa la barra superior mobile (fixed) del Sidebar —
+          desde `md` esa barra no existe, así que el padding se anula. */}
+      <main className="flex-1 overflow-y-auto pt-14 md:pt-0">
         {children}
       </main>
     </div>

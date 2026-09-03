@@ -54,7 +54,7 @@ export default async function ProductsPage({ searchParams }: PageProps) {
         </form>
       </div>
 
-      <div className="bg-elevated rounded-lg border border-[var(--color-border)] overflow-hidden">
+      <div className="bg-elevated rounded-lg border border-[var(--color-border)] overflow-x-auto">
         {products.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-sm text-text-muted font-body">No hay productos. <Link href="/products/new" className="text-brand underline">Agrega el primero</Link>.</p>

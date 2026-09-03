@@ -42,7 +42,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
       </form>
 
       {/* Table */}
-      <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+      <div className="rounded-xl border border-[var(--color-border)] overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">

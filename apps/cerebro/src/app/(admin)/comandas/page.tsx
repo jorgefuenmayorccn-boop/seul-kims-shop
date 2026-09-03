@@ -453,6 +453,13 @@ export default function ComandasPage() {
 
   const total = data.nueva.length + data.preparando.length + data.lista.length
 
+  // Columna activa en mobile — el Kanban de 3 columnas apiladas verticalmente
+  // seguiría siendo usable pero obligaría a scrollear 3 listas completas para
+  // ver "Lista"; con tabs se ve una a la vez, igual que el Kanban real de
+  // escritorio (adición post-entrega, 3-sep-2026 — captura real del dueño
+  // mostrando este Kanban roto en su celular).
+  const [activeCol, setActiveCol] = useState<OrderStatus>('nueva')
+
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
@@ -472,15 +479,34 @@ export default function ComandasPage() {
         </button>
       </div>
 
+      {/* Tabs — solo mobile, seleccionan qué columna del Kanban se muestra */}
+      <div className="md:hidden flex border-b border-[var(--color-border)] bg-elevated shrink-0">
+        {COLUMNS.map(col => (
+          <button
+            key={col.id}
+            onClick={() => setActiveCol(col.id)}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-body font-semibold border-b-2 transition-colors',
+              activeCol === col.id ? cn(col.color, 'border-current') : 'text-text-muted border-transparent',
+            )}
+          >
+            {col.label}
+            <span className={cn('font-mono text-[10px] px-1.5 py-0.5 rounded-full font-bold', col.bg)}>
+              {data[col.id].length}
+            </span>
+          </button>
+        ))}
+      </div>
+
       {/* Kanban */}
       <div className="flex-1 overflow-hidden">
-        <div className="grid grid-cols-3 gap-0 h-full divide-x divide-[var(--color-border)]">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-0 h-full md:divide-x divide-[var(--color-border)]">
           {COLUMNS.map(col => {
             const items = data[col.id]
             return (
-              <div key={col.id} className="flex flex-col overflow-hidden">
-                {/* Column header */}
-                <div className={cn('px-4 py-3 border-b border-[var(--color-border)]', col.bg.split(' ')[0])}>
+              <div key={col.id} className={cn('flex-col overflow-hidden', col.id === activeCol ? 'flex' : 'hidden md:flex')}>
+                {/* Column header — oculto en mobile, ahí lo reemplazan los tabs de arriba */}
+                <div className={cn('hidden md:block px-4 py-3 border-b border-[var(--color-border)]', col.bg.split(' ')[0])}>
                   <div className="flex items-center justify-between">
                     <span className={cn('text-sm font-semibold font-body', col.color)}>
                       {col.label}

@@ -136,7 +136,7 @@ export default function UsuariosPage() {
         <form onSubmit={handleCreate}
           className="mb-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 space-y-4">
           <p className="font-semibold text-text">Crear usuario</p>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {([
               { key: 'name',             label: 'Nombre completo', placeholder: 'Nombre completo', type: 'text',     required: true  },
               { key: 'email',            label: 'Email',           placeholder: 'email@example.cl', type: 'email',    required: true  },
@@ -182,7 +182,7 @@ export default function UsuariosPage() {
         </form>
       )}
 
-      <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+      <div className="rounded-xl border border-[var(--color-border)] overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">

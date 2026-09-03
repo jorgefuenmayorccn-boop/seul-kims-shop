@@ -60,7 +60,7 @@ export default function TurnosPage() {
         <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
       )}
 
-      <div className="rounded-xl border border-[var(--color-border)] overflow-hidden">
+      <div className="rounded-xl border border-[var(--color-border)] overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--color-border)] bg-[var(--color-surface)]">
@@ -110,7 +110,7 @@ export default function TurnosPage() {
                   {isOpen && s && (
                     <tr key={`${shift.id}-detail`} className="bg-[var(--color-surface)]">
                       <td colSpan={8} className="px-8 py-4">
-                        <div className="grid grid-cols-3 gap-6 text-sm">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
                           <div>
                             <p className="text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">Resumen</p>
                             <div className="space-y-1">
