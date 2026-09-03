@@ -1732,6 +1732,123 @@ app.post('/api/customers/guest', async (c) => {
   }
 })
 
+// GET /api/customers/search — búsqueda rápida para el modal "Pedido
+// Delivery" del POS (adición post-entrega, 3-sep-2026 — hallazgo real: el
+// frontend de POS y de cerebro (Clientes, ver GET /api/customers y
+// GET /api/customers/:id más abajo) SIEMPRE llamaron a estos 3 endpoints,
+// pero ninguno existía nunca en el servidor — por eso el buscador de
+// clientes en POS decía "No se encontraron clientes" con CUALQUIER
+// búsqueda, y la pantalla Clientes de cerebro mostraba "0 registros" aunque
+// hubiera clientes reales en la base de datos. `q` busca por nombre, email
+// o teléfono — mínimo 2 caracteres los exige el frontend, no hace falta acá.
+app.get('/api/customers/search', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const q = (c.req.query('q') || '').trim()
+  if (!q) return c.json({ customers: [] })
+
+  try {
+    const rows = await sql`
+      SELECT id, name, email, phone, address, commune
+      FROM customers
+      WHERE deleted_at IS NULL
+        AND (name ILIKE ${'%' + q + '%'} OR email ILIKE ${'%' + q + '%'} OR phone ILIKE ${'%' + q + '%'})
+      ORDER BY name ASC
+      LIMIT 10
+    `
+    return c.json({ customers: rows })
+  } catch (err) {
+    console.error('Customer search error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/customers — listado para cerebro/Clientes (mismo hallazgo que
+// /search arriba — el frontend ya estaba armado, este endpoint nunca
+// existió). orderCount/totalSpent/loyaltyBalance se calculan con subqueries
+// correlacionadas — volumen bajo (retail de barrio), no justifica una vista
+// materializada.
+app.get('/api/customers', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const q     = (c.req.query('q') || '').trim()
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 200)
+
+  try {
+    const rows = q
+      ? await sql`
+          SELECT cu.id, cu.name, cu.email, cu.phone, cu.rut, cu.created_channel, cu.created_at,
+            (SELECT count(*) FROM orders o WHERE o.customer_id = cu.id) AS order_count,
+            (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.customer_id = cu.id) AS total_spent,
+            (SELECT COALESCE(SUM(ll.points), 0) FROM loyalty_ledger ll WHERE ll.customer_id = cu.id) AS loyalty_balance
+          FROM customers cu
+          WHERE cu.deleted_at IS NULL
+            AND (cu.name ILIKE ${'%' + q + '%'} OR cu.email ILIKE ${'%' + q + '%'} OR cu.rut ILIKE ${'%' + q + '%'})
+          ORDER BY cu.created_at DESC
+          LIMIT ${limit}
+        `
+      : await sql`
+          SELECT cu.id, cu.name, cu.email, cu.phone, cu.rut, cu.created_channel, cu.created_at,
+            (SELECT count(*) FROM orders o WHERE o.customer_id = cu.id) AS order_count,
+            (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.customer_id = cu.id) AS total_spent,
+            (SELECT COALESCE(SUM(ll.points), 0) FROM loyalty_ledger ll WHERE ll.customer_id = cu.id) AS loyalty_balance
+          FROM customers cu
+          WHERE cu.deleted_at IS NULL
+          ORDER BY cu.created_at DESC
+          LIMIT ${limit}
+        `
+
+    return c.json({
+      customers: rows.map((r: any) => ({
+        id: r.id, name: r.name, email: r.email, phone: r.phone, rut: r.rut,
+        createdChannel: r.created_channel, createdAt: r.created_at,
+        orderCount: Number(r.order_count), totalSpent: Number(r.total_spent),
+        loyaltyBalance: Number(r.loyalty_balance),
+      })),
+      total: rows.length,
+    })
+  } catch (err) {
+    console.error('List customers error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/customers/:id — detalle para cerebro/Clientes/[id] (mismo
+// hallazgo que los dos anteriores).
+app.get('/api/customers/:id', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  try {
+    const [row] = await sql`
+      SELECT cu.id, cu.name, cu.email, cu.phone, cu.rut, cu.document_type, cu.document_number,
+        cu.created_channel, cu.created_at, cu.last_login_at,
+        (SELECT count(*) FROM orders o WHERE o.customer_id = cu.id) AS order_count,
+        (SELECT COALESCE(SUM(o.total), 0) FROM orders o WHERE o.customer_id = cu.id) AS total_spent,
+        (SELECT COALESCE(SUM(ll.points), 0) FROM loyalty_ledger ll WHERE ll.customer_id = cu.id) AS loyalty_balance
+      FROM customers cu
+      WHERE cu.id = ${id} AND cu.deleted_at IS NULL
+    `
+    if (!row) return c.json({ error: 'Cliente no encontrado' }, 404)
+
+    return c.json({
+      customer: {
+        id: row.id, name: row.name, email: row.email, phone: row.phone, rut: row.rut,
+        documentType: row.document_type, documentNumber: row.document_number,
+        createdChannel: row.created_channel, createdAt: row.created_at, lastLoginAt: row.last_login_at,
+        orderCount: Number(row.order_count), totalSpent: Number(row.total_spent),
+        loyaltyBalance: Number(row.loyalty_balance),
+      },
+    })
+  } catch (err) {
+    console.error('Get customer error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
 // POST /api/public/orders (S10) — crea un pedido desde la tienda web pública
 // (apps/web/.../checkout/page.tsx, createWebOrder). El frontend llamaba
 // originalmente POST /api/orders/public, que nunca existió en el backend —
