@@ -30,7 +30,10 @@ const nav: { href: string; label: string; icon: typeof LayoutDashboard; roles: R
   { href: '/usuarios',   label: 'Usuarios',   icon: Users,           roles: ['owner'] },
   { href: '/seguridad',  label: 'Seguridad',  icon: Shield,          roles: ['owner'] },
   { href: '/auditoria',  label: 'Auditoría',  icon: History,         roles: ['owner'] },
-  { href: '/ajustes',    label: 'Ajustes',    icon: Settings,        roles: ['owner', 'admin'] },
+  // Ajustes pasó a owner-only (Fase 3 multilocal, 3-sep-2026) — ahora
+  // incluye credenciales DTE por local, mismo criterio que Usuarios/
+  // Seguridad/Auditoría.
+  { href: '/ajustes',    label: 'Ajustes',    icon: Settings,        roles: ['owner'] },
 ]
 
 const externalNav = [

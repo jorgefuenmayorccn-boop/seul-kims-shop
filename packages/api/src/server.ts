@@ -1947,6 +1947,121 @@ app.get('/api/locations', async (c) => {
   }
 })
 
+// GET /api/locations/:id — detalle completo de un local, incluidas
+// credenciales DTE (adición post-entrega, 3-sep-2026, Fase 3 multilocal).
+// Owner-only (a diferencia del listado liviano de arriba, que también deja
+// pasar a admin) — trae datos sensibles (dte_api_key) que solo el dueño
+// necesita ver/editar desde la pantalla de Configuración.
+app.get('/api/locations/:id', async (c) => {
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  try {
+    const [row] = await sql`SELECT * FROM locations WHERE id = ${id}`
+    if (!row) return c.json({ error: 'Local no encontrado' }, 404)
+    return c.json({
+      location: {
+        id: row.id, name: row.name, slug: row.slug, orderPrefix: row.order_prefix,
+        address: row.address, commune: row.commune, rut: row.rut, giro: row.giro,
+        phone: row.phone, whatsapp: row.whatsapp, instagram: row.instagram, email: row.email,
+        metroStationName: row.metro_station_name, dteProvider: row.dte_provider,
+        dteApiKey: row.dte_api_key, dteRutEmpresa: row.dte_rut_empresa, isActive: row.is_active,
+      },
+    })
+  } catch (err) {
+    console.error('Get location error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// POST /api/locations — autoprovisioning de local nuevo (adición
+// post-entrega, 3-sep-2026, Fase 3 multilocal) — pedido explícito del
+// dueño: poder crear un local nuevo (ej. Valparaíso) él mismo desde el
+// panel, sin que VÉRTICE toque código ni haga deploy. Owner-only.
+app.post('/api/locations', async (c) => {
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
+
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  const name = String(body.name || '').trim()
+  const slug = String(body.slug || '').trim().toLowerCase()
+  const orderPrefix = String(body.orderPrefix || '').trim().toUpperCase()
+  if (!name || !slug || !orderPrefix) {
+    return c.json({ error: 'Nombre, slug y prefijo de pedido son obligatorios' }, 400)
+  }
+  if (!/^[a-z0-9-]+$/.test(slug)) {
+    return c.json({ error: 'El slug solo puede tener minúsculas, números y guiones' }, 400)
+  }
+
+  try {
+    const [existing] = await sql`SELECT id FROM locations WHERE slug = ${slug}`
+    if (existing) return c.json({ error: 'Ya existe un local con ese slug' }, 409)
+
+    const [created] = await sql`
+      INSERT INTO locations (name, slug, order_prefix, address, commune, rut, giro, phone, whatsapp, instagram, email, metro_station_name)
+      VALUES (${name}, ${slug}, ${orderPrefix}, ${body.address || null}, ${body.commune || null}, ${body.rut || null}, ${body.giro || null},
+              ${body.phone || null}, ${body.whatsapp || null}, ${body.instagram || null}, ${body.email || null}, ${body.metroStationName || null})
+      RETURNING id, name, slug
+    `
+    await recordAuditLog(c, authUser, 'location.create', { table: 'locations', id: created.id }, { name: created.name, slug: created.slug })
+    return c.json({ ok: true, location: { id: created.id, name: created.name, slug: created.slug } })
+  } catch (err) {
+    console.error('Create location error:', err)
+    return c.json({ error: 'Error al crear el local' }, 500)
+  }
+})
+
+// PUT /api/locations/:id — editar configuración de un local (adición
+// post-entrega, 3-sep-2026, Fase 3 multilocal). Owner-only. Mismo endpoint
+// para Viña del Mar hoy y para Valparaíso el día que se cree.
+app.put('/api/locations/:id', async (c) => {
+  const authUser = await requireSession(c, ['owner'])
+  if (authUser instanceof Response) return authUser
+
+  const { id } = c.req.param()
+  let body: any = {}
+  try { body = await c.req.json() } catch { return c.json({ error: 'JSON inválido' }, 400) }
+
+  try {
+    const [before] = await sql`SELECT * FROM locations WHERE id = ${id}`
+    if (!before) return c.json({ error: 'Local no encontrado' }, 404)
+
+    const [updated] = await sql`
+      UPDATE locations SET
+        name               = COALESCE(${body.name ?? null}, name),
+        address            = COALESCE(${body.address ?? null}, address),
+        commune            = COALESCE(${body.commune ?? null}, commune),
+        rut                = COALESCE(${body.rut ?? null}, rut),
+        giro               = COALESCE(${body.giro ?? null}, giro),
+        phone              = COALESCE(${body.phone ?? null}, phone),
+        whatsapp           = COALESCE(${body.whatsapp ?? null}, whatsapp),
+        instagram          = COALESCE(${body.instagram ?? null}, instagram),
+        email              = COALESCE(${body.email ?? null}, email),
+        metro_station_name = COALESCE(${body.metroStationName ?? null}, metro_station_name),
+        dte_provider       = COALESCE(${body.dteProvider ?? null}, dte_provider),
+        dte_api_key        = COALESCE(${body.dteApiKey ?? null}, dte_api_key),
+        dte_rut_empresa    = COALESCE(${body.dteRutEmpresa ?? null}, dte_rut_empresa),
+        is_active          = COALESCE(${typeof body.isActive === 'boolean' ? body.isActive : null}, is_active),
+        updated_at         = NOW()
+      WHERE id = ${id}
+      RETURNING id, name
+    `
+
+    // Auditoría — nunca registra dte_api_key en texto plano, solo que cambió.
+    const changedFields = Object.keys(body).filter(k => k !== 'dteApiKey')
+    if (body.dteApiKey !== undefined) changedFields.push('dteApiKey (valor no registrado)')
+    await recordAuditLog(c, authUser, 'location.update', { table: 'locations', id }, { name: updated.name, changedFields })
+
+    return c.json({ ok: true, location: { id: updated.id, name: updated.name } })
+  } catch (err) {
+    console.error('Update location error:', err)
+    return c.json({ error: 'Error al actualizar el local' }, 500)
+  }
+})
+
 // GET /api/customers — listado para cerebro/Clientes (mismo hallazgo que
 // /search arriba — el frontend ya estaba armado, este endpoint nunca
 // existió). orderCount/totalSpent/loyaltyBalance se calculan con subqueries

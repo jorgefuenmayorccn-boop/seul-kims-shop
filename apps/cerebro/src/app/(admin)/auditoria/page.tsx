@@ -40,6 +40,8 @@ const ACTION_LABELS: Record<string, string> = {
   'order.void':                 'Venta anulada',
   'b2b_company.review':         'Empresa B2B revisada',
   'delivery.pod_upload':        'Comprobante de entrega subido',
+  'location.create':            'Local creado',
+  'location.update':            'Configuración de local editada',
 }
 
 function actionLabel(action: string): string {
