@@ -13,6 +13,9 @@ export interface DeliveryOrderInfo {
   guestPhone?:     string
   guestEmail?:     string
   deliveryAddress?: string
+  // Comuna/zona separada de la calle (adición post-entrega, 3-sep-2026 — el
+  // dueño pidió una dirección más específica, no todo en un campo libre).
+  comuna?:         string
   deliveryFloor?:  string
   deliveryApt?:    string
   deliveryRefs?:   string

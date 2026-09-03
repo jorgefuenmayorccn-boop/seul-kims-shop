@@ -665,6 +665,23 @@ async function runMigrationsIfNeeded() {
       `
       console.log('✅ Migration 0024b applied')
     }
+
+    // 0024c — orders.delivery_comuna (adición post-entrega, 3-sep-2026): el
+    // dueño pidió que la dirección de entrega del POS fuera "más específica
+    // por región zona" — antes era un solo campo de texto libre donde la
+    // comuna se aplastaba junto con la calle. La modal ahora pide calle y
+    // comuna por separado; delivery_address sigue concatenado (no rompe
+    // nada que ya lo lea como texto completo) y esta columna nueva guarda
+    // la comuna estructurada, disponible para reportes/filtros futuros.
+    const ordersDeliveryComunaExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'orders' AND column_name = 'delivery_comuna'
+    `
+    if (ordersDeliveryComunaExists.length === 0) {
+      console.log('🔄 Running migration 0024c (orders.delivery_comuna)...')
+      await sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_comuna TEXT`
+      console.log('✅ Migration 0024c applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -2444,6 +2461,10 @@ app.post('/api/orders', async (c) => {
       | { rut?: string; razonSocial?: string; giro?: string; direccion?: string; comuna?: string }
       | undefined
     const deliveryMode = typeof body.deliveryMode === 'string' ? body.deliveryMode : 'pickup'
+    // Comuna de entrega estructurada (adición post-entrega, migración
+    // 0024c) — distinta de receiver.comuna (esa es la comuna del RECEPTOR
+    // para la boleta/factura B2B, un concepto separado).
+    const deliveryComuna = typeof body.comuna === 'string' ? body.comuna.trim() || null : null
 
     if (items.length === 0) return c.json({ error: 'El pedido no tiene productos' }, 400)
     for (const it of items) {
@@ -2506,14 +2527,14 @@ app.post('/api/orders', async (c) => {
 
       const [ord] = await tx`
         INSERT INTO orders (
-          number, channel, customer_id, delivery_mode, delivery_address,
+          number, channel, customer_id, delivery_mode, delivery_address, delivery_comuna,
           subtotal, baes_amount, total, dte_type, dte_status,
           receiver_rut, receiver_name, receiver_giro, receiver_address, receiver_comuna,
           guest_name, guest_phone, guest_email,
           shift_id, till_session_id, cashier_id, company_id,
           payment_status
         ) VALUES (
-          ${next_number}, 'pos', ${body.customerId || null}, ${deliveryMode}, ${body.deliveryAddress || null},
+          ${next_number}, 'pos', ${body.customerId || null}, ${deliveryMode}, ${body.deliveryAddress || null}, ${deliveryComuna},
           ${subtotal}, ${baesAmount}, ${total}, ${dteType}, 'pending',
           ${receiver?.rut || null}, ${receiver?.razonSocial || null}, ${receiver?.giro || null}, ${receiver?.direccion || null}, ${receiver?.comuna || null},
           ${body.guestName || null}, ${body.guestPhone || null}, ${body.guestEmail || null},

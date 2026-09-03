@@ -53,6 +53,11 @@ export function DeliveryOrderModal({ apiUrl, total, onConfirm, onClose }: Delive
   const [phone,   setPhone]   = useState('')
   const [email,   setEmail]   = useState('')
   const [address, setAddress] = useState('')
+  // Comuna separada de la calle (adición post-entrega, 3-sep-2026 — el
+  // dueño pidió una dirección más específica: "por región zona y todo").
+  // customers.commune ya existía en el modelo de datos, pero esta modal la
+  // aplastaba junto con la calle en un solo campo de texto libre.
+  const [commune, setCommune] = useState('')
   const [floor,   setFloor]   = useState('')
   const [apt,     setApt]     = useState('')
   const [refs,    setRefs]    = useState('')
@@ -87,7 +92,8 @@ export function DeliveryOrderModal({ apiUrl, total, onConfirm, onClose }: Delive
     setName(c.name)
     setPhone(c.phone ?? '')
     setEmail(c.email ?? '')
-    setAddress([c.address, c.commune].filter(Boolean).join(', '))
+    setAddress(c.address ?? '')
+    setCommune(c.commune ?? '')
     setFloor('')
     setApt('')
     setRefs('')
@@ -104,14 +110,19 @@ export function DeliveryOrderModal({ apiUrl, total, onConfirm, onClose }: Delive
     const finalName    = name.trim()
     const finalPhone   = phone.trim()
     const finalAddress = address.trim()
-    if (!finalName || !finalPhone || !finalAddress) return
+    const finalCommune = commune.trim()
+    if (!finalName || !finalPhone || !finalAddress || !finalCommune) return
 
     onConfirm({
       customerId:      selected?.id,
       guestName:       selected ? undefined : finalName,
       guestPhone:      selected ? undefined : finalPhone,
       guestEmail:      selected ? undefined : (email.trim() || undefined),
-      deliveryAddress: finalAddress,
+      // Concatenado para no romper nada que ya lea deliveryAddress como
+      // texto completo (comanda/etiqueta/Despacho) — comuna también viaja
+      // aparte, estructurada, para reportes/filtros futuros.
+      deliveryAddress: `${finalAddress}, ${finalCommune}`,
+      comuna:          finalCommune,
       deliveryFloor:   floor.trim() || undefined,
       deliveryApt:     apt.trim() || undefined,
       deliveryRefs:    refs.trim() || undefined,
@@ -120,7 +131,7 @@ export function DeliveryOrderModal({ apiUrl, total, onConfirm, onClose }: Delive
     })
   }
 
-  const canConfirm = name.trim() && phone.trim() && address.trim()
+  const canConfirm = name.trim() && phone.trim() && address.trim() && commune.trim()
 
   return (
     <div
@@ -298,14 +309,29 @@ export function DeliveryOrderModal({ apiUrl, total, onConfirm, onClose }: Delive
               </div>
 
               <div>
-                <label style={labelStyle}>Dirección de entrega *</label>
+                <label style={labelStyle}>Calle y número *</label>
                 <input
                   type="text"
-                  placeholder="Calle 123, Viña del Mar"
+                  placeholder="Av. Libertad 1305"
                   value={address}
                   onChange={e => setAddress(e.target.value)}
                   style={inputStyle}
                 />
+              </div>
+
+              <div>
+                <label style={labelStyle}>Comuna *</label>
+                <select
+                  value={commune}
+                  onChange={e => setCommune(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">Seleccionar comuna…</option>
+                  {['Viña del Mar', 'Valparaíso', 'Concón', 'Quilpué', 'Villa Alemana'].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                  <option value="Otra (envío a regiones)">Otra (envío a regiones)</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

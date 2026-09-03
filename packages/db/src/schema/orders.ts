@@ -42,6 +42,9 @@ export const orders = pgTable('orders', {
   status:          orderStatusEnum('status').default('nueva'),
   deliveryMode:    deliveryModeEnum('delivery_mode').notNull(),
   deliveryAddress: text('delivery_address'),
+  // Comuna estructurada (adición post-entrega, migración 0024c) — separada
+  // de deliveryAddress, que sigue concatenado por compatibilidad.
+  deliveryComuna:  text('delivery_comuna'),
   metroStation:    text('metro_station'),           // estación Merval seleccionada
   metroSlot:       text('metro_slot'),              // franja horaria "15:00-17:00"
   subtotal:        decimal('subtotal', { precision: 10, scale: 0 }).notNull(),

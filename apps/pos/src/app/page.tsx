@@ -215,6 +215,7 @@ export default function POSPage() {
         tillSessionId:   currentTill.id,
         customerId:      delivery?.customerId ?? undefined,
         deliveryAddress: delivery?.deliveryAddress ?? undefined,
+        comuna:          delivery?.comuna ?? undefined,
         guestName:       delivery?.guestName ?? undefined,
         guestPhone:      delivery?.guestPhone ?? undefined,
         guestEmail:      delivery?.guestEmail ?? undefined,
