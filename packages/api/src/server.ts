@@ -741,12 +741,20 @@ async function runMigrationsIfNeeded() {
     // location_id explícito, ver Fase 2/4) se rompe. El DEFAULT se retira
     // recién cuando Valparaíso esté por activarse de verdad (Fase 5) — hasta
     // entonces es una red de seguridad, no el diseño final.
+    // NOTA (3-sep-2026): cada paso de acá abajo tiene SU PROPIO chequeo de
+    // idempotencia (no uno solo que gatille todo el bloque) — el primer
+    // intento de esta migración creó `locations` y sembró Viña del Mar
+    // correctamente, pero se cayó en el primer ALTER TABLE (Postgres no
+    // podía inferir el tipo del parámetro en `DEFAULT ${vinaId}` sin cast
+    // explícito — error 42P18). Con un solo guard "si locations existe, no
+    // hagas nada más", ese redeploy jamás habría reintentado el resto. Cada
+    // paso vuelve a chequear su propio estado en la base, así que es seguro
+    // volver a correr esta función completa las veces que haga falta.
     const locationsExists = await sql`
       SELECT table_name FROM information_schema.tables WHERE table_name = 'locations'
     `
     if (locationsExists.length === 0) {
-      console.log('🔄 Running migration 0027 (locations + location_id)...')
-
+      console.log('🔄 Running migration 0027a (locations)...')
       await sql`
         CREATE TABLE IF NOT EXISTS locations (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -770,46 +778,78 @@ async function runMigrationsIfNeeded() {
           updated_at TIMESTAMP DEFAULT NOW()
         )
       `
+      console.log('✅ Migration 0027a applied')
+    }
 
+    const vinaExists = await sql`SELECT id FROM locations WHERE slug = 'vina-del-mar'`
+    if (vinaExists.length === 0) {
+      console.log('🔄 Running migration 0027b (seed Viña del Mar)...')
       // Semilla desde lo que ya existe en tienda_config (singleton, se
       // vuelve la config del local Viña del Mar) — no se pierde nada.
       const cfgRows = await sql`SELECT key, value FROM tienda_config WHERE key IN ('metro_station_name', 'whatsapp_number', 'dte_provider')`
       const cfg: Record<string, string> = {}
       for (const r of cfgRows) cfg[r.key] = r.value
-
-      const [vina] = await sql`
+      await sql`
         INSERT INTO locations (name, slug, order_prefix, metro_station_name, whatsapp, dte_provider)
         VALUES ('Viña del Mar', 'vina-del-mar', 'VM', ${cfg.metro_station_name ?? null}, ${cfg.whatsapp_number ?? null}, ${cfg.dte_provider ?? null})
-        RETURNING id
       `
-      const vinaId = vina.id
+      console.log('✅ Migration 0027b applied')
+    }
+    const [vina] = await sql`SELECT id FROM locations WHERE slug = 'vina-del-mar'`
+    const vinaId = vina.id as string
+    // Postgres NO permite un parámetro ($1) dentro de un DEFAULT de
+    // ALTER TABLE — es una restricción de la gramática DDL, no un problema
+    // de tipos (encontrado en el primer intento: ni siquiera un cast ::uuid
+    // explícito lo resuelve, sigue siendo error 42P18 "could not determine
+    // data type of parameter"). Por eso ese único ADD COLUMN va con
+    // sql.unsafe() y el valor inlineado como literal — seguro acá porque
+    // vinaId viene de nuestra propia tabla (gen_random_uuid()), nunca de
+    // input externo; se valida el formato de todos modos por las dudas.
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(vinaId)) {
+      throw new Error(`vinaId con formato inesperado, abortando migración 0027c: ${vinaId}`)
+    }
 
-      const perLocationTables = ['inventory', 'orders', 'shifts', 'till_sessions', 'delivery_assignments', 'driver_shifts']
-      for (const table of perLocationTables) {
-        await sql`ALTER TABLE ${sql(table)} ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) DEFAULT ${vinaId}`
-        await sql`UPDATE ${sql(table)} SET location_id = ${vinaId} WHERE location_id IS NULL`
+    const perLocationTables = ['inventory', 'orders', 'shifts', 'till_sessions', 'delivery_assignments', 'driver_shifts']
+    for (const table of perLocationTables) {
+      const colExists = await sql`
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = ${table} AND column_name = 'location_id'
+      `
+      if (colExists.length === 0) {
+        console.log(`🔄 Running migration 0027c (${table}.location_id)...`)
+        await sql.unsafe(`ALTER TABLE ${table} ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) DEFAULT '${vinaId}'`)
+        await sql`UPDATE ${sql(table)} SET location_id = ${vinaId}::uuid WHERE location_id IS NULL`
         await sql`ALTER TABLE ${sql(table)} ALTER COLUMN location_id SET NOT NULL`
+        console.log(`✅ Migration 0027c (${table}) applied`)
       }
+    }
 
-      // shifts/till_sessions tenían unicidad de "turno abierto" GLOBAL por
-      // device_id — con 2 locales, ambos podrían nombrar una caja "caja-1" y
-      // colisionarían. Se vuelve compuesta (location_id, device_id).
+    // shifts/till_sessions tenían unicidad de "turno abierto" GLOBAL por
+    // device_id — con 2 locales, ambos podrían nombrar una caja "caja-1" y
+    // colisionarían. Se vuelve compuesta (location_id, device_id).
+    const shiftsIdxOk = await sql`SELECT indexdef FROM pg_indexes WHERE indexname = 'shifts_device_active_uniq'`
+    if (shiftsIdxOk.length === 0 || !shiftsIdxOk[0].indexdef.includes('location_id')) {
+      console.log('🔄 Running migration 0027d (shifts_device_active_uniq compuesto)...')
       await sql`DROP INDEX IF EXISTS shifts_device_active_uniq`
       await sql`
         CREATE UNIQUE INDEX IF NOT EXISTS shifts_device_active_uniq
           ON shifts (location_id, device_id) WHERE status = 'open'
       `
+      console.log('✅ Migration 0027d applied')
+    }
+    const tillIdxOk = await sql`SELECT indexdef FROM pg_indexes WHERE indexname = 'till_sessions_device_active_uniq'`
+    if (tillIdxOk.length === 0 || !tillIdxOk[0].indexdef.includes('location_id')) {
+      console.log('🔄 Running migration 0027e (till_sessions_device_active_uniq compuesto)...')
       await sql`DROP INDEX IF EXISTS till_sessions_device_active_uniq`
       await sql`
         CREATE UNIQUE INDEX IF NOT EXISTS till_sessions_device_active_uniq
           ON till_sessions (location_id, device_id) WHERE status = 'open'
       `
-      // driver_shifts_driver_active_uniq NO cambia — un repartidor solo
-      // puede tener un turno abierto a la vez, sin importar en qué local
-      // (decisión del dueño: elige local al abrir turno cada día).
-
-      console.log(`✅ Migration 0027 applied — local "Viña del Mar" creado (${vinaId})`)
+      console.log('✅ Migration 0027e applied')
     }
+    // driver_shifts_driver_active_uniq NO cambia — un repartidor solo puede
+    // tener un turno abierto a la vez, sin importar en qué local (decisión
+    // del dueño: elige local al abrir turno cada día).
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
