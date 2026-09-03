@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm'
 import { uniqueIndex } from 'drizzle-orm/pg-core'
 import { shifts } from './shifts'
 import { users } from './auth'
+import { locations } from './locations'
 
 export const tillStatusEnum = pgEnum('till_status', ['open', 'closed'])
 
@@ -11,6 +12,10 @@ export const tillSessions = pgTable('till_sessions', {
   sessionNumber:  serial('session_number').notNull(),
   shiftId:        uuid('shift_id').notNull().references(() => shifts.id),
   openedBy:       uuid('opened_by').notNull().references(() => users.id),
+  // Local (adición post-entrega, 3-sep-2026, migración 0027) — mismo motivo
+  // que en shifts.ts: la unicidad de sesión abierta por dispositivo pasa a
+  // ser compuesta (locationId, deviceId).
+  locationId:     uuid('location_id').notNull().references(() => locations.id),
   deviceId:       text('device_id').notNull(),
   openingFloat:   integer('opening_float').notNull(),
   status:         tillStatusEnum('status').default('open').notNull(),
@@ -19,7 +24,7 @@ export const tillSessions = pgTable('till_sessions', {
   closingSummary: jsonb('closing_summary'),
 }, (table) => ({
   activeTillPerDevice: uniqueIndex('till_sessions_device_active_uniq')
-    .on(table.deviceId)
+    .on(table.locationId, table.deviceId)
     .where(sql`${table.status} = 'open'`),
 }))
 

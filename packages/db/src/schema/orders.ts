@@ -2,6 +2,7 @@ import { pgTable, uuid, text, integer, decimal, timestamp, boolean, pgEnum } fro
 import { products } from './products'
 import { shifts } from './shifts'
 import { tillSessions } from './till-sessions'
+import { locations } from './locations'
 
 export const orderChannelEnum = pgEnum('order_channel', [
   'pos', 'web', 'b2b', 'whatsapp',
@@ -37,6 +38,10 @@ export const dteStatusEnum = pgEnum('dte_status', [
 export const orders = pgTable('orders', {
   id:              uuid('id').primaryKey().defaultRandom(),
   number:          integer('number').notNull(),     // número visible: #12345
+  // Local (tienda) que originó el pedido (adición post-entrega, 3-sep-2026,
+  // migración 0027) — el prefijo visible (ej. "VM-00123") se resuelve desde
+  // locations.orderPrefix al mostrarlo, no se guarda concatenado acá.
+  locationId:      uuid('location_id').notNull().references(() => locations.id),
   channel:         orderChannelEnum('channel').notNull(),
   customerId:      uuid('customer_id'),
   status:          orderStatusEnum('status').default('nueva'),

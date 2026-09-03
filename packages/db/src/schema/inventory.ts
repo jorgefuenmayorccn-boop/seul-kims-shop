@@ -1,5 +1,6 @@
 import { pgTable, uuid, text, integer, decimal, timestamp, pgEnum } from 'drizzle-orm/pg-core'
 import { products } from './products'
+import { locations } from './locations'
 
 export const movementTypeEnum = pgEnum('movement_type', [
   'purchase',   // compra a proveedor
@@ -17,7 +18,11 @@ export const inventory = pgTable('inventory', {
   quantity:    integer('quantity').notNull().default(0),
   expiresAt:   timestamp('expires_at'),
   costPerUnit: decimal('cost_per_unit', { precision: 10, scale: 0 }),  // CLP
-  location:    text('location').default('main'),  // 'main' | 'freezer' | 'fridge'
+  location:    text('location').default('main'),  // ZONA física ('main'|'freezer'|'fridge') — no confundir con locationId (tienda)
+  // Local (tienda) al que pertenece este lote (adición post-entrega,
+  // 3-sep-2026, migración 0027) — distinto del campo `location` de arriba,
+  // que es la zona de almacenamiento dentro de una tienda.
+  locationId:  uuid('location_id').notNull().references(() => locations.id),
   createdAt:   timestamp('created_at').defaultNow(),
 })
 

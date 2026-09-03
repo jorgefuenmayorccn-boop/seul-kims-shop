@@ -727,6 +727,89 @@ async function runMigrationsIfNeeded() {
       await sql`ALTER TABLE delivery_assignments ADD COLUMN IF NOT EXISTS driver_shift_id UUID REFERENCES driver_shifts(id)`
       console.log('✅ Migration 0026 applied')
     }
+
+    // 0027 — Fase 1 del plan multilocal (3-sep-2026): tabla `locations` +
+    // `location_id` en las tablas que necesitan ser por-local. El dueño va a
+    // abrir un segundo local (Valparaíso) y necesita ver todo consolidado
+    // mientras su staff solo opera su local asignado — hoy el sistema no
+    // tiene NINGÚN concepto de "local" (auditoría completa antes de esto).
+    //
+    // Estrategia de migración sin downtime: se crea "Viña del Mar" como el
+    // ÚNICO local (todo lo que existe hoy es de ahí), se agrega location_id
+    // a cada tabla CON UN DEFAULT apuntando a ese local — así ningún INSERT
+    // existente en el código (los que todavía no se actualizaron para pasar
+    // location_id explícito, ver Fase 2/4) se rompe. El DEFAULT se retira
+    // recién cuando Valparaíso esté por activarse de verdad (Fase 5) — hasta
+    // entonces es una red de seguridad, no el diseño final.
+    const locationsExists = await sql`
+      SELECT table_name FROM information_schema.tables WHERE table_name = 'locations'
+    `
+    if (locationsExists.length === 0) {
+      console.log('🔄 Running migration 0027 (locations + location_id)...')
+
+      await sql`
+        CREATE TABLE IF NOT EXISTS locations (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name TEXT NOT NULL,
+          slug TEXT NOT NULL UNIQUE,
+          order_prefix TEXT NOT NULL,
+          address TEXT,
+          commune TEXT,
+          rut TEXT,
+          giro TEXT,
+          phone TEXT,
+          whatsapp TEXT,
+          instagram TEXT,
+          email TEXT,
+          metro_station_name TEXT,
+          dte_provider TEXT,
+          dte_api_key TEXT,
+          dte_rut_empresa TEXT,
+          is_active BOOLEAN NOT NULL DEFAULT true,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `
+
+      // Semilla desde lo que ya existe en tienda_config (singleton, se
+      // vuelve la config del local Viña del Mar) — no se pierde nada.
+      const cfgRows = await sql`SELECT key, value FROM tienda_config WHERE key IN ('metro_station_name', 'whatsapp_number', 'dte_provider')`
+      const cfg: Record<string, string> = {}
+      for (const r of cfgRows) cfg[r.key] = r.value
+
+      const [vina] = await sql`
+        INSERT INTO locations (name, slug, order_prefix, metro_station_name, whatsapp, dte_provider)
+        VALUES ('Viña del Mar', 'vina-del-mar', 'VM', ${cfg.metro_station_name ?? null}, ${cfg.whatsapp_number ?? null}, ${cfg.dte_provider ?? null})
+        RETURNING id
+      `
+      const vinaId = vina.id
+
+      const perLocationTables = ['inventory', 'orders', 'shifts', 'till_sessions', 'delivery_assignments', 'driver_shifts']
+      for (const table of perLocationTables) {
+        await sql`ALTER TABLE ${sql(table)} ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id) DEFAULT ${vinaId}`
+        await sql`UPDATE ${sql(table)} SET location_id = ${vinaId} WHERE location_id IS NULL`
+        await sql`ALTER TABLE ${sql(table)} ALTER COLUMN location_id SET NOT NULL`
+      }
+
+      // shifts/till_sessions tenían unicidad de "turno abierto" GLOBAL por
+      // device_id — con 2 locales, ambos podrían nombrar una caja "caja-1" y
+      // colisionarían. Se vuelve compuesta (location_id, device_id).
+      await sql`DROP INDEX IF EXISTS shifts_device_active_uniq`
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS shifts_device_active_uniq
+          ON shifts (location_id, device_id) WHERE status = 'open'
+      `
+      await sql`DROP INDEX IF EXISTS till_sessions_device_active_uniq`
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS till_sessions_device_active_uniq
+          ON till_sessions (location_id, device_id) WHERE status = 'open'
+      `
+      // driver_shifts_driver_active_uniq NO cambia — un repartidor solo
+      // puede tener un turno abierto a la vez, sin importar en qué local
+      // (decisión del dueño: elige local al abrir turno cada día).
+
+      console.log(`✅ Migration 0027 applied — local "Viña del Mar" creado (${vinaId})`)
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -3386,11 +3469,13 @@ async function autoAssignDriverIfPending(orderId: string, deliveryMode: string) 
   if (!['metro', 'delivery'].includes(deliveryMode)) return
   try {
     const [pendingAssignment] = await sql`
-      SELECT id FROM delivery_assignments
-      WHERE order_id = ${orderId} AND status = 'pending' AND driver_id IS NULL
+      SELECT da.id, o.location_id
+      FROM delivery_assignments da
+      JOIN orders o ON o.id = da.order_id
+      WHERE da.order_id = ${orderId} AND da.status = 'pending' AND da.driver_id IS NULL
     `
     if (pendingAssignment) {
-      const driverId = await pickActiveDriver()
+      const driverId = await pickActiveDriver(pendingAssignment.location_id)
       if (driverId) await assignDriverToAssignment(pendingAssignment.id, driverId)
     }
   } catch (assignErr) {
@@ -4849,16 +4934,23 @@ async function assignDriverToAssignment(assignmentId: string, driverId: string):
 
 // Elige el repartidor activo con menos entregas en curso ahora mismo —
 // criterio de reparto justo entre quienes tienen turno abierto (adición
-// post-entrega, 3-sep-2026). Devuelve null si nadie tiene turno abierto —
-// el caller debe dejar la entrega 'pending' sin repartidor como red de
-// seguridad (el staff la asigna a mano desde Despacho).
-async function pickActiveDriver(): Promise<string | null> {
+// post-entrega, 3-sep-2026). Devuelve null si nadie tiene turno abierto EN
+// ESE LOCAL — el caller debe dejar la entrega 'pending' sin repartidor como
+// red de seguridad (el staff la asigna a mano desde Despacho).
+//
+// Bug real cerrado (Fase 1 del plan multilocal, 3-sep-2026): antes elegía
+// CUALQUIER repartidor con turno abierto sin importar el local — con 2
+// locales, un pedido de Valparaíso se habría auto-asignado a un repartidor
+// de Viña del Mar. El repartidor elige en qué local abre turno cada día
+// (driver_shifts.location_id), así que el filtro acá es lo que hace que la
+// asignación respete esa elección.
+async function pickActiveDriver(locationId: string): Promise<string | null> {
   const [driver] = await sql`
     SELECT ds.driver_id,
       (SELECT count(*) FROM delivery_assignments da
        WHERE da.driver_id = ds.driver_id AND da.status NOT IN ('delivered', 'failed')) AS active_count
     FROM driver_shifts ds
-    WHERE ds.status = 'open'
+    WHERE ds.status = 'open' AND ds.location_id = ${locationId}
     ORDER BY active_count ASC, ds.opened_at ASC
     LIMIT 1
   `

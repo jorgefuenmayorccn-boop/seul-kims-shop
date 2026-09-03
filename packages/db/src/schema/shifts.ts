@@ -2,6 +2,7 @@ import { pgTable, uuid, text, integer, timestamp, jsonb, pgEnum, serial } from '
 import { sql } from 'drizzle-orm'
 import { uniqueIndex } from 'drizzle-orm/pg-core'
 import { users } from './auth'
+import { locations } from './locations'
 
 export const shiftStatusEnum = pgEnum('shift_status', ['open', 'closed'])
 
@@ -16,6 +17,11 @@ export const shifts = pgTable('shifts', {
   id:             uuid('id').primaryKey().defaultRandom(),
   shiftNumber:    serial('shift_number').notNull(),
   openedBy:       uuid('opened_by').notNull().references(() => users.id),
+  // Local (adición post-entrega, 3-sep-2026, migración 0027) — la unicidad
+  // de turno abierto por dispositivo pasa a ser compuesta (locationId,
+  // deviceId): antes 2 locales con una caja llamada igual ("caja-1")
+  // habrían colisionado al abrir turno el mismo día.
+  locationId:     uuid('location_id').notNull().references(() => locations.id),
   deviceId:       text('device_id').notNull(),
   openingFloat:   integer('opening_float').notNull(),
   status:         shiftStatusEnum('status').default('open').notNull(),
@@ -24,7 +30,7 @@ export const shifts = pgTable('shifts', {
   closingSummary: jsonb('closing_summary'),
 }, (table) => ({
   activeShiftPerDevice: uniqueIndex('shifts_device_active_uniq')
-    .on(table.deviceId)
+    .on(table.locationId, table.deviceId)
     .where(sql`${table.status} = 'open'`),
 }))
 

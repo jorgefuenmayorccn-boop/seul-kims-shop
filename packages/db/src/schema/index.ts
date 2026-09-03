@@ -21,3 +21,4 @@ export * from './loyalty'
 export * from './pos-void-events'
 export * from './email-queue-log'
 export * from './api-keys'  // NEW: API key management
+export * from './locations'  // NEW: multi-local (3-sep-2026, Fase 1)

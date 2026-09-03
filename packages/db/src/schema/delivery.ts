@@ -3,6 +3,7 @@ import { orders } from './orders'
 import { users } from './auth'
 import { shifts } from './shifts'
 import { driverShifts } from './driver-shifts'
+import { locations } from './locations'
 
 export const deliveryStatusEnum = pgEnum('delivery_status', [
   'pending',
@@ -56,6 +57,10 @@ export const deliveryAssignments = pgTable('delivery_assignments', {
   // 3-sep-2026, migración 0026) — ver driver-shifts.ts. NULL si se asignó a
   // un repartidor sin turno abierto (override manual).
   driverShiftId:       uuid('driver_shift_id').references(() => driverShifts.id),
+  // Local del pedido (adición post-entrega, 3-sep-2026, migración 0027) —
+  // es lo que usa pickActiveDriver() para no asignar un repartidor de otro
+  // local.
+  locationId:          uuid('location_id').notNull().references(() => locations.id),
 })
 
 export const deliveryPods = pgTable('delivery_pods', {

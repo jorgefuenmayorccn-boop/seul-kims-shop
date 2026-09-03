@@ -36,6 +36,13 @@ async function main() {
     { key: 'bank_holder',          value: 'Seoul Kims' },
   ]).onConflictDoNothing()
 
+  // 1b. Local por defecto (adición post-entrega, 3-sep-2026, Fase 1 del plan
+  // multilocal) — inventory/orders/etc. ahora requieren locationId.
+  const [vina] = await db.insert(schema.locations).values({
+    name: 'Viña del Mar', slug: 'vina-del-mar', orderPrefix: 'VM',
+  }).onConflictDoNothing().returning()
+  const vinaId = vina?.id ?? (await db.select().from(schema.locations).limit(1))[0].id
+
   // 2. Categorías
   const cats = await db.insert(schema.categories).values([
     { name: 'Ramen & Fideos',   slug: 'ramen',      emoji: '🍜', sortOrder: 1 },
@@ -229,22 +236,22 @@ async function main() {
   const now = new Date()
   const inventoryLots = [
     // Ramen — ambient, 60 días, stock 40
-    { productId: pMap['SHIN-RAMYUN-CUP'],  lot: 'L2501-A', quantity: 40, expiresAt: daysFromNow(60),  location: 'main' },
-    { productId: pMap['BULDAK-2X'],         lot: 'L2501-B', quantity: 35, expiresAt: daysFromNow(90),  location: 'main' },
+    { productId: pMap['SHIN-RAMYUN-CUP'],  lot: 'L2501-A', quantity: 40, expiresAt: daysFromNow(60),  location: 'main', locationId: vinaId },
+    { productId: pMap['BULDAK-2X'],         lot: 'L2501-B', quantity: 35, expiresAt: daysFromNow(90),  location: 'main', locationId: vinaId },
     // Snacks — ambient, 60 días, stock 30
-    { productId: pMap['CHOCO-PIE-12'],      lot: 'L2501-C', quantity: 25, expiresAt: daysFromNow(45),  location: 'main' },
-    { productId: pMap['HONEY-BTR-CHIP'],    lot: 'L2501-D', quantity: 30, expiresAt: daysFromNow(75),  location: 'main' },
+    { productId: pMap['CHOCO-PIE-12'],      lot: 'L2501-C', quantity: 25, expiresAt: daysFromNow(45),  location: 'main', locationId: vinaId },
+    { productId: pMap['HONEY-BTR-CHIP'],    lot: 'L2501-D', quantity: 30, expiresAt: daysFromNow(75),  location: 'main', locationId: vinaId },
     // Salsas — refrigerated, 20 días (warning en dashboard)
-    { productId: pMap['GOCHUJANG-500'],     lot: 'L2501-E', quantity: 20, expiresAt: daysFromNow(18),  location: 'fridge' },
+    { productId: pMap['GOCHUJANG-500'],     lot: 'L2501-E', quantity: 20, expiresAt: daysFromNow(18),  location: 'fridge', locationId: vinaId },
     // Kimchi — refrigerated, 14 días (warning)
-    { productId: pMap['KIMCHI-JONGGA'],     lot: 'L2501-F', quantity: 15, expiresAt: daysFromNow(14),  location: 'fridge' },
+    { productId: pMap['KIMCHI-JONGGA'],     lot: 'L2501-F', quantity: 15, expiresAt: daysFromNow(14),  location: 'fridge', locationId: vinaId },
     // Bebidas — Milkis 5 días → alerta urgente, Aloe 60 días
-    { productId: pMap['MILKIS-250'],        lot: 'L2501-G', quantity: 48, expiresAt: daysFromNow(5),   location: 'main' },
-    { productId: pMap['OKF-ALOE-500'],      lot: 'L2501-H', quantity: 36, expiresAt: daysFromNow(120), location: 'main' },
+    { productId: pMap['MILKIS-250'],        lot: 'L2501-G', quantity: 48, expiresAt: daysFromNow(5),   location: 'main', locationId: vinaId },
+    { productId: pMap['OKF-ALOE-500'],      lot: 'L2501-H', quantity: 36, expiresAt: daysFromNow(120), location: 'main', locationId: vinaId },
     // Congelados — 180 días
-    { productId: pMap['BIBIGO-MANDU-400'],  lot: 'L2501-I', quantity: 20, expiresAt: daysFromNow(180), location: 'freezer' },
+    { productId: pMap['BIBIGO-MANDU-400'],  lot: 'L2501-I', quantity: 20, expiresAt: daysFromNow(180), location: 'freezer', locationId: vinaId },
     // K-Beauty — 365 días
-    { productId: pMap['COSRX-SNAIL-100'],   lot: 'L2501-J', quantity: 25, expiresAt: daysFromNow(365), location: 'main' },
+    { productId: pMap['COSRX-SNAIL-100'],   lot: 'L2501-J', quantity: 25, expiresAt: daysFromNow(365), location: 'main', locationId: vinaId },
   ]
 
   // Filtrar lotes con productId válido
