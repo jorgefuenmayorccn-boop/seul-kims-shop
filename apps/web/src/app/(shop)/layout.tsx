@@ -5,6 +5,7 @@ import { CartDrawer } from '@/components/shop/cart-drawer'
 import { AuthSlot } from '@/components/shop/auth-slot'
 import { LanguageSwitcher } from '@/components/shop/language-switcher'
 import { LocaleNav } from '@/components/shop/locale-nav'
+import { MobileMenu } from '@/components/shop/mobile-menu'
 
 export const metadata: Metadata = {
   title: {
@@ -25,8 +26,10 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
         }}
       >
         <div className="flex items-center justify-between px-6 md:px-12 h-14 gap-4">
-          {/* Logotipo */}
-          <a href="/" className="flex items-baseline gap-2.5 group shrink-0">
+          {/* Menú mobile + Logotipo */}
+          <div className="flex items-center gap-3 shrink-0">
+            <MobileMenu />
+            <a href="/" className="flex items-baseline gap-2.5 group shrink-0">
             <span
               className="font-korean font-black text-xl leading-none transition-colors"
               style={{ color: 'var(--color-seoul-red)' }}
@@ -39,7 +42,8 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
             >
               SEUL SHOP
             </span>
-          </a>
+            </a>
+          </div>
 
           {/* Nav central — locale-aware */}
           <LocaleNav />
