@@ -8,7 +8,9 @@ export interface POSUser {
   id:    string
   email: string
   name:  string
-  role:  'owner' | 'admin' | 'staff' | 'delivery' | 'viewer'
+  // 'manager' agregado post-entrega, 3-sep-2026, Fase 2 multilocal.
+  role:  'owner' | 'admin' | 'manager' | 'staff' | 'delivery' | 'viewer'
+  locationId: string | null
 }
 
 let _user: POSUser | null = null

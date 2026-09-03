@@ -8,21 +8,24 @@ import type { SessionUser } from '@/lib/types'
 
 // RBAC matrix (PLAN_MAESTRO_SEUL_KING_OS.md sección 6.1, S02):
 //   owner: todo · admin: todo excepto Usuarios/Seguridad ·
+//   manager (Gerente de local, agregado 3-sep-2026, Fase 2 multilocal):
+//     lo mismo que staff + Productos (pedido explícito del dueño — ver/
+//     agregar/modificar, trazado en Auditoría vía audit_log) ·
 //   staff: solo Comandas/Despacho/Turnos/Clientes · viewer: solo lectura Dashboard/Reportes.
 // `delivery` never reaches this sidebar — apps/cerebro's own layout already
-// gates the whole (admin) route group to ['owner','admin','staff'] before
-// this component renders (see src/app/(admin)/layout.tsx).
+// gates the whole (admin) route group to ['owner','admin','manager','staff']
+// before this component renders (see src/app/(admin)/layout.tsx).
 type Role = SessionUser['role']
 
 const nav: { href: string; label: string; icon: typeof LayoutDashboard; roles: Role[] }[] = [
   { href: '/dashboard',  label: 'Dashboard',  icon: LayoutDashboard, roles: ['owner', 'admin', 'viewer'] },
-  { href: '/products',   label: 'Productos',  icon: Tag,             roles: ['owner', 'admin'] },
+  { href: '/products',   label: 'Productos',  icon: Tag,             roles: ['owner', 'admin', 'manager'] },
   { href: '/inventory',  label: 'Inventario', icon: Package,         roles: ['owner', 'admin'] },
-  { href: '/comandas',   label: 'Comandas',   icon: ClipboardList,   roles: ['owner', 'admin', 'staff'] },
-  { href: '/clientes',   label: 'Clientes',   icon: Users2,          roles: ['owner', 'admin', 'staff'] },
-  { href: '/despacho',   label: 'Despacho',   icon: Truck,           roles: ['owner', 'admin', 'staff'] },
-  { href: '/turnos-delivery', label: 'Turnos Delivery', icon: Bike,  roles: ['owner', 'admin', 'staff'] },
-  { href: '/turnos',     label: 'Turnos',     icon: Clock,           roles: ['owner', 'admin', 'staff'] },
+  { href: '/comandas',   label: 'Comandas',   icon: ClipboardList,   roles: ['owner', 'admin', 'manager', 'staff'] },
+  { href: '/clientes',   label: 'Clientes',   icon: Users2,          roles: ['owner', 'admin', 'manager', 'staff'] },
+  { href: '/despacho',   label: 'Despacho',   icon: Truck,           roles: ['owner', 'admin', 'manager', 'staff'] },
+  { href: '/turnos-delivery', label: 'Turnos Delivery', icon: Bike,  roles: ['owner', 'admin', 'manager', 'staff'] },
+  { href: '/turnos',     label: 'Turnos',     icon: Clock,           roles: ['owner', 'admin', 'manager', 'staff'] },
   { href: '/b2b/solicitudes', label: 'B2B Crédito', icon: Building2, roles: ['owner', 'admin'] },
   { href: '/usuarios',   label: 'Usuarios',   icon: Users,           roles: ['owner'] },
   { href: '/seguridad',  label: 'Seguridad',  icon: Shield,          roles: ['owner'] },

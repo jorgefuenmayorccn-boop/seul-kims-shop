@@ -5,13 +5,23 @@ import { friendlyErrorMessage } from '@seul/ui'
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
-type Role = 'owner' | 'admin' | 'staff' | 'delivery' | 'viewer'
+// 'manager' (Gerente de local) agregado 3-sep-2026, Fase 2 multilocal —
+// pedido explícito del dueño: además de lo que ya tiene staff, ve/agrega/
+// modifica Productos.
+type Role = 'owner' | 'admin' | 'manager' | 'staff' | 'delivery' | 'viewer'
+
+// Roles que quedan atados a UN local — owner/admin ven todo (locationId null).
+const LOCATION_SCOPED_ROLES: Role[] = ['manager', 'staff', 'delivery']
+
+interface Location { id: string; name: string }
 
 interface User {
   id:               string
   email:            string
   name:             string
   role:             Role
+  locationId:       string | null
+  locationName:     string | null
   isActive:         boolean
   cargo:            string | null
   departamento:     string | null
@@ -23,6 +33,7 @@ interface User {
 const ROLE_LABELS: Record<Role, string> = {
   owner:    'Owner',
   admin:    'Admin',
+  manager:  'Gerente de local',
   staff:    'Staff',
   delivery: 'Delivery',
   viewer:   'Viewer',
@@ -31,30 +42,40 @@ const ROLE_LABELS: Record<Role, string> = {
 const ROLE_COLORS: Record<Role, string> = {
   owner:    'bg-brand/10 text-brand',
   admin:    'bg-amber-100 text-amber-700',
+  manager:  'bg-purple-100 text-purple-700',
   staff:    'bg-green-100 text-green-700',
   delivery: 'bg-blue-100 text-blue-700',
   viewer:   'bg-surface text-text-muted',
 }
 
-const emptyForm = { name: '', email: '', password: '', role: 'staff' as Role, cargo: '', departamento: '', telefonoPersonal: '' }
+const emptyForm = { name: '', email: '', password: '', role: 'staff' as Role, locationId: '', cargo: '', departamento: '', telefonoPersonal: '' }
 
 export default function UsuariosPage() {
   const [users,      setUsers]      = useState<User[]>([])
+  const [locations,  setLocations]  = useState<Location[]>([])
   const [loading,    setLoading]    = useState(true)
   const [showForm,   setShowForm]   = useState(false)
   const [saving,     setSaving]     = useState(false)
   const [error,      setError]      = useState('')
   const [editingId,  setEditingId]  = useState<string | null>(null)
   const [editRole,   setEditRole]   = useState<Role>('staff')
+  const [editLocationId, setEditLocationId] = useState<string>('')
   const [form, setForm] = useState(emptyForm)
 
   async function load() {
     setLoading(true)
     try {
-      const r = await fetch(`${API}/api/auth/users`, { credentials: 'include' })
-      if (!r.ok) throw new Error('Error al cargar usuarios')
-      const d = await r.json() as { users: User[] }
+      const [uRes, lRes] = await Promise.all([
+        fetch(`${API}/api/auth/users`, { credentials: 'include' }),
+        fetch(`${API}/api/locations`, { credentials: 'include' }),
+      ])
+      if (!uRes.ok) throw new Error('Error al cargar usuarios')
+      const d = await uRes.json() as { users: User[] }
       setUsers(d.users ?? [])
+      if (lRes.ok) {
+        const ld = await lRes.json() as { locations: Location[] }
+        setLocations(ld.locations ?? [])
+      }
     } catch (err) {
       console.error('[cerebro/usuarios]', err)
       setError(friendlyErrorMessage(err instanceof Error ? err.message : undefined, 'Error de conexión'))
@@ -67,10 +88,13 @@ export default function UsuariosPage() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
+    if (LOCATION_SCOPED_ROLES.includes(form.role) && !form.locationId) {
+      setError('Este rol necesita un local asignado'); return
+    }
     setSaving(true); setError('')
     const r = await fetch(`${API}/api/auth/register`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, locationId: form.locationId || null }),
     })
     setSaving(false)
     if (r.ok) {
@@ -90,10 +114,13 @@ export default function UsuariosPage() {
     load()
   }
 
-  async function saveRole(userId: string, role: Role) {
+  async function saveRole(userId: string, role: Role, locationId: string) {
+    if (LOCATION_SCOPED_ROLES.includes(role) && !locationId) {
+      setError('Este rol necesita un local asignado'); return
+    }
     const r = await fetch(`${API}/api/auth/users/${userId}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ role, locationId: LOCATION_SCOPED_ROLES.includes(role) ? locationId : null }),
     })
     if (!r.ok) { const d = await r.json() as { error?: string }; setError(d.error ?? 'Error'); return }
     setEditingId(null); load()
@@ -161,11 +188,22 @@ export default function UsuariosPage() {
               <select value={form.role} onChange={e => setForm(p => ({ ...p, role: e.target.value as Role }))}
                 className="w-full px-3 py-2 rounded-lg text-sm border border-[var(--color-border)] bg-[var(--color-background)] text-text focus:outline-none focus:ring-2 focus:ring-brand/30">
                 <option value="staff">Staff</option>
+                <option value="manager">Gerente de local</option>
                 <option value="delivery">Delivery</option>
                 <option value="admin">Admin</option>
                 <option value="viewer">Viewer</option>
               </select>
             </div>
+            {LOCATION_SCOPED_ROLES.includes(form.role) && (
+              <div>
+                <label className="block text-xs font-medium text-text-muted mb-1">Local *</label>
+                <select required value={form.locationId} onChange={e => setForm(p => ({ ...p, locationId: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-lg text-sm border border-[var(--color-border)] bg-[var(--color-background)] text-text focus:outline-none focus:ring-2 focus:ring-brand/30">
+                  <option value="" disabled>Selecciona un local…</option>
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </div>
+            )}
           </div>
           {error && <p className="text-sm text-error">{error}</p>}
           <div className="flex gap-3">
@@ -189,6 +227,7 @@ export default function UsuariosPage() {
               <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wide">Usuario</th>
               <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wide">Cargo</th>
               <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wide">Rol</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wide">Local</th>
               <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wide">Último acceso</th>
               <th className="px-5 py-3 text-left text-xs font-semibold text-text-muted uppercase tracking-wide">Estado</th>
               <th className="px-5 py-3" />
@@ -196,9 +235,9 @@ export default function UsuariosPage() {
           </thead>
           <tbody className="divide-y divide-[var(--color-border)]">
             {loading ? (
-              <tr><td colSpan={6} className="py-12 text-center text-sm text-text-muted">Cargando…</td></tr>
+              <tr><td colSpan={7} className="py-12 text-center text-sm text-text-muted">Cargando…</td></tr>
             ) : users.length === 0 ? (
-              <tr><td colSpan={6} className="py-12 text-center text-sm text-text-muted">Sin usuarios</td></tr>
+              <tr><td colSpan={7} className="py-12 text-center text-sm text-text-muted">Sin usuarios</td></tr>
             ) : users.map(user => (
               <tr key={user.id} className="bg-[var(--color-background)] hover:bg-[var(--color-surface)] transition-colors">
                 <td className="px-5 py-3.5">
@@ -222,27 +261,35 @@ export default function UsuariosPage() {
                 </td>
                 <td className="px-5 py-3.5">
                   {editingId === user.id ? (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <select value={editRole} onChange={e => setEditRole(e.target.value as Role)}
                         className="text-xs px-2 py-1 rounded border border-[var(--color-border)] bg-[var(--color-background)] text-text">
                         {(Object.keys(ROLE_LABELS) as Role[]).map(r => (
                           <option key={r} value={r}>{ROLE_LABELS[r]}</option>
                         ))}
                       </select>
-                      <button onClick={() => saveRole(user.id, editRole)}
+                      {LOCATION_SCOPED_ROLES.includes(editRole) && (
+                        <select value={editLocationId} onChange={e => setEditLocationId(e.target.value)}
+                          className="text-xs px-2 py-1 rounded border border-[var(--color-border)] bg-[var(--color-background)] text-text">
+                          <option value="" disabled>Local…</option>
+                          {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                      )}
+                      <button onClick={() => saveRole(user.id, editRole, editLocationId)}
                         className="text-xs px-2 py-1 rounded font-medium"
                         style={{ background: 'var(--color-brand)', color: '#fff' }}>OK</button>
                       <button onClick={() => setEditingId(null)}
                         className="text-xs px-2 py-1 rounded text-text-muted hover:text-text">✕</button>
                     </div>
                   ) : (
-                    <button onClick={() => { setEditingId(user.id); setEditRole(user.role) }}
+                    <button onClick={() => { setEditingId(user.id); setEditRole(user.role); setEditLocationId(user.locationId ?? '') }}
                       className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${ROLE_COLORS[user.role]}`}>
                       {ROLE_LABELS[user.role]}
                       {user.role !== 'owner' && <ChevronDown size={10} />}
                     </button>
                   )}
                 </td>
+                <td className="px-5 py-3.5 text-xs text-text">{user.locationName ?? (user.role === 'owner' || user.role === 'admin' ? 'Todos' : '—')}</td>
                 <td className="px-5 py-3.5 text-xs text-text-muted font-mono">{formatDate(user.lastLoginAt)}</td>
                 <td className="px-5 py-3.5">
                   <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${user.isActive ? 'bg-green-100 text-green-700' : 'bg-surface text-text-muted'}`}>

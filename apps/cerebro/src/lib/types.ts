@@ -5,7 +5,10 @@ export type SessionUser = {
   id:    string
   email: string
   name:  string
-  role:  'owner' | 'admin' | 'staff' | 'delivery' | 'viewer'
+  // 'manager' (Gerente de local) agregado post-entrega, 3-sep-2026, Fase 2
+  // multilocal — como staff, pero además ve/agrega/modifica Productos.
+  role:  'owner' | 'admin' | 'manager' | 'staff' | 'delivery' | 'viewer'
+  locationId: string | null
 }
 
 export type ProductListItem = {

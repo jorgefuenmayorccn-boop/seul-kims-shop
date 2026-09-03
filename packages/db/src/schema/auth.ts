@@ -1,6 +1,10 @@
 import { pgTable, uuid, text, timestamp, boolean, integer, jsonb, pgEnum, index } from 'drizzle-orm/pg-core'
+import { locations } from './locations'
 
-export const userRoleEnum = pgEnum('user_role', ['owner', 'admin', 'staff', 'delivery', 'viewer'])
+// 'manager' (Gerente de local) agregado post-entrega, 3-sep-2026, Fase 2 del
+// plan multilocal — pedido explícito del dueño: además de lo que ya tiene
+// `staff`, puede ver/agregar/modificar Productos (antes solo owner/admin).
+export const userRoleEnum = pgEnum('user_role', ['owner', 'admin', 'manager', 'staff', 'delivery', 'viewer'])
 
 export const users = pgTable('users', {
   id:                uuid('id').primaryKey().defaultRandom(),
@@ -8,6 +12,10 @@ export const users = pgTable('users', {
   passwordHash:      text('password_hash').notNull(),
   name:              text('name').notNull(),
   role:              userRoleEnum('role').notNull().default('staff'),
+  // Local al que queda atado este usuario (adición post-entrega, 3-sep-2026,
+  // Fase 2 multilocal) — NULL = acceso cross-local (owner/admin ven todo).
+  // staff/manager/delivery quedan atados a UN local.
+  locationId:        uuid('location_id').references(() => locations.id),
   isActive:          boolean('is_active').notNull().default(true),
   lastLoginAt:       timestamp('last_login_at'),
   failedAttempts:    integer('failed_attempts').notNull().default(0),

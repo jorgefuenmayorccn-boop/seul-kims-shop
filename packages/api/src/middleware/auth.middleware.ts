@@ -57,6 +57,10 @@ export async function requireAuthMiddleware(c: Context, next: Next) {
         email: decoded.email,
         role: decoded.role,
         name: decoded.name,
+        // locationId (Fase 2 multilocal, 3-sep-2026) — POST /api/orders
+        // (POS) lo lee de acá para stampear en qué local se originó la
+        // venta.
+        locationId: decoded.locationId ?? null,
       })
       return next()
     }
@@ -97,7 +101,7 @@ export async function requireAuthMiddleware(c: Context, next: Next) {
 export async function requireSession(
   c: Context,
   roles?: string[]
-): Promise<{ id: string; email: string; role: string; name: string } | Response> {
+): Promise<{ id: string; email: string; role: string; name: string; locationId: string | null } | Response> {
   const authHeader = c.req.header('Authorization')
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined
   const token = bearerToken || getCookie(c, SESSION_COOKIE_NAME)
@@ -111,13 +115,16 @@ export async function requireSession(
     return c.json({ error: 'Not authenticated' }, 401)
   }
 
-  const user = verified.decoded as { id: string; email: string; role: string; name: string }
+  const user = verified.decoded as { id: string; email: string; role: string; name: string; locationId?: string | null }
 
   if (roles && roles.length > 0 && !roles.includes(user.role)) {
     return c.json({ error: 'Forbidden' }, 403)
   }
 
-  return user
+  // locationId (Fase 2 multilocal, 3-sep-2026) — tokens emitidos ANTES de
+  // este cambio no lo tienen; `?? null` los trata como cross-local en vez
+  // de romper, hasta que ese usuario vuelva a loguearse.
+  return { ...user, locationId: user.locationId ?? null }
 }
 
 /**
@@ -166,7 +173,7 @@ export async function requireCustomerSession(
 // visitors (apps/web storefront, no session) — e.g. the product catalog.
 export async function getOptionalSession(
   c: Context
-): Promise<{ id: string; email: string; role: string; name: string } | null> {
+): Promise<{ id: string; email: string; role: string; name: string; locationId: string | null } | null> {
   const authHeader = c.req.header('Authorization')
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : undefined
   const token = bearerToken || getCookie(c, SESSION_COOKIE_NAME)
@@ -175,7 +182,8 @@ export async function getOptionalSession(
   const verified = AuthService.verifyToken(token, JWT_SECRET)
   if (!verified.ok) return null
 
-  return verified.decoded as { id: string; email: string; role: string; name: string }
+  const user = verified.decoded as { id: string; email: string; role: string; name: string; locationId?: string | null }
+  return { ...user, locationId: user.locationId ?? null }
 }
 
 // getOptionalCustomerSession (S10, Fase 3) — customer-facing counterpart to

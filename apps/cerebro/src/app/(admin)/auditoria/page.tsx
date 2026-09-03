@@ -28,6 +28,18 @@ const ACTION_LABELS: Record<string, string> = {
   'user.deactivate':            'Usuario desactivado',
   'user.password_change_self':  'Cambio de contraseña propia',
   'tienda_config.update':       'Configuración de tienda editada',
+  // Agregadas 3-sep-2026 (Fase 2 multilocal) — product.create/product.update
+  // ya se registraban en audit_log desde antes, pero sin etiqueta en español
+  // caían al texto crudo del action.
+  'product.create':             'Producto creado',
+  'product.update':             'Producto editado',
+  'product.image_upload':       'Imagen de producto subida',
+  'product.image_delete':       'Imagen de producto eliminada',
+  'inventory.lot_create':       'Lote de inventario agregado',
+  'inventory.adjust':           'Inventario ajustado',
+  'order.void':                 'Venta anulada',
+  'b2b_company.review':         'Empresa B2B revisada',
+  'delivery.pod_upload':        'Comprobante de entrega subido',
 }
 
 function actionLabel(action: string): string {

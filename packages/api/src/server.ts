@@ -856,6 +856,31 @@ async function runMigrationsIfNeeded() {
     // driver_shifts_driver_active_uniq NO cambia — un repartidor solo puede
     // tener un turno abierto a la vez, sin importar en qué local (decisión
     // del dueño: elige local al abrir turno cada día).
+
+    // 0028 — Fase 2 del plan multilocal (3-sep-2026): rol 'manager' (Gerente
+    // de local, pedido explícito del dueño — además de lo que ya tiene
+    // staff, puede ver/agregar/modificar Productos) + users.location_id
+    // (NULL = acceso cross-local, owner/admin; staff/manager/delivery
+    // quedan atados a un local).
+    const managerRoleExists = await sql`
+      SELECT 1 FROM pg_enum WHERE enumlabel = 'manager'
+        AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'user_role')
+    `
+    if (managerRoleExists.length === 0) {
+      console.log(`🔄 Running migration 0028a ('manager' role)...`)
+      await sql`ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'manager'`
+      console.log('✅ Migration 0028a applied')
+    }
+
+    const usersLocationIdExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'location_id'
+    `
+    if (usersLocationIdExists.length === 0) {
+      console.log('🔄 Running migration 0028b (users.location_id)...')
+      await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS location_id UUID REFERENCES locations(id)`
+      console.log('✅ Migration 0028b applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -1137,6 +1162,7 @@ async function handleGetMe(c: any) {
       email: decoded.email,
       role: decoded.role,
       name: decoded.name,
+      locationId: decoded.locationId ?? null,
     }
   })
 }
@@ -1893,6 +1919,34 @@ app.get('/api/customers/search', async (c) => {
   }
 })
 
+// GET /api/locations — listado de locales (adición post-entrega, 3-sep-2026,
+// Fase 2 del plan multilocal). Consumido por el selector de local en
+// Usuarios (owner asigna local a staff/manager/delivery al crear/editar) y
+// por la futura pantalla de Configuración por local (Fase 3). owner/admin
+// solamente — un manager/staff no necesita ver la lista completa de locales,
+// solo opera el suyo.
+app.get('/api/locations', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin'])
+  if (authUser instanceof Response) return authUser
+
+  try {
+    const rows = await sql`
+      SELECT id, name, slug, order_prefix, address, commune, is_active
+      FROM locations
+      ORDER BY name ASC
+    `
+    return c.json({
+      locations: rows.map((r: any) => ({
+        id: r.id, name: r.name, slug: r.slug, orderPrefix: r.order_prefix,
+        address: r.address, commune: r.commune, isActive: r.is_active,
+      })),
+    })
+  } catch (err) {
+    console.error('List locations error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
 // GET /api/customers — listado para cerebro/Clientes (mismo hallazgo que
 // /search arriba — el frontend ya estaba armado, este endpoint nunca
 // existió). orderCount/totalSpent/loyaltyBalance se calculan con subqueries
@@ -2106,7 +2160,7 @@ app.post('/api/public/orders', async (c) => {
       const [ord] = await tx`
         INSERT INTO orders (number, channel, customer_id, status, delivery_mode, delivery_address, metro_station, metro_slot, delivery_date, subtotal, total, notes, company_id, payment_method)
         VALUES (${order_number}, 'web', ${customerId}, 'nueva', ${deliveryMode}, ${deliveryAddress || null}, ${metroStation || null}, ${metroSlot || null}, ${deliveryDate || null}, ${subtotal}, ${subtotal}, ${notes || null}, ${resolvedCompanyId}, ${paymentMethodPref})
-        RETURNING id, number
+        RETURNING id, number, location_id
       `
       for (const it of resolvedItems) {
         await tx`
@@ -2122,9 +2176,12 @@ app.post('/api/public/orders', async (c) => {
       // existen, así que un pedido Metro nunca tenía nada que asignarle a un
       // repartidor. 'pickup' no crea asignación (el cliente retira solo).
       if (deliveryMode === 'metro' || deliveryMode === 'shipping') {
+        // location_id explícito, copiado del pedido (Fase 2 multilocal,
+        // 3-sep-2026) — antes dependía de que los DEFAULT de orders y de
+        // delivery_assignments coincidieran por casualidad.
         await tx`
-          INSERT INTO delivery_assignments (order_id, status)
-          VALUES (${ord.id}, 'pending')
+          INSERT INTO delivery_assignments (order_id, status, location_id)
+          VALUES (${ord.id}, 'pending', ${ord.location_id})
         `
       }
       return ord
@@ -2234,7 +2291,7 @@ app.get('/api/public/orders/:id/track', async (c) => {
 // `getAuthUser` is kept as-is for the endpoints already using it below to
 // avoid regressing anything in production; migrate opportunistically.
 // ============================================================================
-async function getAuthUser(c: any): Promise<{ id: string; email: string; role: string; name: string } | null> {
+async function getAuthUser(c: any): Promise<{ id: string; email: string; role: string; name: string; locationId: string | null } | null> {
   let token: string | undefined
   const authHeader = c.req.header('Authorization')
   if (authHeader?.startsWith('Bearer ')) {
@@ -2245,7 +2302,8 @@ async function getAuthUser(c: any): Promise<{ id: string; email: string; role: s
   if (!token) return null
   const verified = AuthService.verifyToken(token, JWT_SECRET)
   if (!verified.ok) return null
-  return verified.decoded as any
+  const decoded = verified.decoded as any
+  return { ...decoded, locationId: decoded.locationId ?? null }
 }
 
 // ============================================================================
@@ -2261,15 +2319,17 @@ async function getAuthUser(c: any): Promise<{ id: string; email: string; role: s
 // esos roles. Se deja en owner+admin+staff (mismos roles que ya pueden entrar a
 // Despacho) en vez de owner-only para no regresionar esa pantalla.
 app.get('/api/auth/users', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  // 'manager' agregado (Fase 2 multilocal, 3-sep-2026).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager', 'staff'])
   if (authUser instanceof Response) return authUser
 
   try {
     const rows = await sql`
-      SELECT id, email, name, role, is_active, cargo, departamento, telefono_personal,
-             last_login_at, created_at, must_change_password
-      FROM users
-      ORDER BY created_at ASC
+      SELECT u.id, u.email, u.name, u.role, u.is_active, u.cargo, u.departamento, u.telefono_personal,
+             u.last_login_at, u.created_at, u.must_change_password, u.location_id, l.name AS location_name
+      FROM users u
+      LEFT JOIN locations l ON l.id = u.location_id
+      ORDER BY u.created_at ASC
     `
     return c.json({
       users: rows.map((r: any) => ({
@@ -2277,6 +2337,8 @@ app.get('/api/auth/users', async (c) => {
         email: r.email,
         name: r.name,
         role: r.role,
+        locationId: r.location_id,
+        locationName: r.location_name,
         isActive: r.is_active,
         cargo: r.cargo,
         departamento: r.departamento,
@@ -2307,11 +2369,20 @@ app.put('/api/auth/users/:id', async (c) => {
   }
 
   try {
-    const [before] = await sql`SELECT role, is_active, name, cargo, departamento, telefono_personal FROM users WHERE id = ${id}`
+    const [before] = await sql`SELECT role, is_active, name, cargo, departamento, telefono_personal, location_id FROM users WHERE id = ${id}`
+
+    // locationId (Fase 2 multilocal, 3-sep-2026): a diferencia de los demás
+    // campos, SÍ necesita poder setearse a NULL de forma explícita (ej. un
+    // manager que pasa a admin deja de estar atado a un local) — por eso no
+    // usa el mismo patrón COALESCE(body ?? null, columna) que el resto, que
+    // nunca podría borrar un valor existente. `locationProvided` distingue
+    // "el campo no vino en el body" (no tocar) de "vino como null" (borrar).
+    const locationProvided = Object.prototype.hasOwnProperty.call(body, 'locationId')
 
     const [updated] = await sql`
       UPDATE users SET
         role               = COALESCE(${body.role ?? null}, role),
+        location_id        = CASE WHEN ${locationProvided} THEN ${body.locationId ?? null} ELSE location_id END,
         is_active          = COALESCE(${typeof body.isActive === 'boolean' ? body.isActive : null}, is_active),
         name               = COALESCE(${body.name ?? null}, name),
         cargo              = COALESCE(${body.cargo ?? null}, cargo),
@@ -2319,7 +2390,7 @@ app.put('/api/auth/users/:id', async (c) => {
         telefono_personal  = COALESCE(${body.telefonoPersonal ?? null}, telefono_personal),
         updated_at         = NOW()
       WHERE id = ${id}
-      RETURNING id, email, name, role, is_active, cargo, departamento, telefono_personal, last_login_at, created_at
+      RETURNING id, email, name, role, location_id, is_active, cargo, departamento, telefono_personal, last_login_at, created_at
     `
 
     if (!updated) return c.json({ error: 'User not found' }, 404)
@@ -2350,6 +2421,9 @@ app.put('/api/auth/users/:id', async (c) => {
       if (body.telefonoPersonal !== undefined && body.telefonoPersonal !== null && body.telefonoPersonal !== before.telefono_personal) {
         changes.telefonoPersonal = { before: before.telefono_personal, after: updated.telefono_personal }
       }
+      if (locationProvided && (body.locationId ?? null) !== before.location_id) {
+        changes.locationId = { before: before.location_id, after: updated.location_id }
+      }
 
       if (Object.keys(changes).length > 0) {
         let action = 'user.update'
@@ -2370,6 +2444,7 @@ app.put('/api/auth/users/:id', async (c) => {
         email: updated.email,
         name: updated.name,
         role: updated.role,
+        locationId: updated.location_id,
         isActive: updated.is_active,
         cargo: updated.cargo,
         departamento: updated.departamento,
@@ -2555,11 +2630,22 @@ app.post('/api/shifts/open', async (c) => {
   if (!deviceId) return c.json({ error: 'Missing device_id' }, 400)
 
   try {
-    const [shift] = await sql`
-      INSERT INTO shifts (opened_by, device_id, opening_float)
-      VALUES (${authUser.id}, ${deviceId}, ${openingFloat})
-      RETURNING id, shift_number, opened_at, opening_float, device_id
-    `
+    // location_id (Fase 2 multilocal, 3-sep-2026): se toma del local
+    // asignado al cajero (staff/manager). owner/admin no tienen uno propio
+    // (acceso cross-local) — se omite la columna y queda el DEFAULT de
+    // Viña del Mar (red de seguridad hasta que Fase 4 agregue un selector
+    // de local para cuando owner/admin abren caja directamente).
+    const [shift] = authUser.locationId
+      ? await sql`
+          INSERT INTO shifts (opened_by, device_id, opening_float, location_id)
+          VALUES (${authUser.id}, ${deviceId}, ${openingFloat}, ${authUser.locationId})
+          RETURNING id, shift_number, opened_at, opening_float, device_id
+        `
+      : await sql`
+          INSERT INTO shifts (opened_by, device_id, opening_float)
+          VALUES (${authUser.id}, ${deviceId}, ${openingFloat})
+          RETURNING id, shift_number, opened_at, opening_float, device_id
+        `
     return c.json({
       shift: {
         id: shift.id, shiftNumber: shift.shift_number, openedAt: shift.opened_at,
@@ -2606,11 +2692,14 @@ app.get('/api/shifts/history', async (c) => {
   const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '30', 10) || 30, 1), 100)
 
   try {
+    // Filtro por local (Fase 2 multilocal, 3-sep-2026) — owner/admin ven
+    // todos los turnos de caja de todos los locales, el resto solo el suyo.
     const rows = await sql`
       SELECT s.id, s.shift_number, s.device_id, s.status, s.opened_at, s.closed_at,
              s.opening_float, s.closing_summary, u.name AS cashier_name, u.email AS cashier_email
       FROM shifts s
       JOIN users u ON u.id = s.opened_by
+      WHERE 1=1 ${authUser.locationId ? sql`AND s.location_id = ${authUser.locationId}` : sql``}
       ORDER BY s.opened_at DESC
       LIMIT ${limit}
     `
@@ -2796,7 +2885,7 @@ app.post('/api/orders', async (c) => {
     return c.json({ error: `Demasiadas solicitudes. Intenta de nuevo en ${rl.retryAfterMinutes} minutos.` }, 429)
   }
 
-  const auth = c.get('auth') as { userId?: string } | undefined
+  const auth = c.get('auth') as { userId?: string; locationId?: string | null } | undefined
 
   try {
     const body = await c.req.json().catch(() => null)
@@ -2874,6 +2963,14 @@ app.post('/api/orders', async (c) => {
         SELECT COALESCE(MAX(number), 0) + 1 AS next_number FROM orders
       `
 
+      // location_id (Fase 2 multilocal, 3-sep-2026): del cajero autenticado
+      // (staff/manager). owner/admin no tienen uno propio (cross-local) —
+      // se resuelve a Viña del Mar como fallback hasta que Fase 4 agregue
+      // un selector de local explícito para cuando owner/admin cobran
+      // directamente en POS.
+      const resolvedLocationId = auth?.locationId
+        || (await tx`SELECT id FROM locations WHERE slug = 'vina-del-mar'`)[0]?.id
+
       const [ord] = await tx`
         INSERT INTO orders (
           number, channel, customer_id, delivery_mode, delivery_address, delivery_comuna,
@@ -2881,14 +2978,14 @@ app.post('/api/orders', async (c) => {
           receiver_rut, receiver_name, receiver_giro, receiver_address, receiver_comuna,
           guest_name, guest_phone, guest_email,
           shift_id, till_session_id, cashier_id, company_id,
-          payment_status
+          payment_status, location_id
         ) VALUES (
           ${next_number}, 'pos', ${body.customerId || null}, ${deliveryMode}, ${body.deliveryAddress || null}, ${deliveryComuna},
           ${subtotal}, ${baesAmount}, ${total}, ${dteType}, 'pending',
           ${receiver?.rut || null}, ${receiver?.razonSocial || null}, ${receiver?.giro || null}, ${receiver?.direccion || null}, ${receiver?.comuna || null},
           ${body.guestName || null}, ${body.guestPhone || null}, ${body.guestEmail || null},
           ${body.shiftId || null}, ${body.tillSessionId || null}, ${auth?.userId || null}, ${companyId},
-          'confirmed'
+          'confirmed', ${resolvedLocationId}
         )
         RETURNING id, number
       `
@@ -2919,9 +3016,12 @@ app.post('/api/orders', async (c) => {
       // fila en delivery_assignments, así que tampoco le llegaba nada a
       // Despacho/Drive. 'pickup' no aplica (retiro en el local).
       if (deliveryMode === 'delivery') {
+        // location_id explícito (Fase 2 multilocal, 3-sep-2026) — la misma
+        // que el pedido, no el DEFAULT, para que pickActiveDriver() filtre
+        // bien desde el momento en que se crea.
         await tx`
-          INSERT INTO delivery_assignments (order_id, status)
-          VALUES (${ord.id}, 'pending')
+          INSERT INTO delivery_assignments (order_id, status, location_id)
+          VALUES (${ord.id}, 'pending', ${resolvedLocationId})
         `
       }
 
@@ -4862,7 +4962,10 @@ app.post('/api/deliveries/:id/status', async (c) => {
 // así que restringir a los mismos roles que su hermano PUT .../:id/assign
 // (owner/admin/staff) no regresiona nada real.
 app.get('/api/delivery/assignments', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  // 'manager' agregado + filtro por local (Fase 2 multilocal, 3-sep-2026) —
+  // mismo criterio que Comandas: owner/admin ven todos los locales, el
+  // resto solo el suyo.
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager', 'staff'])
   if (authUser instanceof Response) return authUser
 
   try {
@@ -4877,6 +4980,7 @@ app.get('/api/delivery/assignments', async (c) => {
       FROM delivery_assignments da
       JOIN orders o ON o.id = da.order_id
       LEFT JOIN customers cu ON cu.id = o.customer_id
+      WHERE 1=1 ${authUser.locationId ? sql`AND da.location_id = ${authUser.locationId}` : sql``}
       ORDER BY da.created_at DESC
     `
     return c.json({
@@ -5028,7 +5132,10 @@ app.put('/api/delivery/assignments/:id/assign', async (c) => {
 // (adición post-entrega, 3-sep-2026). Consumido por Despacho (para no
 // ofrecer asignar a alguien que no está trabajando) y por pickActiveDriver.
 app.get('/api/delivery/drivers/active', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  // 'manager' agregado + filtro por local (Fase 2 multilocal, 3-sep-2026) —
+  // el selector de Despacho solo debe ofrecer repartidores con turno
+  // abierto EN ESE LOCAL (mismo criterio que pickActiveDriver()).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager', 'staff'])
   if (authUser instanceof Response) return authUser
 
   try {
@@ -5039,6 +5146,7 @@ app.get('/api/delivery/drivers/active', async (c) => {
       FROM driver_shifts ds
       JOIN users u ON u.id = ds.driver_id
       WHERE ds.status = 'open'
+        ${authUser.locationId ? sql`AND ds.location_id = ${authUser.locationId}` : sql``}
       ORDER BY ds.opened_at ASC
     `
     return c.json({
@@ -5060,7 +5168,8 @@ app.get('/api/delivery/drivers/active', async (c) => {
 // real de "cómo se pagó" es el pedido, resuelto casi siempre ANTES de que
 // llegue al repartidor vía ComandaPaymentPanel).
 app.get('/api/delivery/shifts', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  // 'manager' agregado + filtro por local (Fase 2 multilocal, 3-sep-2026).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager', 'staff'])
   if (authUser instanceof Response) return authUser
 
   const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '30', 10) || 30, 1), 100)
@@ -5070,6 +5179,7 @@ app.get('/api/delivery/shifts', async (c) => {
       SELECT ds.id, ds.status, ds.opened_at, ds.closed_at, u.name AS driver_name
       FROM driver_shifts ds
       JOIN users u ON u.id = ds.driver_id
+      WHERE 1=1 ${authUser.locationId ? sql`AND ds.location_id = ${authUser.locationId}` : sql``}
       ORDER BY (ds.status = 'open') DESC, ds.opened_at DESC
       LIMIT ${limit}
     `
@@ -5117,16 +5227,29 @@ app.post('/api/driver/shifts/start', async (c) => {
   const authUser = await requireSession(c, ['delivery', 'owner'])
   if (authUser instanceof Response) return authUser
 
+  // locationId (Fase 2 multilocal, 3-sep-2026) — decisión del dueño: el
+  // repartidor elige en qué local trabaja cada día. Body opcional por ahora
+  // (Drive todavía no tiene el selector, ver Fase 4) — sin él, cae al
+  // DEFAULT de la columna (Viña del Mar).
+  let body: any = {}
+  try { body = await c.req.json() } catch { /* body opcional */ }
+  const locationId = body.locationId || null
+
   try {
     const [existing] = await sql`
       SELECT id, opened_at FROM driver_shifts WHERE driver_id = ${authUser.id} AND status = 'open'
     `
     if (existing) return c.json({ ok: true, alreadyOpen: true, shift: { id: existing.id, openedAt: existing.opened_at } })
 
-    const [shift] = await sql`
-      INSERT INTO driver_shifts (driver_id, status) VALUES (${authUser.id}, 'open')
-      RETURNING id, opened_at
-    `
+    const [shift] = locationId
+      ? await sql`
+          INSERT INTO driver_shifts (driver_id, status, location_id) VALUES (${authUser.id}, 'open', ${locationId})
+          RETURNING id, opened_at
+        `
+      : await sql`
+          INSERT INTO driver_shifts (driver_id, status) VALUES (${authUser.id}, 'open')
+          RETURNING id, opened_at
+        `
     return c.json({ ok: true, shift: { id: shift.id, openedAt: shift.opened_at } })
   } catch (err) {
     console.error('Start driver shift error:', err)
@@ -5845,14 +5968,23 @@ app.post('/api/auth/register', async (c) => {
   const cargo = body.cargo || null
   const departamento = body.departamento || null
   const telefonoPersonal = body.telefonoPersonal || null
+  // locationId (Fase 2 multilocal, 3-sep-2026) — obligatorio para
+  // staff/manager/delivery (quedan atados a un local), ignorado para
+  // owner/admin (acceso cross-local siempre).
+  const locationId = body.locationId || null
 
   if (!email || !name) {
     return c.json({ error: 'Faltan campos requeridos (nombre, email)' }, 400)
   }
 
-  const VALID_ROLES = ['owner', 'admin', 'staff', 'delivery', 'viewer']
+  // 'manager' = Gerente de local (adición post-entrega, 3-sep-2026) — además
+  // de lo que ya tiene staff, puede ver/agregar/modificar Productos.
+  const VALID_ROLES = ['owner', 'admin', 'manager', 'staff', 'delivery', 'viewer']
   if (!VALID_ROLES.includes(role)) {
     return c.json({ error: 'Rol inválido' }, 400)
+  }
+  if (['staff', 'manager', 'delivery'].includes(role) && !locationId) {
+    return c.json({ error: 'Este rol necesita un local asignado' }, 400)
   }
 
   try {
@@ -5865,9 +5997,9 @@ app.post('/api/auth/register', async (c) => {
     const passwordHash = PasswordService.hashPassword(tempPassword)
 
     const [created] = await sql`
-      INSERT INTO users (email, password_hash, name, role, is_active, must_change_password, cargo, departamento, telefono_personal)
-      VALUES (${email}, ${passwordHash}, ${name}, ${role}, true, true, ${cargo}, ${departamento}, ${telefonoPersonal})
-      RETURNING id, email, name, role, is_active, cargo, departamento, telefono_personal, last_login_at, created_at
+      INSERT INTO users (email, password_hash, name, role, location_id, is_active, must_change_password, cargo, departamento, telefono_personal)
+      VALUES (${email}, ${passwordHash}, ${name}, ${role}, ${locationId}, true, true, ${cargo}, ${departamento}, ${telefonoPersonal})
+      RETURNING id, email, name, role, location_id, is_active, cargo, departamento, telefono_personal, last_login_at, created_at
     `
 
     try {
@@ -5892,6 +6024,7 @@ app.post('/api/auth/register', async (c) => {
       email: created.email,
       name: created.name,
       role: created.role,
+      locationId: created.location_id,
       cargo: created.cargo,
       departamento: created.departamento,
     })
@@ -5903,6 +6036,7 @@ app.post('/api/auth/register', async (c) => {
         email: created.email,
         name: created.name,
         role: created.role,
+        locationId: created.location_id,
         isActive: created.is_active,
         cargo: created.cargo,
         departamento: created.departamento,
@@ -6034,7 +6168,11 @@ app.get('/api/products', async (c) => {
 // en vez de un 500 por violación de constraint) y también captura el 23505 de
 // Postgres como red de seguridad ante una carrera entre el check y el insert.
 app.post('/api/products', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin'])
+  // 'manager' agregado (pedido del dueño, 3-sep-2026, Fase 2 multilocal) —
+  // Gerente de local puede ver/agregar/modificar Productos, además de lo
+  // que ya tenía staff. Queda auditado igual que owner/admin (audit_log más
+  // abajo ya lo cubre, sin cambios).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager'])
   if (authUser instanceof Response) return authUser
 
   let body: any = {}
@@ -6247,7 +6385,8 @@ app.get('/api/products/id/:id', async (c) => {
 // porque el endpoint no existe"), así que el audit log nace completo desde el
 // día uno de este endpoint.
 app.put('/api/products/:id', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin'])
+  // 'manager' agregado (pedido del dueño, 3-sep-2026, Fase 2 multilocal).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager'])
   if (authUser instanceof Response) return authUser
 
   const id = c.req.param('id')
@@ -6350,7 +6489,8 @@ app.put('/api/products/:id', async (c) => {
 // el mismo 400 INVALID_IMAGE_OPTIMIZE_REQUEST que ya se diagnosticó en S17
 // para hosts no declarados.
 app.post('/api/products/:productId/images', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin'])
+  // 'manager' agregado (pedido del dueño, 3-sep-2026, Fase 2 multilocal).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager'])
   if (authUser instanceof Response) return authUser
 
   const { productId } = c.req.param()
@@ -6415,7 +6555,8 @@ app.post('/api/products/:productId/images', async (c) => {
 // (menor sort_order) a portada, o limpia `image_url` si no queda ninguna —
 // evita dejar la portada del catálogo apuntando a un archivo que ya no existe.
 app.delete('/api/products/:productId/images/:imageId', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin'])
+  // 'manager' agregado (pedido del dueño, 3-sep-2026, Fase 2 multilocal).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager'])
   if (authUser instanceof Response) return authUser
 
   const { productId, imageId } = c.req.param()
@@ -6861,7 +7002,12 @@ app.get('/api/orders', async (c) => {
 // (nueva/preparando/lista — NO incluye en_ruta/entregada/cancelada) agrupados por
 // columna. Roles: owner/admin/staff (matriz de sección 6.1 — viewer no ve Comandas).
 app.get('/api/orders/comandas', async (c) => {
-  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  // 'manager' agregado (Fase 2 multilocal, 3-sep-2026). Filtro por local
+  // (adición del mismo cambio): owner/admin tienen locationId null → ven
+  // Comandas de TODOS los locales consolidado; manager/staff quedan
+  // restringidos al suyo — antes cualquier sesión válida veía TODO
+  // mezclado, sin distinción de local (hallazgo de la auditoría).
+  const authUser = await requireSession(c, ['owner', 'admin', 'manager', 'staff'])
   if (authUser instanceof Response) return authUser
 
   try {
@@ -6876,6 +7022,7 @@ app.get('/api/orders/comandas', async (c) => {
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN b2b_companies comp ON comp.id = o.company_id
       WHERE o.status IN ('nueva', 'preparando', 'lista')
+        ${authUser.locationId ? sql`AND o.location_id = ${authUser.locationId}` : sql``}
       GROUP BY o.id, comp.razon_social
       ORDER BY o.created_at ASC
     `
