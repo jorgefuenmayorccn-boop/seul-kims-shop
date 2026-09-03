@@ -14,7 +14,9 @@ export * from './faq'
 export * from './promotions'
 export * from './shifts'
 export * from './till-sessions'
+export * from './driver-shifts'  // NEW: reconciliado 3-sep-2026 (Fase 0 multilocal)
 export * from './delivery'
+export * from './b2b-postventa'  // NEW: reconciliado 3-sep-2026 (Fase 0 multilocal)
 export * from './loyalty'
 export * from './pos-void-events'
 export * from './email-queue-log'

@@ -2,6 +2,7 @@ import { pgTable, uuid, text, integer, decimal, timestamp, jsonb, pgEnum } from 
 import { orders } from './orders'
 import { users } from './auth'
 import { shifts } from './shifts'
+import { driverShifts } from './driver-shifts'
 
 export const deliveryStatusEnum = pgEnum('delivery_status', [
   'pending',
@@ -51,6 +52,10 @@ export const deliveryAssignments = pgTable('delivery_assignments', {
   firmaLng:            decimal('firma_lng', { precision: 9, scale: 6 }),
   createdAt:           timestamp('created_at').defaultNow(),
   updatedAt:           timestamp('updated_at').defaultNow(),
+  // Turno de repartidor vigente al momento de asignar (adición post-entrega,
+  // 3-sep-2026, migración 0026) — ver driver-shifts.ts. NULL si se asignó a
+  // un repartidor sin turno abierto (override manual).
+  driverShiftId:       uuid('driver_shift_id').references(() => driverShifts.id),
 })
 
 export const deliveryPods = pgTable('delivery_pods', {
@@ -95,7 +100,13 @@ export const deliveryPayouts = pgTable('delivery_payouts', {
   createdAt:        timestamp('created_at').defaultNow(),
 })
 
-// Turnos de repartidores (migrate-0009)
+// Turnos de repartidores (migrate-0009) — HUÉRFANA: confirmado 3-sep-2026
+// (Fase 0 del plan multilocal) que esta tabla tiene 0 filas en producción y
+// ningún endpoint la usa (grep exhaustivo sobre server.ts). El turno de
+// repartidor REAL, en uso desde el 3-sep-2026, es `driverShifts`
+// (tabla `driver_shifts`, singular) en driver-shifts.ts — nombre casi
+// idéntico, tabla distinta. No borrar sin confirmar con el equipo — se deja
+// documentada para no repetir la confusión.
 export const deliveryShifts = pgTable('delivery_shifts', {
   id:         uuid('id').primaryKey().defaultRandom(),
   driverId:   uuid('driver_id').notNull().references(() => users.id),
