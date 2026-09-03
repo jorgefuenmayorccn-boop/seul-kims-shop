@@ -306,7 +306,12 @@ export default function SettingsPage() {
         <Section title="Sistema">
           <Row label="Versión">
             <span className="font-mono text-sm" style={{ color: 'var(--color-text-muted)' }}>
-              SEUL KING OS v1.0
+              Seoul King OS V2.0
+            </span>
+          </Row>
+          <Row label="Creado por">
+            <span className="font-mono text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              VÉRTICE Productions · verticeproductions.com
             </span>
           </Row>
           <Row label="API">

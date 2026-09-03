@@ -249,7 +249,7 @@ export function ShopFooter() {
             className="font-body text-[11px]"
             style={{ color: 'var(--color-heuk)', opacity: 0.35 }}
           >
-            · Creado por VÉRTICE Productions
+            · Creado por VÉRTICE Productions · verticeproductions.com
           </span>
         </div>
       </div>

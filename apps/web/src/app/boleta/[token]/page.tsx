@@ -50,6 +50,10 @@ export default function BoletaPage({ params }: { params: { token: string } }) {
             </a>
           </p>
         </div>
+
+        <p className="text-[10px] text-center mt-6 opacity-40 text-[var(--color-text-secondary)]">
+          Seoul King OS V2.0 · Creado por VÉRTICE Productions · verticeproductions.com
+        </p>
       </div>
     </div>
   )

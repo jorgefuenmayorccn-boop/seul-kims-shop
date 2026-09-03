@@ -114,6 +114,9 @@ export default function LoginPage() {
           <p className="font-body text-xs text-text-muted">
             3 intentos fallidos bloquean la cuenta por 15 min
           </p>
+          <p className="font-mono text-[9px] text-text-muted opacity-60 mt-2">
+            Seoul King OS V2.0 · Creado por VÉRTICE Productions · verticeproductions.com
+          </p>
         </div>
       </div>
     </div>

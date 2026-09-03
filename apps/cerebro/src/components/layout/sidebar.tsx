@@ -72,7 +72,7 @@ export function Sidebar({ user }: Props) {
         >
           <Menu size={20} />
         </button>
-        <Link href="/dashboard" className="font-headline font-bold text-brand text-sm">SEUL KING OS</Link>
+        <Link href="/dashboard" className="font-headline font-bold text-brand text-sm">Seoul King OS</Link>
         <div className="w-8" />
       </div>
 
@@ -92,8 +92,8 @@ export function Sidebar({ user }: Props) {
       )}>
         <div className="px-5 py-4 border-b border-[var(--color-border)] flex items-center justify-between">
           <Link href="/dashboard">
-            <p className="font-headline font-bold text-brand text-lg leading-tight">SEUL KING OS</p>
-            <p className="font-mono text-[10px] text-text-muted tracking-widest">V1.0</p>
+            <p className="font-headline font-bold text-brand text-lg leading-tight">Seoul King OS</p>
+            <p className="font-mono text-[10px] text-text-muted tracking-widest">V2.0</p>
           </Link>
           <button
             type="button"
@@ -153,7 +153,7 @@ export function Sidebar({ user }: Props) {
             <LogOut size={12} />
             Cerrar sesión
           </button>
-          <p className="text-[9px] text-text-muted font-mono mt-3 opacity-40">Creado por VÉRTICE Productions</p>
+          <p className="text-[9px] text-text-muted font-mono mt-3 opacity-40">Creado por VÉRTICE Productions · verticeproductions.com</p>
         </div>
       </aside>
     </>

@@ -141,6 +141,10 @@ export default function SeguimientoPage({ params }: { params: { id: string } }) 
             </div>
           </div>
         )}
+
+        <p className="text-[10px] text-center mt-6 opacity-40" style={{ color: 'var(--color-text-secondary,#888)' }}>
+          Seoul King OS V2.0 · Creado por VÉRTICE Productions · verticeproductions.com
+        </p>
       </div>
     </div>
   )

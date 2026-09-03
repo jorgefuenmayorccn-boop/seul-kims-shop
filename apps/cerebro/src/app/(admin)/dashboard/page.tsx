@@ -16,7 +16,7 @@ async function DashboardContent() {
         <div>
           <h1 className="font-headline text-2xl font-bold text-text">Dashboard</h1>
           <p className="text-xs text-text-muted font-mono mt-0.5">
-            SEUL KING OS V1.0 · Viña del Mar ·{' '}
+            Seoul King OS V2.0 ·{' '}
             {stats.generatedAt ? new Date(stats.generatedAt).toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' }) : '—'}
           </p>
         </div>

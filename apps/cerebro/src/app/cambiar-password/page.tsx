@@ -235,7 +235,10 @@ export default function CambiarPasswordPage() {
         </Suspense>
 
         <p className="text-center text-[10px] font-mono mt-6" style={{ color: 'var(--color-text-disabled)' }}>
-          SEUL KING OS v1.0 · Seguridad de acceso
+          Seoul King OS V2.0 · Seguridad de acceso
+        </p>
+        <p className="text-center text-[9px] font-mono mt-1 opacity-60" style={{ color: 'var(--color-text-disabled)' }}>
+          Creado por VÉRTICE Productions · verticeproductions.com
         </p>
       </div>
     </div>

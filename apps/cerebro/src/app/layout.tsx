@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import '../styles/globals.css'
 
 export const metadata: Metadata = {
-  title: { default: 'SEUL KING OS V1.0', template: '%s | SEUL KING OS' },
-  description: 'Panel administrativo SEUL KING OS V1.0',
+  title: { default: 'Seoul King OS V2.0', template: '%s | Seoul King OS' },
+  description: 'Panel administrativo Seoul King OS V2.0 · Creado por VÉRTICE Productions (verticeproductions.com)',
   robots: 'noindex, nofollow',
 }
 

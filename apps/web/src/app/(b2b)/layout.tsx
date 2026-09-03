@@ -43,7 +43,7 @@ export default function B2BLayout({ children }: { children: React.ReactNode }) {
       <footer className="mt-16 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-8 text-center text-xs text-[var(--color-text-secondary)]">
         <p>SEUL SHOP @seulshopcl — Portal Mayorista · Viña del Mar, Chile</p>
         <p className="mt-1">Consultas: <a href="mailto:contacto@seoulshop.cl" className="underline hover:text-[var(--color-brand)]">contacto@seoulshop.cl</a></p>
-        <p className="mt-2 opacity-50">Creado por VÉRTICE Productions</p>
+        <p className="mt-2 opacity-50">Creado por VÉRTICE Productions · verticeproductions.com</p>
       </footer>
     </div>
   )

@@ -118,7 +118,7 @@ export default function LoginPage() {
 
         <div className="mb-8 text-center">
           <p className="font-korean font-black text-3xl text-brand">서울킴스</p>
-          <p className="font-headline font-bold text-lg mt-1 text-text">SEUL KING OS V1.0</p>
+          <p className="font-headline font-bold text-lg mt-1 text-text">Seoul King OS V2.0</p>
           <p className="text-xs font-mono mt-0.5 text-text-muted">Panel Administrativo</p>
         </div>
 
@@ -127,7 +127,10 @@ export default function LoginPage() {
         </Suspense>
 
         <p className="text-center text-[10px] font-mono mt-6 text-text-disabled">
-          SEUL KING OS v1.0 · Acceso restringido
+          Seoul King OS V2.0 · Acceso restringido
+        </p>
+        <p className="text-center text-[9px] font-mono mt-1 text-text-disabled opacity-60">
+          Creado por VÉRTICE Productions · verticeproductions.com
         </p>
       </div>
     </div>

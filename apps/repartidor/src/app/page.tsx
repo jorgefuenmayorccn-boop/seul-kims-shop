@@ -103,6 +103,9 @@ function LoginScreen({ onLogin }: { onLogin: (d: Driver) => void }) {
           {loading ? 'Ingresando…' : 'Ingresar'}
         </button>
       </form>
+      <p className="font-mono text-[9px] mt-10 opacity-50 text-center" style={{ color: 'var(--color-text-muted)' }}>
+        Seoul King OS V2.0 · Creado por VÉRTICE Productions · verticeproductions.com
+      </p>
     </div>
   )
 }
@@ -684,6 +687,10 @@ function PerfilTab({
         <LogOut size={16} />
         {loggingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
       </button>
+
+      <p className="font-mono text-[9px] mt-4 opacity-50 text-center" style={{ color: 'var(--color-text-muted)' }}>
+        Seoul King OS V2.0 · Creado por VÉRTICE Productions · verticeproductions.com
+      </p>
     </div>
   )
 }
