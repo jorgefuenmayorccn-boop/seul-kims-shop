@@ -711,6 +711,22 @@ async function runMigrationsIfNeeded() {
       `
       console.log('✅ Migration 0025 applied')
     }
+
+    // 0026 — delivery_assignments.driver_shift_id (adición post-entrega,
+    // 3-sep-2026): vínculo explícito al turno vigente al momento de asignar
+    // — mismo criterio que orders.shiftId en POS (FK explícita, no inferida
+    // por rango de fechas). Es lo que permite armar el resumen de cobros por
+    // turno en GET /api/delivery/shifts sin adivinar qué entregas cayeron
+    // dentro de qué turno.
+    const driverShiftIdExists = await sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'delivery_assignments' AND column_name = 'driver_shift_id'
+    `
+    if (driverShiftIdExists.length === 0) {
+      console.log('🔄 Running migration 0026 (delivery_assignments.driver_shift_id)...')
+      await sql`ALTER TABLE delivery_assignments ADD COLUMN IF NOT EXISTS driver_shift_id UUID REFERENCES driver_shifts(id)`
+      console.log('✅ Migration 0026 applied')
+    }
   } catch (e) {
     console.warn('⚠️  Migration check failed (OK if already applied):', e)
   }
@@ -3202,31 +3218,14 @@ app.post('/api/orders/:id/ready', async (c) => {
 
     await sql`UPDATE orders SET ready_at = NOW(), updated_at = NOW() WHERE id = ${id}`
 
-    // Auto-asignación de repartidor (adición post-entrega, 3-sep-2026 — pedido
-    // explícito del dueño: "cuando le dé listo se asigne el delivery, según
-    // los que estén activos en ese turno"). Solo aplica a 'metro' — 'pickup'
-    // lo retira el propio cliente, no necesita repartidor. La fila en
-    // delivery_assignments ya existe (se auto-crea al hacer el pedido, fix de
-    // la sesión anterior); acá solo se le busca conductor si sigue 'pending'
-    // sin asignar. Si nadie tiene turno abierto, queda igual que hoy —
-    // 'pending' sin repartidor, para que el staff la asigne a mano desde
-    // Despacho (red de seguridad, nunca bloquea "marcar listo").
-    if (order.delivery_mode === 'metro') {
-      try {
-        const [pendingAssignment] = await sql`
-          SELECT id FROM delivery_assignments
-          WHERE order_id = ${id} AND status = 'pending' AND driver_id IS NULL
-        `
-        if (pendingAssignment) {
-          const driverId = await pickActiveDriver()
-          if (driverId) await assignDriverToAssignment(pendingAssignment.id, driverId)
-        }
-      } catch (assignErr) {
-        // Nunca bloquear "marcar listo" por un error de auto-asignación —
-        // la entrega queda pending, el staff la asigna a mano.
-        console.error('Auto-assign driver on ready error:', assignErr)
-      }
-    }
+    // Auto-asignación de repartidor — se deja también acá por si algún día
+    // se llama sin pasar por el cambio de status (idempotente, ver
+    // autoAssignDriverIfPending). El gancho REAL que de verdad se usa hoy
+    // vive en handleOrderStatusUpdate (ver abajo) — ni cerebro ni POS llaman
+    // a este endpoint desde el Kanban, usan PATCH .../status arrastrando la
+    // tarjeta (hallazgo del 3-sep-2026: por eso la primera versión de este
+    // gancho, puesta solo acá, nunca se disparó en producción).
+    await autoAssignDriverIfPending(id, order.delivery_mode)
 
     let place = 'nuestra tienda'
     if (order.delivery_mode === 'metro') {
@@ -3257,6 +3256,31 @@ app.post('/api/orders/:id/ready', async (c) => {
   }
 })
 
+// Auto-asignación de repartidor al pasar un pedido a "lista" (adición
+// post-entrega, 3-sep-2026). Cubre 'metro' y 'delivery' (el delivery propio
+// que se carga desde POS) — ambos ya tienen su fila en delivery_assignments
+// creada automáticamente al hacer el pedido (fix de la sesión anterior);
+// acá solo se le busca conductor si sigue 'pending' sin asignar. 'pickup'
+// (retira el propio cliente) y 'shipping' (Chilexpress, no usa repartidor
+// propio) no llaman esto. Si nadie tiene turno abierto, la entrega queda
+// 'pending' igual que hoy — el staff la asigna a mano desde Despacho, nunca
+// bloquea el flujo de marcar listo.
+async function autoAssignDriverIfPending(orderId: string, deliveryMode: string) {
+  if (!['metro', 'delivery'].includes(deliveryMode)) return
+  try {
+    const [pendingAssignment] = await sql`
+      SELECT id FROM delivery_assignments
+      WHERE order_id = ${orderId} AND status = 'pending' AND driver_id IS NULL
+    `
+    if (pendingAssignment) {
+      const driverId = await pickActiveDriver()
+      if (driverId) await assignDriverToAssignment(pendingAssignment.id, driverId)
+    }
+  } catch (assignErr) {
+    console.error('Auto-assign driver error:', assignErr)
+  }
+}
+
 // POST /api/orders/:id/status
 // También registrado como PATCH: apps/cerebro/.../comandas/page.tsx (drag-and-drop
 // del Kanban, agregado en S04) llama PATCH en vez de POST — mismo handler, dos
@@ -3281,11 +3305,23 @@ async function handleOrderStatusUpdate(c: any) {
     const [order] = await sql`
       UPDATE orders SET status = ${status}, updated_at = NOW()
       WHERE id = ${id}
-      RETURNING id, number, guest_email,
+      RETURNING id, number, guest_email, delivery_mode,
         (SELECT email FROM customers WHERE id = orders.customer_id) AS customer_email
     `
 
     if (!order) return c.json({ error: 'Order not found' }, 404)
+
+    // Auto-asignación de repartidor (adición post-entrega, 3-sep-2026 —
+    // pedido explícito del dueño: "cuando le dé listo se asigne el
+    // delivery, según los que estén activos en ese turno"). ESTE es el
+    // gancho real — arrastrar la tarjeta a "Lista" en el Kanban (cerebro Y
+    // POS) es lo único que ambos frontends de verdad llaman; la primera
+    // versión de este gancho vivía solo en POST .../ready (el botón
+    // "marcar listo para retirar"), que nunca se usa desde el Kanban — por
+    // eso nunca se disparó en producción pese a estar desplegado.
+    if (status === 'lista') {
+      await autoAssignDriverIfPending(order.id, order.delivery_mode)
+    }
 
     const resolvedEmail = customer_email || order.guest_email || order.customer_email
 
@@ -4631,9 +4667,17 @@ app.get('/api/delivery/assignments', async (c) => {
 // para ComandaPaymentPanel: un solo lugar de verdad, no dos copias que se
 // puedan desincronizar.
 async function assignDriverToAssignment(assignmentId: string, driverId: string): Promise<boolean> {
+  // driver_shift_id (adición post-entrega, 3-sep-2026): vínculo explícito al
+  // turno abierto del repartidor EN ESTE MOMENTO — así el resumen de cobros
+  // por turno (GET /api/delivery/shifts) sabe exactamente qué entregas caen
+  // en qué turno, sin inferirlo por rango de fechas. NULL si se asigna a un
+  // repartidor sin turno abierto (override manual fuera de turno).
+  const [openShift] = await sql`SELECT id FROM driver_shifts WHERE driver_id = ${driverId} AND status = 'open'`
+
   const [assignment] = await sql`
     UPDATE delivery_assignments
-    SET driver_id = ${driverId}, status = 'assigned', assigned_at = NOW(), updated_at = NOW()
+    SET driver_id = ${driverId}, status = 'assigned', assigned_at = NOW(),
+        driver_shift_id = ${openShift?.id ?? null}, updated_at = NOW()
     WHERE id = ${assignmentId}
     RETURNING id
   `
@@ -4747,6 +4791,58 @@ app.get('/api/delivery/drivers/active', async (c) => {
     })
   } catch (err) {
     console.error('List active drivers error:', err)
+    return c.json({ error: 'Error' }, 500)
+  }
+})
+
+// GET /api/delivery/shifts — historial de turnos de repartidor (adición
+// post-entrega, 3-sep-2026 — el dueño pidió ver, al cerrar turno, cuánto
+// cobró cada repartidor por método de pago). Mismo patrón que
+// GET /api/shifts/history (turnos de caja POS): abiertos primero, luego
+// cerrados por fecha. El desglose por método viene de orders.payment_method
+// — NO de delivery_assignments.payment_method (ese campo es solo para cobro
+// contra-entrega/COD y el repartidor siempre manda 'cash' ahí; la fuente
+// real de "cómo se pagó" es el pedido, resuelto casi siempre ANTES de que
+// llegue al repartidor vía ComandaPaymentPanel).
+app.get('/api/delivery/shifts', async (c) => {
+  const authUser = await requireSession(c, ['owner', 'admin', 'staff'])
+  if (authUser instanceof Response) return authUser
+
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '30', 10) || 30, 1), 100)
+
+  try {
+    const shifts = await sql`
+      SELECT ds.id, ds.status, ds.opened_at, ds.closed_at, u.name AS driver_name
+      FROM driver_shifts ds
+      JOIN users u ON u.id = ds.driver_id
+      ORDER BY (ds.status = 'open') DESC, ds.opened_at DESC
+      LIMIT ${limit}
+    `
+    if (shifts.length === 0) return c.json({ shifts: [] })
+
+    const deliveries = await sql`
+      SELECT da.driver_shift_id, o.payment_method, o.total
+      FROM delivery_assignments da
+      JOIN orders o ON o.id = da.order_id
+      WHERE da.status = 'delivered' AND da.driver_shift_id = ANY(${shifts.map((s: any) => s.id)})
+    `
+
+    return c.json({
+      shifts: shifts.map((s: any) => {
+        const rows = deliveries.filter((d: any) => d.driver_shift_id === s.id)
+        const byMethod: Record<string, number> = {}
+        for (const r of rows) {
+          const key = r.payment_method ?? 'sin_metodo'
+          byMethod[key] = (byMethod[key] ?? 0) + Number(r.total)
+        }
+        return {
+          id: s.id, status: s.status, openedAt: s.opened_at, closedAt: s.closed_at,
+          driverName: s.driver_name, deliveredCount: rows.length, byMethod,
+        }
+      }),
+    })
+  } catch (err) {
+    console.error('Delivery shifts history error:', err)
     return c.json({ error: 'Error' }, 500)
   }
 })

@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Tag, Package, ClipboardList, Shield, Settings, LogOut, ShoppingCart, Globe, Users, Users2, Truck, Clock, Building2, History, Menu, X } from 'lucide-react'
+import { LayoutDashboard, Tag, Package, ClipboardList, Shield, Settings, LogOut, ShoppingCart, Globe, Users, Users2, Truck, Clock, Building2, History, Menu, X, Bike } from 'lucide-react'
 import { cn } from '@seul/ui'
 import type { SessionUser } from '@/lib/types'
 
@@ -21,6 +21,7 @@ const nav: { href: string; label: string; icon: typeof LayoutDashboard; roles: R
   { href: '/comandas',   label: 'Comandas',   icon: ClipboardList,   roles: ['owner', 'admin', 'staff'] },
   { href: '/clientes',   label: 'Clientes',   icon: Users2,          roles: ['owner', 'admin', 'staff'] },
   { href: '/despacho',   label: 'Despacho',   icon: Truck,           roles: ['owner', 'admin', 'staff'] },
+  { href: '/turnos-delivery', label: 'Turnos Delivery', icon: Bike,  roles: ['owner', 'admin', 'staff'] },
   { href: '/turnos',     label: 'Turnos',     icon: Clock,           roles: ['owner', 'admin', 'staff'] },
   { href: '/b2b/solicitudes', label: 'B2B Crédito', icon: Building2, roles: ['owner', 'admin'] },
   { href: '/usuarios',   label: 'Usuarios',   icon: Users,           roles: ['owner'] },
