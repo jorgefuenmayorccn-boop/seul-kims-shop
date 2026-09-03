@@ -67,3 +67,18 @@
   --pdf-chars-per-line:  42;
   --pdf-font-size-pt:    8pt;
 }
+
+/* POS — pedido explícito del dueño de adaptar las 4 apps a mobile/tablet
+   (3-sep-2026). El diseño de 3 columnas fijas (categorías/catálogo/carrito)
+   se mantiene tal cual — es correcto para el uso real (tablet 10"/12" fija
+   en el mostrador, CLAUDE.md) y tocarlo sería riesgoso en un sistema de
+   venta en vivo. Solo se angosta el riel de categorías en tablets más
+   chicas o en portrait, para no comerse tanto espacio proporcional del
+   catálogo/carrito — las etiquetas de categoría siguen visibles, solo con
+   menos aire alrededor. */
+@media (max-width: 820px) {
+  :root {
+    --pos-category-width: 152px;
+  }
+}
+

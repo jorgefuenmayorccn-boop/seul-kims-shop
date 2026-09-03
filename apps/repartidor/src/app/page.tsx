@@ -587,7 +587,7 @@ function HistorialTab({ assignments }: { assignments: Assignment[] }) {
   )
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
           <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
