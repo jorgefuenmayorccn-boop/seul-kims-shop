@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**SEUL KING OS v1.0** — Sistema operativo completo para Seoul Kims (@@seulshopcl), tienda de productos coreanos en Viña del Mar, Chile.
+**SEOUL KING OS v1.0** — Sistema operativo completo para Seoul Shop (@seoulshopcl), tienda de productos coreanos en Viña del Mar, Chile.
 
 El sistema es un monorepo con 6 canales que comparten un único backend ("El Cerebro"): POS (caja), Tienda B2C, Portal B2B, Dashboard operacional, Logística (Rappi + Metro Merval), y Asistente IA (v1.4+).
 
@@ -84,7 +84,7 @@ La API maneja:
 
 1. `primitives.css` — valores brutos (`--red-500: #d7263d`)
 2. `semantic.css` — roles (`--color-brand: var(--red-500)`)
-3. `business.css` — dominio Seoul Kims (`--color-baes-eligible`, `--color-cold-frozen`, `--color-dte-failed`, etc.)
+3. `business.css` — dominio Seoul Shop (`--color-baes-eligible`, `--color-cold-frozen`, `--color-dte-failed`, etc.)
 
 El Tailwind config en `packages/tailwind-config/index.ts` mapea los tokens CSS a clases utilitarias (`text-brand`, `bg-cold-frozen`, `text-expiry-urgent`, etc.).
 
@@ -97,7 +97,7 @@ El Tailwind config en `packages/tailwind-config/index.ts` mapea los tokens CSS a
 - `BadgeExpiry` — semáforo vencimiento calculado desde fecha
 - `BadgeNutrition` — sellos "Alto En" (Ley 20.606)
 - `StatusPill` — estado comanda + estado DTE
-- `EmptyState` — estados vacíos con copy Seoul Kims
+- `EmptyState` — estados vacíos con copy Seoul Shop
 - `WhatsAppCTA` — 3 variantes: floating, inline, button
 
 Componentes channel-specific se importan por subpath:
@@ -167,7 +167,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8787   # URL de @seul/api
 DATABASE_URL=          # mismo Neon (para SSR directo si aplica)
 ```
 
-## Pending decisions (confirm with Seoul Kims owner)
+## Pending decisions (confirm with Seoul Shop owner)
 
 - `tiendaConfig.metro_station_name` — estación Merval principal para retiros
 - `tiendaConfig.dte_provider` — Bsale / Toku / Haulmer (bloqueante para Fase 1)

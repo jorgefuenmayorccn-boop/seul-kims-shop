@@ -1,4 +1,4 @@
-// Seoul Kims — Print Agent v1.0
+// Seoul Shop — Print Agent v1.0
 // Escucha en 127.0.0.1:9101 — envía tickets ESC/POS a impresora térmica
 // Compatible: Epson TM-T20, TM-T82, TM-T88, Bixolon SRP-350, Star TSP143
 
@@ -107,7 +107,7 @@ const server = http.createServer(async (req, res) => {
 })
 
 server.listen(PORT, HOST, () => {
-  console.log(`\n Seoul Kims Print Agent v1.0`)
+  console.log(`\n Seoul Shop Print Agent v1.0`)
   console.log(` Escuchando en http://${HOST}:${PORT}`)
   console.log(` Impresora: ${config.printerType} via ${config.interface}`)
   console.log(` CORS: http://localhost:3001\n`)

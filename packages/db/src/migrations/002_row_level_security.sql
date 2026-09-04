@@ -60,7 +60,7 @@ $$ LANGUAGE SQL STABLE;
 
 -- 10. Insertar tenant por defecto
 INSERT INTO tenants (id, name, slug) VALUES
-  ('default-tenant', 'Seoul Kims - Viña del Mar', 'seoul-kims-vina')
+  ('default-tenant', 'Seoul Shop - Viña del Mar', 'seoul-shop-vina')
 ON CONFLICT DO NOTHING;
 
 -- Índices para performance

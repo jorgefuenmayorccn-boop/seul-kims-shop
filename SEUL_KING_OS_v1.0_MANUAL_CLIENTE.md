@@ -1,6 +1,6 @@
 # Seoul King OS V2.0 — Manual del Cliente
 
-**Seoul Kims** · Viña del Mar, Chile
+**Seoul Shop** · Viña del Mar, Chile
 **Versión del sistema:** V2.0 · **Fecha de entrega:** 3 de septiembre de 2026
 **Creado por:** VÉRTICE Productions · verticeproductions.com
 
@@ -10,10 +10,10 @@
 
 1. [Qué es Seoul King OS — Misión y Visión](#1-qué-es-seoul-king-os--misión-y-visión)
 2. [Proyección a futuro](#2-proyección-a-futuro)
-3. [Guía de uso — SEUL SHOP (la tienda online)](#3-guía-de-uso--seul-shop-la-tienda-online)
+3. [Guía de uso — SEOUL SHOP (la tienda online)](#3-guía-de-uso--seoul-shop-la-tienda-online)
 4. [Guía de uso — Seoul King OS (el panel administrativo)](#4-guía-de-uso--seoul-king-os-el-panel-administrativo)
-5. [Guía de uso — SEUL POS (la caja)](#5-guía-de-uso--seul-pos-la-caja)
-6. [Guía de uso — SEUL DRIVE (el repartidor)](#6-guía-de-uso--seul-drive-el-repartidor)
+5. [Guía de uso — SEOUL POS (la caja)](#5-guía-de-uso--seoul-pos-la-caja)
+6. [Guía de uso — SEOUL DRIVE (el repartidor)](#6-guía-de-uso--seoul-drive-el-repartidor)
 7. [Cómo se crean los usuarios del sistema](#7-cómo-se-crean-los-usuarios-del-sistema)
 8. [Checklist de entrega](#8-checklist-de-entrega)
 9. [Cómo activar el despacho automático por Rappi (Rappi Cargo)](#9-cómo-activar-el-despacho-automático-por-rappi-rappi-cargo)
@@ -22,11 +22,11 @@
 
 ## 1. Qué es Seoul King OS — Misión y Visión
 
-Seoul Kims es una tienda de productos coreanos en Viña del Mar. Antes de este sistema, operar el negocio significaba coordinar varias piezas sueltas al mismo tiempo: un cuaderno o una caja registradora aparte para las ventas del mostrador, mensajes de WhatsApp para los pedidos, una planilla para el inventario, y ninguna forma centralizada de saber, en un momento dado, cuánto se vendió hoy, qué se está por vencer, o dónde está un pedido que salió a domicilio.
+Seoul Shop es una tienda de productos coreanos en Viña del Mar. Antes de este sistema, operar el negocio significaba coordinar varias piezas sueltas al mismo tiempo: un cuaderno o una caja registradora aparte para las ventas del mostrador, mensajes de WhatsApp para los pedidos, una planilla para el inventario, y ninguna forma centralizada de saber, en un momento dado, cuánto se vendió hoy, qué se está por vencer, o dónde está un pedido que salió a domicilio.
 
-**Seoul King OS V2.0 es el sistema operativo completo de Seoul Kims.** No es una caja registradora ni una página web sueltas — es una sola plataforma que conecta todo el ciclo del negocio: la venta en el mostrador, la tienda online, el inventario con sus fechas de vencimiento, la preparación de cada pedido, el despacho a domicilio, y el control de caja al final del turno. Todo vive en un mismo lugar, con la misma información, vista en tiempo real desde cuatro aplicaciones distintas según quién la esté usando — el dueño, la cajera, o el repartidor.
+**Seoul King OS V2.0 es el sistema operativo completo de Seoul Shop.** No es una caja registradora ni una página web sueltas — es una sola plataforma que conecta todo el ciclo del negocio: la venta en el mostrador, la tienda online, el inventario con sus fechas de vencimiento, la preparación de cada pedido, el despacho a domicilio, y el control de caja al final del turno. Todo vive en un mismo lugar, con la misma información, vista en tiempo real desde cuatro aplicaciones distintas según quién la esté usando — el dueño, la cajera, o el repartidor.
 
-**La misión del sistema es simple: que Seoul Kims pueda operar como una tienda moderna, sin depender de papel, de sistemas sueltos que no se hablan entre sí, ni de la memoria de una sola persona.** Cada venta, cada pedido y cada movimiento de caja queda registrado automáticamente, disponible para revisión en cualquier momento — hoy, mañana, o dentro de un año.
+**La misión del sistema es simple: que Seoul Shop pueda operar como una tienda moderna, sin depender de papel, de sistemas sueltos que no se hablan entre sí, ni de la memoria de una sola persona.** Cada venta, cada pedido y cada movimiento de caja queda registrado automáticamente, disponible para revisión en cualquier momento — hoy, mañana, o dentro de un año.
 
 **La visión es que este sistema crezca junto con el negocio.** Lo que se entrega en esta versión (V2.0) ya cubre la operación diaria completa: vender en mostrador, vender online, preparar comandas, despachar pedidos, controlar turnos de caja, gestionar inventario y usuarios, operar más de un local desde un solo sistema, y mantener un registro de auditoría de todo lo que ocurre. Es una base sólida sobre la que se pueden construir las siguientes etapas sin tener que rehacer nada de lo ya construido.
 
@@ -52,9 +52,9 @@ Ninguna de estas etapas requiere reconstruir el sistema actual: todas están pen
 
 ---
 
-## 3. Guía de uso — SEUL SHOP (la tienda online)
+## 3. Guía de uso — SEOUL SHOP (la tienda online)
 
-**SEUL SHOP** es la tienda online de Seoul Kims, donde cualquier persona puede ver el catálogo completo y comprar sin necesidad de ir físicamente a la tienda.
+**SEOUL SHOP** es la tienda online de Seoul Shop, donde cualquier persona puede ver el catálogo completo y comprar sin necesidad de ir físicamente a la tienda.
 
 ### Cómo compra un cliente
 
@@ -77,7 +77,7 @@ Desde "Mi cuenta → Mis pedidos", un cliente registrado puede ver el historial 
 
 ### Portal mayorista (B2B)
 
-Seoul Kims también atiende a clientes mayoristas (almacenes, restaurantes, otros negocios) a través de un portal separado dentro de la misma tienda:
+Seoul Shop también atiende a clientes mayoristas (almacenes, restaurantes, otros negocios) a través de un portal separado dentro de la misma tienda:
 
 - Una empresa se registra indicando su razón social y RUT.
 - Una vez aprobada, accede a un **catálogo con precios mayoristas especiales**, distintos a los precios de venta al público.
@@ -110,13 +110,13 @@ Muestra el stock real de cada producto, organizado en lotes con su fecha de venc
 
 ### Comandas
 
-Es el tablero donde se ve cada pedido nuevo — venga de la caja, de la tienda online o de un mayorista, del local que corresponda — y su estado de preparación: **Nueva → Preparando → Lista**. El personal mueve cada pedido de una columna a otra a medida que avanza en su preparación. Esta misma información también está disponible dentro de SEUL POS para que la cajera no tenga que salir de la caja para verla.
+Es el tablero donde se ve cada pedido nuevo — venga de la caja, de la tienda online o de un mayorista, del local que corresponda — y su estado de preparación: **Nueva → Preparando → Lista**. El personal mueve cada pedido de una columna a otra a medida que avanza en su preparación. Esta misma información también está disponible dentro de SEOUL POS para que la cajera no tenga que salir de la caja para verla.
 
 ### Despacho
 
 Desde aquí se asignan los pedidos que van a domicilio a un repartidor. Se puede:
 - Ver todos los pedidos pendientes de despacho, del local correspondiente.
-- Asignar un repartidor propio (que use SEUL DRIVE) a un pedido — o dejar que el sistema lo asigne automáticamente al repartidor con turno abierto y menos entregas en curso, apenas se marca un pedido como listo.
+- Asignar un repartidor propio (que use SEOUL DRIVE) a un pedido — o dejar que el sistema lo asigne automáticamente al repartidor con turno abierto y menos entregas en curso, apenas se marca un pedido como listo.
 - Registrar un despacho hecho por un servicio externo como Rappi.
 - Revisar las liquidaciones de pago de cada repartidor por su turno de trabajo.
 
@@ -156,9 +156,9 @@ Solo visible para el dueño. Aquí se configura cada local del negocio: nombre, 
 
 ---
 
-## 5. Guía de uso — SEUL POS (la caja)
+## 5. Guía de uso — SEOUL POS (la caja)
 
-**SEUL POS** es el punto de venta que usa la cajera en el mostrador de la tienda, diseñado para pantalla táctil.
+**SEOUL POS** es el punto de venta que usa la cajera en el mostrador de la tienda, diseñado para pantalla táctil.
 
 ### Abrir turno y caja
 
@@ -187,9 +187,9 @@ Al finalizar el turno, la cajera cierra la caja. El sistema genera un resumen (i
 
 ---
 
-## 6. Guía de uso — SEUL DRIVE (el repartidor)
+## 6. Guía de uso — SEOUL DRIVE (el repartidor)
 
-**SEUL DRIVE** es la aplicación que usa el repartidor propio de Seoul Kims para gestionar sus entregas a domicilio, pensada para usarse desde el celular.
+**SEOUL DRIVE** es la aplicación que usa el repartidor propio de Seoul Shop para gestionar sus entregas a domicilio, pensada para usarse desde el celular.
 
 ### Iniciar y terminar turno
 
@@ -221,12 +221,12 @@ Si una entrega no se pudo completar (dirección no encontrada, cliente ausente, 
 
 ## 7. Cómo se crean los usuarios del sistema
 
-El acceso a **Seoul King OS**, **SEUL POS** y **SEUL DRIVE** está restringido — solo puede entrar quien tenga una cuenta creada por el dueño del negocio. Así funciona el proceso, de principio a fin:
+El acceso a **Seoul King OS**, **SEOUL POS** y **SEOUL DRIVE** está restringido — solo puede entrar quien tenga una cuenta creada por el dueño del negocio. Así funciona el proceso, de principio a fin:
 
 1. **El dueño (rol Owner) crea el usuario nuevo** desde Seoul King OS → Usuarios, indicando su nombre, correo electrónico, rol (Owner, Administrador, Gerente de local, Cajero/a, Repartidor, o Solo lectura, según lo que esa persona necesite ver y hacer) y, si el rol lo requiere, el local al que queda asignado.
 2. **El sistema genera una contraseña temporal** de forma automática y se la envía a esa persona por correo electrónico, junto con sus datos de acceso.
 3. **En su primer ingreso**, la persona inicia sesión con esa contraseña temporal, y el sistema le **exige obligatoriamente crear una contraseña nueva y propia** antes de dejarla continuar. La contraseña temporal deja de servir después de ese primer cambio.
-4. **Desde ese momento**, esa persona entra normalmente con su correo y su propia contraseña — en Seoul King OS si es personal administrativo, en SEUL POS si es cajero/a, o en SEUL DRIVE si es repartidor (el mismo usuario puede tener acceso a más de una aplicación, según su rol).
+4. **Desde ese momento**, esa persona entra normalmente con su correo y su propia contraseña — en Seoul King OS si es personal administrativo, en SEOUL POS si es cajero/a, o en SEOUL DRIVE si es repartidor (el mismo usuario puede tener acceso a más de una aplicación, según su rol).
 
 Los roles disponibles y lo que cada uno puede ver:
 
@@ -235,8 +235,8 @@ Los roles disponibles y lo que cada uno puede ver:
 | **Owner (Dueño)** | Acceso completo a todo el sistema, en todos los locales, sin restricciones. |
 | **Administrador** | Acceso a toda la operación diaria en todos los locales, excepto Usuarios y Seguridad. |
 | **Gerente de local** | Como Cajero/a, más Productos e Inventario — atado a un local específico. |
-| **Cajero/a (Staff)** | Solo Comandas, Despacho, Turnos y Clientes, más SEUL POS — atado a un local específico. |
-| **Repartidor** | Solo SEUL DRIVE — no tiene acceso al panel administrativo. Elige en qué local trabaja cada turno. |
+| **Cajero/a (Staff)** | Solo Comandas, Despacho, Turnos y Clientes, más SEOUL POS — atado a un local específico. |
+| **Repartidor** | Solo SEOUL DRIVE — no tiene acceso al panel administrativo. Elige en qué local trabaja cada turno. |
 | **Solo lectura** | Solo puede ver el Dashboard, sin poder modificar nada. |
 
 Si en algún momento una persona deja de trabajar en el negocio, el dueño la **desactiva** desde Usuarios — su acceso se corta de inmediato, pero su historial de acciones pasadas se conserva en la Auditoría (no se borra nada, por trazabilidad).
@@ -254,7 +254,7 @@ La contraseña de cada cuenta se envió por correo electrónico al momento de la
 
 ### Los correos oficiales del negocio
 
-Además de las cuentas de acceso al sistema, Seoul Kims tiene 2 correos públicos de contacto — estos **no son cuentas de acceso a Seoul King OS**, son las direcciones que cualquier persona puede usar para escribirle al negocio:
+Además de las cuentas de acceso al sistema, Seoul Shop tiene 2 correos públicos de contacto — estos **no son cuentas de acceso a Seoul King OS**, son las direcciones que cualquier persona puede usar para escribirle al negocio:
 
 | Correo | Para qué |
 |---|---|
@@ -267,17 +267,17 @@ Además de las cuentas de acceso al sistema, Seoul Kims tiene 2 correos público
 
 ## 8. Checklist de entrega
 
-Esto es lo que Seoul Kims recibe con Seoul King OS V2.0, verificado y funcionando en un navegador real antes de la entrega:
+Esto es lo que Seoul Shop recibe con Seoul King OS V2.0, verificado y funcionando en un navegador real antes de la entrega:
 
-- [x] **SEUL SHOP** (tienda online) — catálogo, ficha de producto, carrito, checkout como invitado o con cuenta, registro y login de cliente, historial de pedidos en tiempo real, seguimiento de pedido sin cuenta.
+- [x] **SEOUL SHOP** (tienda online) — catálogo, ficha de producto, carrito, checkout como invitado o con cuenta, registro y login de cliente, historial de pedidos en tiempo real, seguimiento de pedido sin cuenta.
 - [x] **Seoul King OS** (panel administrativo) — Dashboard, Productos (crear/editar), Inventario, Comandas, Despacho, Turnos, Turnos Delivery, Clientes, B2B Crédito, Usuarios, Seguridad, Auditoría, Ajustes.
-- [x] **SEUL POS** (caja) — apertura de turno y caja, cobro de venta con emisión de Nota de Venta, comandas dentro de caja con confirmación de pago e impresión, anulación de venta con PIN, cierre de caja con informe Z.
-- [x] **SEUL DRIVE** (repartidor) — turno por local, mis entregas, aceptar viaje, asignación automática, actualización de estado en vivo, ubicación en tiempo real, foto de comprobante de entrega, reporte de fallas.
+- [x] **SEOUL POS** (caja) — apertura de turno y caja, cobro de venta con emisión de Nota de Venta, comandas dentro de caja con confirmación de pago e impresión, anulación de venta con PIN, cierre de caja con informe Z.
+- [x] **SEOUL DRIVE** (repartidor) — turno por local, mis entregas, aceptar viaje, asignación automática, actualización de estado en vivo, ubicación en tiempo real, foto de comprobante de entrega, reporte de fallas.
 - [x] **Portal mayorista (B2B)** — registro de empresa, catálogo con precios especiales, solicitud de línea de crédito, estado de cuenta.
 - [x] **Sistema multilocal** — modelo de datos y permisos por local, autoprovisioning de locales nuevos desde Ajustes, sin límite de sucursales.
 - [x] **Comprobante de venta (Nota de Venta)** — funcionando en cada venta de caja y en cada pedido de la tienda online, con los datos del local correspondiente, y aviso claro de que no es un documento tributario, a la espera de la conexión con el Servicio de Impuestos Internos en la siguiente etapa.
 - [x] **Registro de auditoría** — trazabilidad completa de las acciones sensibles del sistema (usuarios, precios, inventario, configuración).
-- [x] **Base de datos entregada limpia** — solo el catálogo real de productos, entregada con las 2 cuentas oficiales del negocio ya creadas (dueño y gerente de local, ver sección 7), lista para que el dueño real de Seoul Kims agregue desde ahí a cajeros y repartidores cuando lo necesite.
+- [x] **Base de datos entregada limpia** — solo el catálogo real de productos, entregada con las 2 cuentas oficiales del negocio ya creadas (dueño y gerente de local, ver sección 7), lista para que el dueño real de Seoul Shop agregue desde ahí a cajeros y repartidores cuando lo necesite.
 
 ### Soporte post-entrega
 
@@ -291,11 +291,11 @@ Hoy, el despacho por Rappi está temporalmente desactivado en el checkout (ver s
 
 Rappi tiene un servicio pensado exactamente para esto — se llama **Rappi Cargo** — que permite que cualquier negocio use la flota de repartidores de Rappi conectándose directamente desde su propio sistema, sin pasar por la app de Rappi como comercio del marketplace. Es un producto distinto al de "vender en la app de Rappi" — es solo el servicio de despacho.
 
-**Esto lo tiene que gestionar el dueño de Seoul Kims directamente con Rappi — es una relación comercial entre el negocio y Rappi, nosotros no podemos solicitarla en su nombre.** Una vez que el dueño consiga la clave de acceso, nosotros nos encargamos de toda la conexión técnica — no hace falta que nadie más del equipo entienda nada técnico de esto.
+**Esto lo tiene que gestionar el dueño de Seoul Shop directamente con Rappi — es una relación comercial entre el negocio y Rappi, nosotros no podemos solicitarla en su nombre.** Una vez que el dueño consiga la clave de acceso, nosotros nos encargamos de toda la conexión técnica — no hace falta que nadie más del equipo entienda nada técnico de esto.
 
 ### Qué debe hacer el dueño, paso a paso
 
-1. **Contactar al equipo comercial de Rappi Cargo.** Se solicita directamente con Rappi — el canal más simple es a través del ejecutivo de cuenta de Rappi (si Seoul Kims ya tiene una relación comercial con Rappi por otro motivo) o a través de los canales de contacto para negocios que Rappi tenga publicados en ese momento. Como estos canales cambian con el tiempo, lo más seguro es buscar directamente "Rappi Cargo Chile" o "Rappi para negocios" y pedir hablar con el equipo comercial — ellos guían todo el proceso de alta.
+1. **Contactar al equipo comercial de Rappi Cargo.** Se solicita directamente con Rappi — el canal más simple es a través del ejecutivo de cuenta de Rappi (si Seoul Shop ya tiene una relación comercial con Rappi por otro motivo) o a través de los canales de contacto para negocios que Rappi tenga publicados en ese momento. Como estos canales cambian con el tiempo, lo más seguro es buscar directamente "Rappi Cargo Chile" o "Rappi para negocios" y pedir hablar con el equipo comercial — ellos guían todo el proceso de alta.
 
 2. **Indicar que es para uso vía API** (integración directa con un sistema propio), no para gestionar pedidos manualmente desde una app de Rappi. Esto es importante decirlo explícitamente, porque Rappi ofrece ambas modalidades y cada una tiene un proceso distinto.
 

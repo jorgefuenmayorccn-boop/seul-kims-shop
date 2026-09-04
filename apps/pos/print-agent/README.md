@@ -1,4 +1,4 @@
-# Seoul Kims Print Agent
+# Seoul Shop Print Agent
 
 Agente local de impresión ESC/POS para el POS. Escucha en `http://127.0.0.1:9101`.
 
