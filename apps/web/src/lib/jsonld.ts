@@ -22,7 +22,7 @@ export function localBusinessJsonLd() {
       '@type': 'OpeningHoursSpecification',
       dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
     },
-    sameAs: ['https://www.instagram.com/seulshopcl'],
+    sameAs: ['https://www.instagram.com/seoulshopcl'],
   }
 }
 

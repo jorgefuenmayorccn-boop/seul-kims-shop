@@ -140,7 +140,7 @@ function PrintContent() {
       <div className="center small">Gracias por su compra</div>
       <div className="center small">또 오세요 — Vuelva pronto</div>
       <div className="spacer" />
-      <div className="center small">@seulshopcl</div>
+      <div className="center small">@seoulshopcl</div>
       <div className="spacer" />
       <div className="center small">* Documento sin valor tributario *</div>
       <div className="center small">Boleta electronica disponible pronto</div>

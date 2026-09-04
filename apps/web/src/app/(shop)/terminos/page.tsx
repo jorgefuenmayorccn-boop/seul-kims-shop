@@ -147,7 +147,7 @@ export default function TerminosPage() {
             <h2 className="font-headline font-bold text-base mb-3" style={{ opacity: 1 }}>10. Contacto</h2>
             <p>Para consultas sobre estos Términos, contáctanos en:</p>
             <ul className="mt-2 space-y-1 pl-4 list-disc">
-              <li>Correo electrónico: contacto@seoulshop.cl</li>
+              <li>Correo electrónico: hola@seoulshop.cl</li>
               <li>Viña del Mar, Región de Valparaíso, Chile</li>
             </ul>
           </section>

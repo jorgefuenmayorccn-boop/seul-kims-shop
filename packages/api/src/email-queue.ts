@@ -104,7 +104,7 @@ export const templates = {
       <p>Antes de comenzar a prepararlo, nos vamos a comunicar contigo para coordinar el método de pago (transferencia, o pago en efectivo/Transbank al momento de la entrega o retiro).</p>
       <p>En cuanto quede coordinado el pago, tu pedido pasa a preparación y te avisaremos de su avance.</p>
       <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | contacto@seoulshop.cl</p>
+      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | hola@seoulshop.cl</p>
     </div>
   `,
   // Adición post-entrega (3-sep-2026) — misma confirmación de arriba, pero
@@ -129,7 +129,7 @@ export const templates = {
         </p>
       </div>
       <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | contacto@seoulshop.cl</p>
+      <p style="color: #888; font-size: 12px;">Seoul Shop Viña del Mar | hola@seoulshop.cl</p>
     </div>
   `,
   orderStatus: (order: any, status: string, eta?: string) => `
@@ -149,7 +149,7 @@ export const templates = {
       <p>Válida hasta: ${quote.validUntilAt}</p>
       <p>Contacta con nosotros para aceptar o discutir.</p>
       <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-      <p style="color: #888; font-size: 12px;">Seoul Shop B2B | b2b@seoulshop.cl</p>
+      <p style="color: #888; font-size: 12px;">Seoul Shop B2B | ventas@seoulshop.cl</p>
     </div>
   `,
   deliveryPhoto: (order: any) => `

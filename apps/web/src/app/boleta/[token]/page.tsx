@@ -43,7 +43,7 @@ export default function BoletaPage({ params }: { params: { token: string } }) {
           <p className="text-xs text-[var(--color-text-secondary)]">
             ¿Problemas con tu boleta?{' '}
             <a
-              href="mailto:contacto@seoulshop.cl"
+              href="mailto:hola@seoulshop.cl"
               className="underline hover:text-[var(--color-brand)]"
             >
               Escríbenos por correo

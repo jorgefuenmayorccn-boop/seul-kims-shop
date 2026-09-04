@@ -247,8 +247,8 @@ function LocationConfigForm({ locationId }: { locationId: string }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {field('phone', 'Teléfono', '+56 9 XXXX XXXX')}
           {field('whatsapp', 'WhatsApp', '+56 9 XXXX XXXX')}
-          {field('instagram', 'Instagram', '@seulshopcl')}
-          {field('email', 'Correo', 'contacto@seoulshop.cl', 'email')}
+          {field('instagram', 'Instagram', '@seoulshopcl')}
+          {field('email', 'Correo', 'hola@seoulshop.cl', 'email')}
         </div>
       </div>
 

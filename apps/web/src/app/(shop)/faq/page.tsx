@@ -11,7 +11,7 @@ interface FaqEntry {
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8787'
 
 const STATIC_FAQ: FaqEntry[] = [
-  { id: 's1', category: 'Pedidos', question: '¿Cómo puedo hacer un pedido?', answer: 'Puedes pedir directamente en nuestra tienda online, seleccionando tus productos y eligiendo el método de entrega. Si tienes dudas, escríbenos a contacto@seoulshop.cl y te ayudamos a gestionar tu pedido.' },
+  { id: 's1', category: 'Pedidos', question: '¿Cómo puedo hacer un pedido?', answer: 'Puedes pedir directamente en nuestra tienda online, seleccionando tus productos y eligiendo el método de entrega. Si tienes dudas, escríbenos a hola@seoulshop.cl y te ayudamos a gestionar tu pedido.' },
   { id: 's2', category: 'Pedidos', question: '¿Puedo modificar o cancelar un pedido?', answer: 'Puedes modificar o cancelar tu pedido dentro de los 30 minutos siguientes a su confirmación. Pasado ese plazo, el pedido ya está en preparación y no es posible hacer cambios.' },
   { id: 's3', category: 'Envíos', question: '¿Cuáles son los métodos de entrega?', answer: 'Ofrecemos: (1) Retiro gratis en Estación Miramar del Merval, (2) Retiro en tienda, (3) Despacho por Chilexpress para el resto de Chile (solo productos sin cadena de frío). El delivery express está temporalmente no disponible.' },
   { id: 's4', category: 'Envíos', question: '¿Despachan productos congelados o refrigerados a regiones?', answer: 'No. Los productos con cadena de frío (congelados y refrigerados) solo se pueden retirar en tienda o por retiro en Estación Merval, dentro de la zona de cobertura del Gran Valparaíso. Esto es para garantizar la calidad del producto.' },
@@ -19,10 +19,10 @@ const STATIC_FAQ: FaqEntry[] = [
   { id: 's6', category: 'Productos', question: '¿Tienen productos veganos o sin gluten?', answer: 'Tenemos algunos productos aptos para dietas veganas o sin gluten. Filtra por alérgenos en nuestra tienda o escríbenos por correo para orientarte según tus necesidades.' },
   { id: 's7', category: 'Pagos', question: '¿Qué medios de pago aceptan?', answer: 'Aceptamos tarjetas de débito y crédito (Visa, Mastercard, American Express), transferencia bancaria y pago en efectivo al retirar en tienda. Para pedidos Rappi, el pago se gestiona directamente en la app.' },
   { id: 's8', category: 'Pagos', question: '¿Puedo usar tarjeta JUNAEB (TNE)?', answer: 'Sí, en nuestra tienda física (POS). Los productos elegibles BAES están marcados. El sistema valida automáticamente los montos aplicables al subsidio JUNAEB.' },
-  { id: 's9', category: 'Privacidad', question: '¿Cómo protegen mis datos personales?', answer: 'Cumplimos con la Ley 21.719 de Protección de Datos Personales de Chile. Tus datos se utilizan exclusivamente para gestionar tus pedidos y, si diste tu consentimiento, para enviarte comunicaciones de marketing. Puedes ejercer tus derechos de acceso, rectificación y supresión en cualquier momento desde tu cuenta o enviando un correo a contacto@seoulshop.cl.' },
+  { id: 's9', category: 'Privacidad', question: '¿Cómo protegen mis datos personales?', answer: 'Cumplimos con la Ley 21.719 de Protección de Datos Personales de Chile. Tus datos se utilizan exclusivamente para gestionar tus pedidos y, si diste tu consentimiento, para enviarte comunicaciones de marketing. Puedes ejercer tus derechos de acceso, rectificación y supresión en cualquier momento desde tu cuenta o enviando un correo a hola@seoulshop.cl.' },
   { id: 's10', category: 'Privacidad', question: '¿Cómo puedo eliminar mi cuenta?', answer: 'Puedes solicitar la eliminación de tu cuenta desde tu perfil en "Mi Cuenta". Tu información se anonimizará en un plazo de 15 días hábiles, conservando solo los registros contables obligatorios por ley.' },
   { id: 's11', category: 'Devoluciones', question: '¿Cuál es la política de devoluciones?', answer: 'Aceptamos devoluciones dentro de los 10 días hábiles desde la recepción del producto, siempre que esté en su estado original y sellado. Productos perecederos o refrigerados no tienen devolución salvo defecto de fábrica. Inicia tu solicitud en /devoluciones.' },
-  { id: 's12', category: 'Devoluciones', question: '¿Qué hago si recibí un producto en mal estado?', answer: 'Toma fotos del producto y del embalaje, y contáctanos en las primeras 24 horas a contacto@seoulshop.cl. Te reponemos el producto o te hacemos el reembolso total según prefieras.' },
+  { id: 's12', category: 'Devoluciones', question: '¿Qué hago si recibí un producto en mal estado?', answer: 'Toma fotos del producto y del embalaje, y contáctanos en las primeras 24 horas a hola@seoulshop.cl. Te reponemos el producto o te hacemos el reembolso total según prefieras.' },
 ]
 
 async function getFaqEntries(): Promise<FaqEntry[]> {
@@ -90,7 +90,7 @@ export default async function FaqPage() {
           </p>
         </div>
         <a
-          href="mailto:contacto@seoulshop.cl"
+          href="mailto:hola@seoulshop.cl"
           className="shrink-0 px-8 py-4 font-body font-semibold text-sm tracking-widest"
           style={{
             background: 'var(--color-brand)',

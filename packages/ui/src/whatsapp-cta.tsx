@@ -8,7 +8,7 @@ interface WhatsAppCTAProps {
   className?: string
 }
 
-const SEUL_WA_NUMBER = '56936451991'
+const SEUL_WA_NUMBER = '56948785299'
 
 export function WhatsAppCTA({
   phone = SEUL_WA_NUMBER,

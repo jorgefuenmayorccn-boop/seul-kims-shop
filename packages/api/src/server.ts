@@ -390,7 +390,7 @@ async function runMigrationsIfNeeded() {
       console.log('🔄 Running migration 0018 (seed faq_entries)...')
 
       const seed: Array<{ q: string; a: string; cat: string }> = [
-        { cat: 'Pedidos', q: '¿Cómo puedo hacer un pedido?', a: 'Puedes pedir directamente en nuestra tienda online, seleccionando tus productos y eligiendo el método de entrega. Si tienes dudas, escríbenos a contacto@seoulshop.cl y te ayudamos a gestionar tu pedido.' },
+        { cat: 'Pedidos', q: '¿Cómo puedo hacer un pedido?', a: 'Puedes pedir directamente en nuestra tienda online, seleccionando tus productos y eligiendo el método de entrega. Si tienes dudas, escríbenos a hola@seoulshop.cl y te ayudamos a gestionar tu pedido.' },
         { cat: 'Pedidos', q: '¿Puedo modificar o cancelar un pedido?', a: 'Puedes modificar o cancelar tu pedido dentro de los 30 minutos siguientes a su confirmación. Pasado ese plazo, el pedido ya está en preparación y no es posible hacer cambios.' },
         { cat: 'Envíos', q: '¿Cuáles son los métodos de entrega?', a: 'Ofrecemos: (1) Retiro gratis en Estación Miramar del Merval, (2) Retiro en tienda, (3) Despacho por Chilexpress para el resto de Chile (solo productos sin cadena de frío). El delivery express está temporalmente no disponible.' },
         { cat: 'Envíos', q: '¿Despachan productos congelados o refrigerados a regiones?', a: 'No. Los productos con cadena de frío (congelados y refrigerados) solo se pueden retirar en tienda o por retiro en Estación Merval, dentro de la zona de cobertura del Gran Valparaíso. Esto es para garantizar la calidad del producto.' },
@@ -398,10 +398,10 @@ async function runMigrationsIfNeeded() {
         { cat: 'Productos', q: '¿Tienen productos veganos o sin gluten?', a: 'Tenemos algunos productos aptos para dietas veganas o sin gluten. Filtra por alérgenos en nuestra tienda o escríbenos por correo para orientarte según tus necesidades.' },
         { cat: 'Pagos', q: '¿Qué medios de pago aceptan?', a: 'Aceptamos tarjetas de débito y crédito (Visa, Mastercard, American Express), transferencia bancaria y pago en efectivo al retirar en tienda. Para pedidos Rappi, el pago se gestiona directamente en la app.' },
         { cat: 'Pagos', q: '¿Puedo usar tarjeta JUNAEB (TNE)?', a: 'Sí, en nuestra tienda física (POS). Los productos elegibles BAES están marcados. El sistema valida automáticamente los montos aplicables al subsidio JUNAEB.' },
-        { cat: 'Privacidad', q: '¿Cómo protegen mis datos personales?', a: 'Cumplimos con la Ley 21.719 de Protección de Datos Personales de Chile. Tus datos se utilizan exclusivamente para gestionar tus pedidos y, si diste tu consentimiento, para enviarte comunicaciones de marketing. Puedes ejercer tus derechos de acceso, rectificación y supresión en cualquier momento desde tu cuenta o enviando un correo a contacto@seoulshop.cl.' },
+        { cat: 'Privacidad', q: '¿Cómo protegen mis datos personales?', a: 'Cumplimos con la Ley 21.719 de Protección de Datos Personales de Chile. Tus datos se utilizan exclusivamente para gestionar tus pedidos y, si diste tu consentimiento, para enviarte comunicaciones de marketing. Puedes ejercer tus derechos de acceso, rectificación y supresión en cualquier momento desde tu cuenta o enviando un correo a hola@seoulshop.cl.' },
         { cat: 'Privacidad', q: '¿Cómo puedo eliminar mi cuenta?', a: 'Puedes solicitar la eliminación de tu cuenta desde tu perfil en "Mi Cuenta". Tu información se anonimizará en un plazo de 15 días hábiles, conservando solo los registros contables obligatorios por ley.' },
         { cat: 'Devoluciones', q: '¿Cuál es la política de devoluciones?', a: 'Aceptamos devoluciones dentro de los 10 días hábiles desde la recepción del producto, siempre que esté en su estado original y sellado. Productos perecederos o refrigerados no tienen devolución salvo defecto de fábrica. Inicia tu solicitud en /devoluciones.' },
-        { cat: 'Devoluciones', q: '¿Qué hago si recibí un producto en mal estado?', a: 'Toma fotos del producto y del embalaje, y contáctanos en las primeras 24 horas a contacto@seoulshop.cl. Te reponemos el producto o te hacemos el reembolso total según prefieras.' },
+        { cat: 'Devoluciones', q: '¿Qué hago si recibí un producto en mal estado?', a: 'Toma fotos del producto y del embalaje, y contáctanos en las primeras 24 horas a hola@seoulshop.cl. Te reponemos el producto o te hacemos el reembolso total según prefieras.' },
       ]
       for (let i = 0; i < seed.length; i++) {
         const e = seed[i]
@@ -6037,45 +6037,6 @@ app.post('/api/admin/api-keys', (c) => apiKeysController.create(c))
 app.get('/api/admin/api-keys', (c) => apiKeysController.list(c))
 app.post('/api/admin/api-keys/:id/revoke', (c) => apiKeysController.revoke(c))
 
-// Admin: Seed test users (development only)
-app.post('/api/admin/seed/users', async (c) => {
-  if (process.env.ENVIRONMENT !== 'development') {
-    return c.json({ error: 'Only available in development' }, 403)
-  }
-
-  const TEST_USERS = [
-    { email: 'founder@seoulshop.cl', password: 'Seoul2025!Founder', name: 'Fundador Seoul Kims', role: 'owner' },
-    { email: 'gerente@seoulshop.cl', password: 'Seoul2025!Gerente', name: 'Gerente Operacional', role: 'admin' },
-    { email: 'repartidor.test@seoulshop.cl', password: 'Seoul2025!Repartidor', name: 'Repartidor de Prueba', role: 'delivery' },
-  ]
-
-  try {
-    const results = []
-    for (const user of TEST_USERS) {
-      const passwordHash = PasswordService.hashPassword(user.password)
-      const existing = await sql`SELECT id FROM users WHERE email = ${user.email}`
-
-      if (existing.length > 0) {
-        results.push({ email: user.email, status: 'exists' })
-        continue
-      }
-
-      const [inserted] = await sql`
-        INSERT INTO users (email, password_hash, name, role, is_active)
-        VALUES (${user.email}, ${passwordHash}, ${user.name}, ${user.role}, true)
-        RETURNING id, email, name, role
-      `
-
-      results.push({ email: inserted.email, status: 'created', id: inserted.id })
-    }
-
-    return c.json({ ok: true, results })
-  } catch (err: any) {
-    console.error('Seed error:', err)
-    return c.json({ error: err.message }, 500)
-  }
-})
-
 // ============================================================================
 // LEGACY ENDPOINTS
 // ============================================================================
@@ -7451,7 +7412,7 @@ app.post('/api/arcop', async (c) => {
     return c.json({ ok: true, requestId: created.id, deadline: created.deadline })
   } catch (err) {
     console.error('ARCOP create error:', err)
-    return c.json({ ok: false, error: 'No se pudo registrar la solicitud. Intenta de nuevo o escríbenos a contacto@seoulshop.cl.' }, 500)
+    return c.json({ ok: false, error: 'No se pudo registrar la solicitud. Intenta de nuevo o escríbenos a hola@seoulshop.cl.' }, 500)
   }
 })
 
@@ -7529,7 +7490,7 @@ app.post('/api/returns', async (c) => {
     if (err?.code === '22P02') {
       return c.json({ error: 'ID de pedido inválido.' }, 400)
     }
-    return c.json({ error: 'No se pudo registrar la devolución. Escríbenos a contacto@seoulshop.cl.' }, 500)
+    return c.json({ error: 'No se pudo registrar la devolución. Escríbenos a hola@seoulshop.cl.' }, 500)
   }
 })
 

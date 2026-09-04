@@ -78,8 +78,8 @@ async function FeaturedProducts() {
         </p>
         <p className="font-body text-sm mt-2" style={{ color: 'var(--color-heuk)', opacity: 0.5 }}>
           Escríbenos a{' '}
-          <a href="mailto:contacto@seoulshop.cl" className="underline" style={{ color: 'var(--color-brand)' }}>
-            contacto@seoulshop.cl
+          <a href="mailto:hola@seoulshop.cl" className="underline" style={{ color: 'var(--color-brand)' }}>
+            hola@seoulshop.cl
           </a>{' '}
           y te ayudamos de inmediato
         </p>

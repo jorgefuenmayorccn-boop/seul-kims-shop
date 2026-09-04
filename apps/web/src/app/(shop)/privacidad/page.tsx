@@ -78,7 +78,7 @@ export default function PrivacidadPage() {
           )}
           <p className="mt-4 text-xs text-[var(--color-text-secondary)]">
             Te responderemos al email indicado. Si tienes dudas, escríbenos a{' '}
-            <a href="mailto:contacto@seoulshop.cl" className="underline text-[var(--color-brand)]">contacto@seoulshop.cl</a>
+            <a href="mailto:hola@seoulshop.cl" className="underline text-[var(--color-brand)]">hola@seoulshop.cl</a>
           </p>
         </div>
       ) : (

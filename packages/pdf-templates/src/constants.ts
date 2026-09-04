@@ -16,10 +16,10 @@ export const THERMAL_80MM = {
 
 export const STORE_INFO = {
   name: 'SEOUL KIMS',
-  address: 'CONFIRMAR CON DUEÑO',  // Av. Libertad XXXX, Viña del Mar
-  rut: 'XX.XXX.XXX-X',            // RUT real del negocio
+  address: 'Alvarez 646, local 103, Viña del Mar',
+  rut: 'XX.XXX.XXX-X',            // RUT real del negocio — pendiente de confirmar
   giro: 'COMERCIO AL POR MENOR',
-  phone: '+56 9 XXXX XXXX',
-  ig: '@seulshopcl',
+  phone: '+56 9 4878 5299',
+  ig: '@seoulshopcl',
   web: 'seoulshop.cl',
 } as const

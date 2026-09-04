@@ -68,7 +68,7 @@ export default function LoginPage() {
               type="email"
               autoComplete="email"
               required
-              placeholder="cajera@seoulshop.cl"
+              placeholder="alianzas@seoulshop.cl"
               className="w-full px-3 py-2.5 rounded text-sm font-body outline-none focus:ring-2 focus:ring-brand bg-surface border-2 border-[var(--color-border-strong)] text-text"
             />
           </div>

@@ -7,7 +7,7 @@ import * as crypto from 'crypto'
 
 export const RESEND_KEY = process.env.RESEND_API_KEY || ''
 
-export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@seoulshop.cl'
+export const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'ventas@seoulshop.cl'
 
 // JWT_SECRET must never silently fall back to a hardcoded value in production —
 // that hardcoded value lives in this file's git history, so a silent fallback

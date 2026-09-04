@@ -160,7 +160,7 @@ export function renderDeliveryPayoutHtml(data: DeliveryPayoutData): string {
 
     <div class="footer">
       Emitido: ${fmt(data.issuedAt ?? new Date().toISOString())}<br/>
-      Documento interno — Seoul Kims @seulshopcl
+      Documento interno — Seoul Kims @seoulshopcl
     </div>
   `
   return htmlShell(`Liquidación — ${data.driverName}`, body, CSS)

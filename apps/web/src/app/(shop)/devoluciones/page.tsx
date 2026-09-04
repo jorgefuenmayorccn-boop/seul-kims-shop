@@ -33,7 +33,7 @@ export default function DevolucionesPage() {
       const data = await res.json() as typeof result
       setResult(data)
     } catch {
-      setResult({ error: 'Error de conexión. Escríbenos a contacto@seoulshop.cl.' })
+      setResult({ error: 'Error de conexión. Escríbenos a hola@seoulshop.cl.' })
     } finally {
       setLoading(false)
     }
@@ -62,7 +62,7 @@ export default function DevolucionesPage() {
         </p>
         <p>
           ¿Necesitas ayuda urgente?{' '}
-          <a href="mailto:contacto@seoulshop.cl" className="underline text-[var(--color-brand)]">Escríbenos por correo</a>.
+          <a href="mailto:hola@seoulshop.cl" className="underline text-[var(--color-brand)]">Escríbenos por correo</a>.
         </p>
       </div>
 

@@ -241,6 +241,28 @@ Los roles disponibles y lo que cada uno puede ver:
 
 Si en algún momento una persona deja de trabajar en el negocio, el dueño la **desactiva** desde Usuarios — su acceso se corta de inmediato, pero su historial de acciones pasadas se conserva en la Auditoría (no se borra nada, por trazabilidad).
 
+### Las 2 cuentas oficiales entregadas
+
+Seoul King OS V2.0 se entrega con las 2 cuentas oficiales del negocio ya creadas y listas para usar — el dueño no necesita crear estas dos, solo las que agregue a su equipo desde acá en adelante (cajeros, repartidores, etc.):
+
+| Correo | Rol | Acceso |
+|---|---|---|
+| `admi@seoulshop.cl` | Owner (Dueño) | Acceso completo, todos los locales |
+| `alianzas@seoulshop.cl` | Gerente de local | Viña del Mar — puede ver el POS, agregar productos y modificarlos |
+
+La contraseña de cada cuenta se envió por correo electrónico al momento de la entrega. En el primer ingreso, el sistema exige crear una contraseña propia — el mismo proceso descrito arriba para cualquier usuario nuevo.
+
+### Los correos oficiales del negocio
+
+Además de las cuentas de acceso al sistema, Seoul Kims tiene 2 correos públicos de contacto — estos **no son cuentas de acceso a Seoul King OS**, son las direcciones que cualquier persona puede usar para escribirle al negocio:
+
+| Correo | Para qué |
+|---|---|
+| `hola@seoulshop.cl` | Contacto general — es el correo que ve cualquier visitante de la tienda online (footer, preguntas frecuentes, términos, política de privacidad, boletas). |
+| `ventas@seoulshop.cl` | Ventas y consultas mayoristas — cotizaciones B2B, y también recibe automáticamente los avisos internos del sistema (pedido nuevo, solicitud de crédito, devolución, reclamo). |
+
+> **Importante:** `admi@seoulshop.cl` y `alianzas@seoulshop.cl` son cuentas de acceso al sistema — no deben publicarse como correos de contacto. Los correos públicos del negocio son `hola@` y `ventas@`.
+
 ---
 
 ## 8. Checklist de entrega
@@ -255,7 +277,7 @@ Esto es lo que Seoul Kims recibe con Seoul King OS V2.0, verificado y funcionand
 - [x] **Sistema multilocal** — modelo de datos y permisos por local, autoprovisioning de locales nuevos desde Ajustes, sin límite de sucursales.
 - [x] **Comprobante de venta (Nota de Venta)** — funcionando en cada venta de caja y en cada pedido de la tienda online, con los datos del local correspondiente, y aviso claro de que no es un documento tributario, a la espera de la conexión con el Servicio de Impuestos Internos en la siguiente etapa.
 - [x] **Registro de auditoría** — trazabilidad completa de las acciones sensibles del sistema (usuarios, precios, inventario, configuración).
-- [x] **Base de datos entregada limpia** — solo el catálogo real de productos, lista para que el dueño real de Seoul Kims cree las cuentas de su equipo desde cero.
+- [x] **Base de datos entregada limpia** — solo el catálogo real de productos, entregada con las 2 cuentas oficiales del negocio ya creadas (dueño y gerente de local, ver sección 7), lista para que el dueño real de Seoul Kims agregue desde ahí a cajeros y repartidores cuando lo necesite.
 
 ### Soporte post-entrega
 

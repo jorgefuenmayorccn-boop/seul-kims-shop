@@ -53,7 +53,7 @@ export function ChatWidget() {
     } catch {
       setMessages(prev => [...prev, {
         role:    'assistant',
-        content: 'Error de conexión. Puedes escribirnos directo al WhatsApp: +56 9 3645 1991',
+        content: 'Error de conexión. Puedes escribirnos directo al WhatsApp: +56 9 4878 5299',
       }])
     } finally {
       setLoading(false)
@@ -138,7 +138,7 @@ export function ChatWidget() {
             </div>
 
             <a
-              href="https://wa.me/56936451991"
+              href="https://wa.me/56948785299"
               target="_blank"
               rel="noopener noreferrer"
               className="mt-2 flex items-center justify-center gap-1 text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-brand)]"

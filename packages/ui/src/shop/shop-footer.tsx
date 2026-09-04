@@ -157,11 +157,11 @@ export function ShopFooter() {
           </p>
           <div className="flex items-center gap-6">
             <a
-              href="https://instagram.com/seulshopcl"
+              href="https://instagram.com/seoulshopcl"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 group"
-              aria-label="Instagram @seulshopcl"
+              aria-label="Instagram @seoulshopcl"
             >
               <Instagram
                 size={18}
@@ -172,12 +172,12 @@ export function ShopFooter() {
                 className="font-body text-[10px] tracking-wide hidden sm:block group-hover:opacity-80 transition-opacity"
                 style={{ color: 'var(--color-heuk)', opacity: 0.45, letterSpacing: '0.08em' }}
               >
-                @seulshopcl
+                @seoulshopcl
               </span>
             </a>
 
             <a
-              href="mailto:contacto@seoulshop.cl"
+              href="mailto:hola@seoulshop.cl"
               className="flex items-center gap-2 group"
               aria-label="Email SEUL SHOP"
             >
@@ -190,7 +190,7 @@ export function ShopFooter() {
                 className="font-body text-[10px] tracking-wide hidden sm:block group-hover:opacity-80 transition-opacity"
                 style={{ color: 'var(--color-heuk)', opacity: 0.45, letterSpacing: '0.08em' }}
               >
-                contacto@seoulshop.cl
+                hola@seoulshop.cl
               </span>
             </a>
           </div>
