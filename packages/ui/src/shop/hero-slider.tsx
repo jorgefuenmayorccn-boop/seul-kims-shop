@@ -12,7 +12,7 @@ interface Slide {
   accent?:     string   // color del texto
 }
 
-// Slides Seoul Kims — copy real
+// Slides Seoul Shop — copy real
 export const SEUL_SLIDES: Slide[] = [
   {
     id: '1',

@@ -14,7 +14,7 @@ interface Message {
 
 const GREETING: Message = {
   role:    'assistant',
-  content: '¡Annyeong! Soy el asistente de Seoul Kims. ¿En qué puedo ayudarte hoy? Puedo orientarte sobre productos, delivery o tu subsidio BAES.',
+  content: '¡Annyeong! Soy el asistente de Seoul Shop. ¿En qué puedo ayudarte hoy? Puedo orientarte sobre productos, delivery o tu subsidio BAES.',
 }
 
 export function ChatWidget() {
@@ -83,7 +83,7 @@ export function ChatWidget() {
             <div className="flex items-center gap-2">
               <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '0.05em', opacity: 0.9 }}>KR</span>
               <div>
-                <p className="text-sm font-bold">Asistente Seoul Kims</p>
+                <p className="text-sm font-bold">Asistente Seoul Shop</p>
                 <p className="text-xs opacity-80">Responde en segundos</p>
               </div>
             </div>

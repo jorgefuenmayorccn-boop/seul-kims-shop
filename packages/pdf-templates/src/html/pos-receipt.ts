@@ -278,7 +278,7 @@ ${storeFooter(p.storeInfo)}
 `
 
   return htmlShell(
-    `Comprobante #${padNum(p.number)} · Seoul Kims`,
+    `Comprobante #${padNum(p.number)} · Seoul Shop`,
     body,
     RECEIPT_CSS,
   )

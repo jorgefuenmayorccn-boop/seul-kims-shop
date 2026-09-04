@@ -38,7 +38,7 @@ export function CategoryBubble({ name, slug, emoji, active }: CategoryBubbleProp
   )
 }
 
-// Categorías Seoul Kims — datos estáticos + query a API
+// Categorías Seoul Shop — datos estáticos + query a API
 export const SEUL_CATEGORIES = [
   { slug: 'ramen',        name: 'Ramen',              emoji: '🍜' },
   { slug: 'kimchi',       name: 'Kimchi & Fermentados', emoji: '🥬' },

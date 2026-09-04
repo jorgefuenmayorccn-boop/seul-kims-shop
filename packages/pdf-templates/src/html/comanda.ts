@@ -203,7 +203,7 @@ export function renderComandaHtml(c: ComandaPayload): string {
   const body = `
 <div class="comanda-header">
   <div>
-    <div class="brand-mini">Seoul Kims</div>
+    <div class="brand-mini">Seoul Shop</div>
     <div style="font-size:9px;color:${INK[300]};margin-top:2px;">서울킴스 · Comanda</div>
   </div>
   <div class="channel-pill">
@@ -232,7 +232,7 @@ ${noteHtml}
 `
 
   return htmlShell(
-    `Comanda #${c.number} · Seoul Kims`,
+    `Comanda #${c.number} · Seoul Shop`,
     body,
     COMANDA_CSS,
   )

@@ -4,8 +4,8 @@ import { BookOpen } from 'lucide-react'
 import { B2BAuthNav } from '@/components/b2b/b2b-auth-nav'
 
 export const metadata: Metadata = {
-  title: 'Portal B2B — SEUL SHOP',
-  description: 'Portal mayorista SEUL SHOP — precios netos, crédito y gestión de pedidos',
+  title: 'Portal B2B — SEOUL SHOP',
+  description: 'Portal mayorista SEOUL SHOP — precios netos, crédito y gestión de pedidos',
 }
 
 export default function B2BLayout({ children }: { children: React.ReactNode }) {
@@ -15,7 +15,7 @@ export default function B2BLayout({ children }: { children: React.ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-3">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold tracking-tight text-[var(--color-brand)]">SEUL SHOP</span>
+            <span className="text-xl font-bold tracking-tight text-[var(--color-brand)]">SEOUL SHOP</span>
             <span className="rounded bg-[var(--color-brand)]/10 px-1.5 py-0.5 text-xs font-semibold text-[var(--color-brand)]">B2B</span>
           </Link>
 
@@ -41,7 +41,7 @@ export default function B2BLayout({ children }: { children: React.ReactNode }) {
       </main>
 
       <footer className="mt-16 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-6 py-8 text-center text-xs text-[var(--color-text-secondary)]">
-        <p>SEUL SHOP @seoulshopcl — Portal Mayorista · Viña del Mar, Chile</p>
+        <p>SEOUL SHOP @seoulshopcl — Portal Mayorista · Viña del Mar, Chile</p>
         <p className="mt-1">Consultas: <a href="mailto:hola@seoulshop.cl" className="underline hover:text-[var(--color-brand)]">hola@seoulshop.cl</a></p>
         <p className="mt-2 opacity-50">Creado por VÉRTICE Productions · verticeproductions.com</p>
       </footer>

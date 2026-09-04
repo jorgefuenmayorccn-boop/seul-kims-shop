@@ -4,7 +4,7 @@ export function localBusinessJsonLd() {
   return {
     '@context': 'https://schema.org',
     '@type': 'GroceryStore',
-    name: 'SEUL SHOP CL',
+    name: 'SEOUL SHOP CL',
     url: BASE_URL,
     priceRange: '$$',
     address: {
@@ -51,7 +51,7 @@ export function productJsonLd(product: {
           : 'https://schema.org/OutOfStock',
       seller: {
         '@type': 'Organization',
-        name: 'SEUL SHOP CL',
+        name: 'SEOUL SHOP CL',
       },
     },
   }

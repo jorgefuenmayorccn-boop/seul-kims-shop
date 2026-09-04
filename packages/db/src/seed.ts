@@ -1,4 +1,4 @@
-// Seed SEUL KING OS v1.0 — 10 productos coreanos reales con inventario
+// Seed SEOUL KING OS v1.0 — 10 productos coreanos reales con inventario
 // Ejecutar: DATABASE_URL=... npx tsx packages/db/src/seed.ts
 
 import { neon } from '@neondatabase/serverless'
@@ -18,7 +18,7 @@ function daysFromNow(days: number): Date {
 }
 
 async function main() {
-  console.log('🌱 Seeding Seoul Kims DB...')
+  console.log('🌱 Seeding Seoul Shop DB...')
 
   // 1. tiendaConfig
   await db.insert(schema.tiendaConfig).values([
@@ -33,7 +33,7 @@ async function main() {
     { key: 'bank_account',         value: 'CONFIRMAR' },
     { key: 'bank_account_type',    value: 'Cuenta Corriente' },
     { key: 'bank_rut',             value: 'CONFIRMAR' },
-    { key: 'bank_holder',          value: 'Seoul Kims' },
+    { key: 'bank_holder',          value: 'Seoul Shop' },
   ]).onConflictDoNothing()
 
   // 1b. Local por defecto (adición post-entrega, 3-sep-2026, Fase 1 del plan
@@ -266,7 +266,7 @@ async function main() {
   console.log('   - Categorías: 8')
   console.log('   - Productos: 10 (con barcodes EAN-13)')
   console.log('   - Lotes de inventario: 10')
-  console.log('\n⚠️  Confirmar con dueño Seoul Kims:')
+  console.log('\n⚠️  Confirmar con dueño Seoul Shop:')
   console.log('   - metro_station_name (¿Miramar?)')
   console.log('   - store_address y store_rut')
   console.log('   - dte_provider (bsale/toku/haulmer)')

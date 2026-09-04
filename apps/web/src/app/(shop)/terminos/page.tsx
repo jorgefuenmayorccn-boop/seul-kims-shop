@@ -1,8 +1,8 @@
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Términos y Condiciones | SEUL SHOP',
-  description: 'Términos y condiciones de uso de SEUL SHOP CL. Plataforma de venta de productos coreanos en Viña del Mar, Chile.',
+  title: 'Términos y Condiciones | SEOUL SHOP',
+  description: 'Términos y condiciones de uso de SEOUL SHOP CL. Plataforma de venta de productos coreanos en Viña del Mar, Chile.',
 }
 
 export default function TerminosPage() {
@@ -24,7 +24,7 @@ export default function TerminosPage() {
           Términos y Condiciones
         </h1>
         <p className="font-body text-xs mb-10" style={{ color: 'var(--color-heuk)', opacity: 0.45 }}>
-          Última actualización: agosto 2026 · Seoul Kims, Viña del Mar, Chile
+          Última actualización: agosto 2026 · Seoul Shop, Viña del Mar, Chile
         </p>
 
         <div className="space-y-8 font-body text-sm leading-relaxed" style={{ color: 'var(--color-heuk)', opacity: 0.85 }}>
@@ -32,8 +32,8 @@ export default function TerminosPage() {
           <section>
             <h2 className="font-headline font-bold text-base mb-3" style={{ opacity: 1 }}>1. Objeto y ámbito de aplicación</h2>
             <p>
-              Los presentes Términos y Condiciones regulan el acceso y uso de la plataforma digital de Seoul Kims
-              (en adelante, "la Plataforma"), operada por Seoul Kims (RUT pendiente de confirmación),
+              Los presentes Términos y Condiciones regulan el acceso y uso de la plataforma digital de Seoul Shop
+              (en adelante, "la Plataforma"), operada por Seoul Shop (RUT pendiente de confirmación),
               con domicilio en Viña del Mar, Región de Valparaíso, República de Chile.
             </p>
             <p className="mt-2">
@@ -50,7 +50,7 @@ export default function TerminosPage() {
               completar el pago, y te contactaremos para coordinar la entrega.
             </p>
             <p className="mt-2">
-              Seoul Kims se reserva el derecho de rechazar o cancelar pedidos por razones de stock insuficiente,
+              Seoul Shop se reserva el derecho de rechazar o cancelar pedidos por razones de stock insuficiente,
               error en el precio publicado u otras causas justificadas, notificando al cliente a la brevedad.
             </p>
             <p className="mt-2">
@@ -60,7 +60,7 @@ export default function TerminosPage() {
 
           <section>
             <h2 className="font-headline font-bold text-base mb-3" style={{ opacity: 1 }}>3. Despacho y entrega</h2>
-            <p>Seoul Kims ofrece las siguientes modalidades de entrega:</p>
+            <p>Seoul Shop ofrece las siguientes modalidades de entrega:</p>
             <ul className="mt-2 space-y-1 pl-4 list-disc">
               <li><strong>Retiro en Metro Merval:</strong> Gratuito en la estación y fecha elegidas al finalizar el pedido.</li>
               <li><strong>Retiro en tienda:</strong> Gratuito en Viña del Mar.</li>
@@ -69,7 +69,7 @@ export default function TerminosPage() {
             </ul>
             <p className="mt-2">
               Los plazos de entrega son referenciales y pueden variar por causas externas.
-              Seoul Kims no se hace responsable por retrasos imputables a terceros transportistas.
+              Seoul Shop no se hace responsable por retrasos imputables a terceros transportistas.
             </p>
           </section>
 
@@ -82,7 +82,7 @@ export default function TerminosPage() {
             </p>
             <p className="mt-2">
               Los productos perecibles, de cadena de frío, o que por su naturaleza no puedan ser devueltos en condiciones
-              de higiene adecuadas, quedan excluidos del derecho a retracto, salvo defecto imputable a Seoul Kims.
+              de higiene adecuadas, quedan excluidos del derecho a retracto, salvo defecto imputable a Seoul Shop.
             </p>
             <p className="mt-2">
               Para iniciar una devolución, visita la sección <a href="/devoluciones" className="underline" style={{ color: 'var(--color-seoul-red)' }}>Devoluciones</a> de nuestra Plataforma.
@@ -96,7 +96,7 @@ export default function TerminosPage() {
               de la República de Chile, vigente desde el 1° de diciembre de 2026.
             </p>
             <p className="mt-2">
-              Seoul Kims trata tus datos con las siguientes finalidades: (i) gestión de pedidos y entregas,
+              Seoul Shop trata tus datos con las siguientes finalidades: (i) gestión de pedidos y entregas,
               (ii) comunicaciones de servicio, y (iii) comunicaciones comerciales, únicamente si has otorgado
               tu consentimiento explícito para ello.
             </p>
@@ -109,7 +109,7 @@ export default function TerminosPage() {
           <section>
             <h2 className="font-headline font-bold text-base mb-3" style={{ opacity: 1 }}>6. Propiedad intelectual</h2>
             <p>
-              Todos los contenidos de la Plataforma (textos, imágenes, logotipos, diseño) son propiedad de Seoul Kims
+              Todos los contenidos de la Plataforma (textos, imágenes, logotipos, diseño) son propiedad de Seoul Shop
               o de sus licenciantes, y están protegidos por las leyes de propiedad intelectual de Chile.
               Queda prohibida su reproducción sin autorización expresa.
             </p>
@@ -118,8 +118,8 @@ export default function TerminosPage() {
           <section>
             <h2 className="font-headline font-bold text-base mb-3" style={{ opacity: 1 }}>7. Limitación de responsabilidad</h2>
             <p>
-              Seoul Kims no será responsable por daños indirectos, incidentales o consecuentes derivados del uso
-              o imposibilidad de uso de la Plataforma. La responsabilidad total de Seoul Kims frente a un cliente
+              Seoul Shop no será responsable por daños indirectos, incidentales o consecuentes derivados del uso
+              o imposibilidad de uso de la Plataforma. La responsabilidad total de Seoul Shop frente a un cliente
               no podrá exceder el valor del pedido involucrado.
             </p>
           </section>
@@ -136,7 +136,7 @@ export default function TerminosPage() {
           <section>
             <h2 className="font-headline font-bold text-base mb-3" style={{ opacity: 1 }}>9. Modificaciones</h2>
             <p>
-              Seoul Kims se reserva el derecho de modificar estos Términos en cualquier momento.
+              Seoul Shop se reserva el derecho de modificar estos Términos en cualquier momento.
               Las modificaciones serán notificadas a los usuarios registrados por correo electrónico
               con al menos 10 días de anticipación. El uso continuado de la Plataforma tras la notificación
               implica la aceptación de los términos modificados.
@@ -157,7 +157,7 @@ export default function TerminosPage() {
         <div className="mt-12 pt-8 border-t text-center" style={{ borderColor: 'var(--color-border-editorial)' }}>
           <p className="font-korean font-bold" style={{ color: 'var(--color-celadon)' }}>감사합니다</p>
           <p className="font-body text-xs mt-1" style={{ color: 'var(--color-heuk)', opacity: 0.35 }}>
-            Seoul Kims · Viña del Mar · Chile
+            Seoul Shop · Viña del Mar · Chile
           </p>
         </div>
       </div>

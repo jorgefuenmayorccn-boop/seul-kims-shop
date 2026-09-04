@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { FileText, ExternalLink, Clock } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Boleta electrónica — SEUL SHOP',
+  title: 'Boleta electrónica — SEOUL SHOP',
   robots: { index: false },   // no indexar URLs de boletas
 }
 
@@ -20,7 +20,7 @@ export default function BoletaPage({ params }: { params: { token: string } }) {
 
         <h1 className="text-lg font-bold">Tu boleta electrónica</h1>
         <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-          Documento tributario emitido por SEUL SHOP CL
+          Documento tributario emitido por SEOUL SHOP CL
         </p>
 
         <a

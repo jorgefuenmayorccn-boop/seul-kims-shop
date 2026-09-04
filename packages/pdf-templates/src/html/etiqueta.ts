@@ -139,7 +139,7 @@ export function renderEtiquetaHtml(e: EtiquetaPayload): string {
 
   const body = `
 <div class="etiqueta-header">
-  <div class="brand-mini">Seoul Kims</div>
+  <div class="brand-mini">Seoul Shop</div>
   <div class="channel-pill">${channel}</div>
 </div>
 
@@ -164,7 +164,7 @@ ${recipientHtml}
 `
 
   return htmlShell(
-    `Etiqueta #${e.number} · Seoul Kims`,
+    `Etiqueta #${e.number} · Seoul Shop`,
     body,
     ETIQUETA_CSS,
   )

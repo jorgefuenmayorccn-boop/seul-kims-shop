@@ -178,7 +178,7 @@ export default function RegistroB2BPage() {
             </div>
 
             <div className="rounded-lg bg-[var(--color-surface-sunken)] p-3 text-xs text-[var(--color-text-secondary)]">
-              Al enviar tu solicitud, SEUL SHOP revisará tu información y te contactará por correo para activar tu cuenta.
+              Al enviar tu solicitud, SEOUL SHOP revisará tu información y te contactará por correo para activar tu cuenta.
             </div>
 
             <div className="flex gap-3">

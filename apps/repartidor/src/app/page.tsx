@@ -905,7 +905,7 @@ export default function RepartidorPage() {
         style={{ background: 'var(--color-surface-elevated)', borderColor: 'var(--color-border)' }}
       >
         <div>
-          <p className="font-headline font-bold text-base" style={{ color: 'var(--color-text)' }}>SEUL DRIVE</p>
+          <p className="font-headline font-bold text-base" style={{ color: 'var(--color-text)' }}>SEOUL DRIVE</p>
           <p className="font-body text-xs" style={{ color: 'var(--color-text-muted)' }}>Hola, {driver.name}</p>
         </div>
         <div className="flex items-center gap-3">

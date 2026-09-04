@@ -8,8 +8,8 @@ import { MobileMenu } from '@/components/shop/mobile-menu'
 
 export const metadata: Metadata = {
   title: {
-    default: 'SEUL SHOP — Tienda coreana en Viña del Mar',
-    template: '%s | SEUL SHOP',
+    default: 'SEOUL SHOP — Tienda coreana en Viña del Mar',
+    template: '%s | SEOUL SHOP',
   },
 }
 
@@ -39,7 +39,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
               className="font-body font-semibold text-sm tracking-widest hidden sm:block"
               style={{ color: 'var(--color-heuk)', opacity: 0.55, letterSpacing: '0.16em' }}
             >
-              SEUL SHOP
+              SEOUL SHOP
             </span>
             </a>
           </div>
@@ -63,7 +63,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
       </main>
 
       {/* ChatWidget oculto (adición post-entrega, 3-sep-2026) — el "Asistente
-          Seoul Kims" nunca tuvo backend real (POST /api/chat no existe),
+          Seoul Shop" nunca tuvo backend real (POST /api/chat no existe),
           siempre caía a un mensaje de error con WhatsApp. Decisión del
           dueño: ocultarlo hasta que haya un asistente real conectado. El
           componente sigue en packages/ui/src/chat/chat-widget.tsx — reactivar

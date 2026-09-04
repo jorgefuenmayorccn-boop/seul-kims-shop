@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import '../styles/globals.css'
 
 export const metadata: Metadata = {
-  title: 'SEUL POS',
-  description: 'Punto de venta — SEUL POS · Viña del Mar',
+  title: 'SEOUL POS',
+  description: 'Punto de venta — SEOUL POS · Viña del Mar',
 }
 
 export default function POSLayout({ children }: { children: React.ReactNode }) {

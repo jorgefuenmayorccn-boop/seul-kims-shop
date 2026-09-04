@@ -53,7 +53,7 @@ export default function PrivacidadPage() {
       {/* Info legal */}
       <div className="mb-8 rounded-lg bg-[var(--color-surface-sunken)] p-5 text-sm text-[var(--color-text-secondary)] space-y-2">
         <p>
-          En Seoul Kims tratamos tus datos con responsabilidad. Tienes derecho a acceder, rectificar,
+          En Seoul Shop tratamos tus datos con responsabilidad. Tienes derecho a acceder, rectificar,
           suprimir o portar tus datos personales conforme a la <strong className="text-[var(--color-text)]">Ley 21.719</strong>.
         </p>
         <p>

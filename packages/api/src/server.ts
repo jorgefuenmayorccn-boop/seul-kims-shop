@@ -117,7 +117,7 @@ const corsOptions = cors({
 app.use('/api/*', corsOptions)
 
 // HEALTH
-app.get('/', (c) => c.json({ service: 'SEUL KING OS API v1.0' }))
+app.get('/', (c) => c.json({ service: 'SEOUL KING OS API v1.0' }))
 app.get('/health', async (c) => {
   try {
     await sql`SELECT 1`
@@ -235,7 +235,7 @@ app.get('/b2b-docs/:filename', async (c) => {
 app.get('/diagnostic', (c) => {
   return c.json({
     timestamp: new Date().toISOString(),
-    service: 'SEUL KING OS API v1.0',
+    service: 'SEOUL KING OS API v1.0',
     status: 'online',
     cors: 'enabled',
     testUser: 'founder@seoulshop.cl',
@@ -6126,7 +6126,7 @@ app.post('/api/auth/register', async (c) => {
     try {
       await enqueueEmail(
         email,
-        '🎉 ¡Bienvenido a SEUL KING OS v1.0!',
+        '🎉 ¡Bienvenido a SEOUL KING OS v1.0!',
         templates.initialCredentials({
           email,
           password: tempPassword,
@@ -7397,7 +7397,7 @@ app.post('/api/arcop', async (c) => {
 
     enqueueEmail(
       email,
-      'Solicitud ARCOP recibida — Seoul Kims',
+      'Solicitud ARCOP recibida — Seoul Shop',
       `<p>Hola ${name}, recibimos tu solicitud de <strong>${type}</strong> sobre tus datos personales (Ley 21.719). Te responderemos a este correo antes del ${deadlineLabel}.</p>`,
       'contact-form-reply'
     ).catch(err => console.error('ARCOP confirm email error:', err))
@@ -7809,7 +7809,7 @@ app.get('/api/events/delivery', async (c) => {
 // STARTUP
 // ============================================================================
 
-console.log(`🚀 SEUL API v1.0 (Node.js + Railway) — Redeploy after Neon Scale upgrade`)
+console.log(`🚀 SEOUL API v1.0 (Node.js + Railway) — Redeploy after Neon Scale upgrade`)
 console.log(`✅ Admin: ${ADMIN_EMAIL}`)
 
 // Validate DB connection on startup (non-blocking)

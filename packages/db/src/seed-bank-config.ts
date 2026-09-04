@@ -17,7 +17,7 @@ async function main() {
     { key: 'bank_account',      value: 'CONFIRMAR' },
     { key: 'bank_account_type', value: 'Cuenta Corriente' },
     { key: 'bank_rut',          value: 'CONFIRMAR' },
-    { key: 'bank_holder',       value: 'Seoul Kims' },
+    { key: 'bank_holder',       value: 'Seoul Shop' },
   ]
 
   await db.insert(tiendaConfig).values(keys).onConflictDoNothing()

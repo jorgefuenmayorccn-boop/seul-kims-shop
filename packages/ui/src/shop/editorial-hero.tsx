@@ -53,7 +53,7 @@ export function EditorialHero({
           >
             <Image
               src={photos[activeIndex]}
-              alt="Seoul Kims — Productos coreanos"
+              alt="Seoul Shop — Productos coreanos"
               fill
               sizes="100vw"
               className="object-cover"

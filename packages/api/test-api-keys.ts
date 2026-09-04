@@ -28,7 +28,7 @@ async function runTests() {
   const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://localhost/seul_dev'
   const sql = postgres(DATABASE_URL, { ssl: 'require' })
 
-  console.log('🧪 Testing SEUL API Keys System\n')
+  console.log('🧪 Testing SEOUL API Keys System\n')
 
   try {
     // Step 1: Create tables

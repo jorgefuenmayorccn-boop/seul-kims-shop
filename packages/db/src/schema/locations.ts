@@ -1,6 +1,6 @@
 import { pgTable, uuid, text, boolean, timestamp } from 'drizzle-orm/pg-core'
 
-// Local físico de Seoul Kims (adición post-entrega, 3-sep-2026, migración
+// Local físico de Seoul Shop (adición post-entrega, 3-sep-2026, migración
 // 0027 — Fase 1 del plan multilocal). El dueño ve todo consolidado de todos
 // los locales; su staff queda atado a uno (ver users.locationId en auth.ts).
 // dte_provider/dte_api_key/dte_rut_empresa quedan acá (no en env vars de

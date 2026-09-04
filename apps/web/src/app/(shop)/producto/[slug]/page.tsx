@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     const p = await apiServerFetch<ProductDetail>(`/api/products/${params.slug}`, {
       tags: [CACHE_TAGS.product(params.slug)],
     })
-    const description = p.description ?? `${p.name} — SEUL SHOP CL, Viña del Mar`
+    const description = p.description ?? `${p.name} — SEOUL SHOP CL, Viña del Mar`
     return {
       title: p.name,
       description,
@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
           : [],
         type: 'website',
         locale: 'es_CL',
-        siteName: 'SEUL SHOP',
+        siteName: 'SEOUL SHOP',
       },
       twitter: {
         card: 'summary_large_image',

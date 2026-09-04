@@ -179,7 +179,7 @@ export function ShopFooter() {
             <a
               href="mailto:hola@seoulshop.cl"
               className="flex items-center gap-2 group"
-              aria-label="Email SEUL SHOP"
+              aria-label="Email SEOUL SHOP"
             >
               <Mail
                 size={18}
@@ -213,7 +213,7 @@ export function ShopFooter() {
             className="font-body text-xs"
             style={{ color: 'var(--color-heuk)', opacity: 0.4 }}
           >
-            SEUL SHOP CL · Viña del Mar, Chile
+            SEOUL SHOP CL · Viña del Mar, Chile
           </span>
         </div>
 

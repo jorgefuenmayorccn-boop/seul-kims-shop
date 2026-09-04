@@ -16,7 +16,7 @@ export const apiScopeEnum = pgEnum('api_scope', [
 ])
 
 /**
- * API Keys table - for programmatic access to SEUL API
+ * API Keys table - for programmatic access to SEOUL API
  *
  * Usage:
  * - Third-party integrations (POS, accounting software, etc)

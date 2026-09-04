@@ -135,7 +135,7 @@ export default function RegistroPage() {
                 </div>
               </div>
               <span className="font-body text-xs leading-relaxed" style={{ color: 'var(--color-heuk)', opacity: 0.6 }}>
-                Deseo recibir promociones y novedades de SEUL SHOP por correo electrónico (opcional)
+                Deseo recibir promociones y novedades de SEOUL SHOP por correo electrónico (opcional)
               </span>
             </label>
           </div>

@@ -4,13 +4,13 @@ import '../styles/globals.css'
 
 export const metadata: Metadata = {
   title: {
-    default: 'SEUL SHOP — Tienda coreana en Viña del Mar',
-    template: '%s | SEUL SHOP',
+    default: 'SEOUL SHOP — Tienda coreana en Viña del Mar',
+    template: '%s | SEOUL SHOP',
   },
   description: 'Kimchi, ramen, snacks y K-beauty. Retiro gratis en Metro Merval o delivery con Rappi. Viña del Mar, Chile.',
   keywords: ['korea', 'kimchi', 'ramen', 'kpop', 'tienda coreana', 'viña del mar', 'chile'],
   openGraph: {
-    siteName: 'SEUL SHOP',
+    siteName: 'SEOUL SHOP',
     locale: 'es_CL',
   },
 }

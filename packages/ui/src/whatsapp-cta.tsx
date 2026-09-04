@@ -12,7 +12,7 @@ const SEUL_WA_NUMBER = '56948785299'
 
 export function WhatsAppCTA({
   phone = SEUL_WA_NUMBER,
-  message = '¡Hola! Quiero hacer un pedido en Seoul Kims',
+  message = '¡Hola! Quiero hacer un pedido en Seoul Shop',
   variant = 'floating',
   className,
 }: WhatsAppCTAProps) {

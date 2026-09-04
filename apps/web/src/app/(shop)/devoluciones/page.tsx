@@ -58,7 +58,7 @@ export default function DevolucionesPage() {
         </p>
         <p>
           Productos de <strong className="text-[var(--color-text)]">cadena de frío</strong> (congelados/refrigerados) solo son
-          elegibles si el defecto es imputable a Seoul Kims.
+          elegibles si el defecto es imputable a Seoul Shop.
         </p>
         <p>
           ¿Necesitas ayuda urgente?{' '}

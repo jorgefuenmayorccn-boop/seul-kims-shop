@@ -285,11 +285,11 @@ export const templates = {
   initialCredentials: ({ email, password, name, role }) => `
     <div style="font-family: Arial; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
       <div style="background: white; padding: 30px; border-radius: 8px;">
-        <h1 style="color: #333; margin-top: 0;">🎉 ¡Bienvenido a SEUL KING OS!</h1>
+        <h1 style="color: #333; margin-top: 0;">🎉 ¡Bienvenido a SEOUL KING OS!</h1>
 
         <p style="color: #555; line-height: 1.6;">
           Hola <strong>${name}</strong>,<br>
-          Has sido agregado como <strong>${role.toUpperCase()}</strong> al sistema SEUL KING OS v1.0.
+          Has sido agregado como <strong>${role.toUpperCase()}</strong> al sistema SEOUL KING OS v1.0.
         </p>
 
         <div style="background: #f0f0f0; padding: 20px; border-radius: 6px; margin: 20px 0;">
@@ -313,7 +313,7 @@ export const templates = {
 
         <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
         <p style="color: #888; font-size: 12px; text-align: center;">
-          SEUL KING OS v1.0 | Sistema de Gestión Seoul Kims<br>
+          SEOUL KING OS v1.0 | Sistema de Gestión Seoul Shop<br>
           Si no solicicitaste este acceso, contáctanos inmediatamente.
         </p>
       </div>
@@ -347,7 +347,7 @@ export const templates = {
 
         <hr style="border: none; border-top: 1px solid #ddd; margin: 30px 0;">
         <p style="color: #888; font-size: 12px; text-align: center;">
-          SEUL KING OS v1.0 | Si no realizaste este cambio, contáctanos inmediatamente.
+          SEOUL KING OS v1.0 | Si no realizaste este cambio, contáctanos inmediatamente.
         </p>
       </div>
     </div>
@@ -356,7 +356,7 @@ export const templates = {
   // ==========================================================================
   // CLIENTE FINAL (apps/web, tienda B2C/B2B) — S09, Fase 3. Separadas de las
   // plantillas de STAFF de arriba (initialCredentials/passwordChangedSuccess)
-  // a propósito: distinto branding (Seoul Shop, no "SEUL KING OS"), distinto
+  // a propósito: distinto branding (Seoul Shop, no "SEOUL KING OS"), distinto
   // link de destino (seoulshop.cl, no cmr.seoulshop.cl).
   // ==========================================================================
 

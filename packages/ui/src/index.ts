@@ -1,4 +1,4 @@
-// SEUL KING OS — UI Package barrel export
+// SEOUL KING OS — UI Package barrel export
 
 // Lib
 export { cn, formatCLP, formatRUT, friendlyErrorMessage } from './lib/utils'

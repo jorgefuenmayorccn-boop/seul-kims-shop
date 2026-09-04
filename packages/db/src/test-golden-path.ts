@@ -1,5 +1,5 @@
 /**
- * Golden Path E2E Test — Seoul Kims OS v1.0
+ * Golden Path E2E Test — Seoul Shop OS v1.0
  *
  * Prueba los 6 puntos del flujo completo:
  *   1. API health

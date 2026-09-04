@@ -66,7 +66,7 @@ export default async function FaqPage() {
           className="font-body text-sm mt-3 max-w-lg"
           style={{ color: 'var(--color-heuk)', opacity: 0.55 }}
         >
-          Todo lo que necesitas saber sobre SEUL SHOP — pedidos, envíos, productos y privacidad.
+          Todo lo que necesitas saber sobre SEOUL SHOP — pedidos, envíos, productos y privacidad.
         </p>
       </section>
 

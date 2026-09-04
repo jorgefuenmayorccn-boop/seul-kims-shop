@@ -113,7 +113,7 @@ function clp(n: number) {
 export function renderDeliveryPayoutHtml(data: DeliveryPayoutData): string {
   const body = `
     <div class="payout-header">
-      <div class="brand">Seoul Kims</div>
+      <div class="brand">Seoul Shop</div>
       <div class="doc-title">Liquidación de Turno</div>
     </div>
 
@@ -160,7 +160,7 @@ export function renderDeliveryPayoutHtml(data: DeliveryPayoutData): string {
 
     <div class="footer">
       Emitido: ${fmt(data.issuedAt ?? new Date().toISOString())}<br/>
-      Documento interno — Seoul Kims @seoulshopcl
+      Documento interno — Seoul Shop @seoulshopcl
     </div>
   `
   return htmlShell(`Liquidación — ${data.driverName}`, body, CSS)

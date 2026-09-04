@@ -6,7 +6,7 @@ import type { ProductCardEditorialData } from '@seul/ui/shop/product-card-editor
 import { ProductSearch } from '@/components/shop/product-search'
 
 export const metadata: Metadata = {
-  title: 'Productos | SEUL SHOP',
+  title: 'Productos | SEOUL SHOP',
   description: 'Explora nuestra selección de productos coreanos auténticos importados directamente desde Corea del Sur.',
 }
 
